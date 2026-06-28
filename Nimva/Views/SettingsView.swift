@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import AuthenticationServices
 
 struct SettingsView: View {
     // @AppStorage persists each preference to UserDefaults automatically.
@@ -13,15 +12,12 @@ struct SettingsView: View {
 
     // modelContext lets us delete SwiftData records (used by Clear all data)
     @Environment(\.modelContext) private var modelContext
-    @Environment(AuthService.self) private var authService
 
     @State private var showingNameEditor = false
     @State private var nameEditDraft = ""
     @State private var showingResetPatternsConfirm = false
     @State private var showingClearDataConfirm = false
     @State private var showingExportInfo = false
-    @State private var showingSignInSheet = false
-    @State private var showingSignOutConfirm = false
 
     var body: some View {
         ZStack {
@@ -58,16 +54,6 @@ struct SettingsView: View {
             Button("Got it", role: .cancel) { }
         } message: {
             Text("Data export is coming in a future update. Your events and schedule history will be downloadable as a file.")
-        }
-        .sheet(isPresented: $showingSignInSheet) {
-            SettingsSignInSheet()
-                .environment(authService)
-        }
-        .confirmationDialog("Sign out?", isPresented: $showingSignOutConfirm, titleVisibility: .visible) {
-            Button("Sign out", role: .destructive) { authService.signOut() }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Your events and schedule stay on this device. You can sign back in any time.")
         }
         // Destructive confirmations use confirmationDialog so the OS shows the action sheet
         .confirmationDialog("Reset learned patterns?", isPresented: $showingResetPatternsConfirm, titleVisibility: .visible) {
@@ -128,9 +114,9 @@ struct SettingsView: View {
                 Text(displayName)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(NimvaColors.textPrimary)
-                Text(authService.isSignedIn ? "Syncing with iCloud" : "Stored on this device")
+                Text("Stored on this device")
                     .font(.system(size: 11))
-                    .foregroundStyle(authService.isSignedIn ? NimvaColors.teal : NimvaColors.textMuted)
+                    .foregroundStyle(NimvaColors.textMuted)
             }
 
             Spacer()
@@ -250,27 +236,25 @@ struct SettingsView: View {
         SettingsSection(title: "Account") {
             ActionRow(label: "Export my data", style: .normal) { showingExportInfo = true }
             SettingsDivider()
-
-            if authService.isSignedIn {
-                // Show confirmation that Apple ID is connected
-                HStack(spacing: 12) {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 15))
-                        .foregroundStyle(NimvaColors.teal)
-                    Text("Apple ID connected")
+            // iCloud sync uses the device's iCloud account automatically via CloudKit.
+            // No separate sign-in flow needed.
+            HStack(spacing: 14) {
+                Image(systemName: "icloud.fill")
+                    .font(.system(size: 15))
+                    .foregroundStyle(NimvaColors.textMuted)
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("iCloud sync")
                         .font(.system(size: 14))
                         .foregroundStyle(NimvaColors.textPrimary)
-                    Spacer()
+                    Text("Uses your iCloud account automatically")
+                        .font(.system(size: 11))
+                        .foregroundStyle(NimvaColors.textMuted)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-
-                SettingsDivider()
-                ActionRow(label: "Sign out", style: .destructive) { showingSignOutConfirm = true }
-            } else {
-                ActionRow(label: "Sign in with Apple", style: .normal) { showingSignInSheet = true }
+                Spacer()
             }
-
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
             SettingsDivider()
             ActionRow(label: "Clear all data", style: .destructive) { showingClearDataConfirm = true }
         }
@@ -390,76 +374,7 @@ private struct ActionRow: View {
     }
 }
 
-// MARK: - Sign-in sheet (shown when tapping "Sign in with Apple" from Settings)
-
-// Presented modally so the user doesn't leave the Settings flow.
-// Identical in behavior to SignInView but without the "Continue without signing in" skip —
-// the user is already past onboarding so they're choosing to sign in intentionally.
-private struct SettingsSignInSheet: View {
-    @Environment(AuthService.self) private var authService
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ZStack {
-            NimvaColors.background.ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                // Drag indicator
-                Capsule()
-                    .fill(NimvaColors.border)
-                    .frame(width: 36, height: 4)
-                    .padding(.top, 12)
-
-                Spacer()
-
-                VStack(spacing: 24) {
-                    Text("🐣")
-                        .font(.system(size: 48))
-
-                    VStack(spacing: 8) {
-                        Text("Sign in with Apple")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(NimvaColors.textPrimary)
-
-                        Text("Your events will sync to iCloud and be\navailable on all your devices.")
-                            .font(.system(size: 14))
-                            .foregroundStyle(NimvaColors.textSecondary)
-                            .multilineTextAlignment(.center)
-                    }
-                }
-
-                Spacer()
-
-                VStack(spacing: 16) {
-                    SignInWithAppleButton(.signIn, onRequest: { request in
-                        request.requestedScopes = [.fullName]
-                    }, onCompletion: { result in
-                        if case .success(let auth) = result,
-                           let credential = auth.credential as? ASAuthorizationAppleIDCredential {
-                            authService.handleCredential(credential)
-                        }
-                        dismiss()
-                    })
-                    .signInWithAppleButtonStyle(.white)
-                    .frame(height: 52)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-
-                    Button { dismiss() } label: {
-                        Text("Maybe later")
-                            .font(.system(size: 14))
-                            .foregroundStyle(NimvaColors.textMuted)
-                    }
-                    .frame(minHeight: 44)
-                }
-                .padding(.horizontal, 28)
-                .padding(.bottom, 48)
-            }
-        }
-    }
-}
-
 #Preview {
     SettingsView()
         .modelContainer(for: [Event.self, WeekCache.self], inMemory: true)
-        .environment(AuthService())
 }
