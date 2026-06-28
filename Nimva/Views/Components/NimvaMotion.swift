@@ -8,20 +8,24 @@ import SwiftUI
 
 enum NimvaAnimation {
     // Snappy press/release — makes button taps feel physical and immediate
-    static let buttonPress = Animation.spring(response: 0.2, dampingFraction: 0.7)
+    static let buttonPress   = Animation.spring(response: 0.2, dampingFraction: 0.7)
 
     // Cards, sheets, and new content entering the screen — medium bounce
-    static let cardAppear  = Animation.spring(response: 0.4, dampingFraction: 0.75)
+    static let cardAppear    = Animation.spring(response: 0.4, dampingFraction: 0.75)
 
     // State switches — Ember expression changes, mood labels, day selection
     // Slightly higher damping = settles quickly without lingering bounce
-    static let stateChange = Animation.spring(response: 0.35, dampingFraction: 0.85)
+    static let stateChange   = Animation.spring(response: 0.35, dampingFraction: 0.85)
 
     // Progress bars, energy bar fill, numeric values ticking up
-    static let valueUpdate = Animation.easeOut(duration: 0.5)
+    static let valueUpdate   = Animation.easeOut(duration: 0.5)
 
     // Tab and screen transitions — subtle, quick crossfade
-    static let transition  = Animation.easeInOut(duration: 0.25)
+    static let transition    = Animation.easeInOut(duration: 0.25)
+
+    // Squash-and-stretch — low damping so the spring overshoots on entry,
+    // giving scaleY the "stretch past 1.0 then settle" feel
+    static let squashStretch = Animation.spring(response: 0.42, dampingFraction: 0.58)
 }
 
 // MARK: - Reduce Motion
@@ -77,6 +81,36 @@ private struct PressScaleModifier: ViewModifier {
                     .onChanged { _ in isPressed = true }
                     .onEnded   { _ in isPressed = false }
             )
+    }
+}
+
+// MARK: - Squash-Stretch Transition
+
+// Used for text that changes with state (mood label, day note).
+// On removal: the view squashes to scaleY ≈ 0 (wider in X, invisible).
+// On insertion: springs from that squashed state back to full size — the bouncy
+// spring overshoots scaleY past 1.0 before settling, which is the "stretch" beat.
+// The opacity=0 in the active state means the swap happens while the view is invisible,
+// so the content change doesn't flash.
+
+private struct SquashTransformModifier: ViewModifier {
+    var scaleX: CGFloat
+    var scaleY: CGFloat
+    var opacity: Double
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(x: scaleX, y: scaleY)
+            .opacity(opacity)
+    }
+}
+
+extension AnyTransition {
+    static var squashStretch: AnyTransition {
+        .modifier(
+            active:   SquashTransformModifier(scaleX: 1.2,  scaleY: 0.01, opacity: 0),
+            identity: SquashTransformModifier(scaleX: 1.0,  scaleY: 1.0,  opacity: 1)
+        )
     }
 }
 

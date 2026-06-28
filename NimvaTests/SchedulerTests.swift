@@ -360,6 +360,61 @@ struct UserTypeDetectionTests {
     }
 }
 
+// MARK: - SchedulerTypes Display Properties
+
+@Suite("SchedulerTypes — Labels and Display Names")
+struct SchedulerTypesTests {
+
+    @Test func energyLabelCostsMatchRawValues() {
+        #expect(EnergyLabel.alright.cost == 0.25)
+        #expect(EnergyLabel.manageable.cost == 0.5)
+        #expect(EnergyLabel.takesEffort.cost == 0.75)
+        #expect(EnergyLabel.prettyDraining.cost == 1.0)
+    }
+
+    @Test func energyLabelDisplayNamesAreCorrect() {
+        #expect(EnergyLabel.alright.displayName == "Alright")
+        #expect(EnergyLabel.manageable.displayName == "Manageable")
+        #expect(EnergyLabel.takesEffort.displayName == "Takes Effort")
+        #expect(EnergyLabel.prettyDraining.displayName == "Pretty Draining")
+    }
+
+    @Test func timePreferenceDisplayNamesAreCorrect() {
+        #expect(TimePreference.morning.displayName == "Morning")
+        #expect(TimePreference.afternoon.displayName == "Afternoon")
+        #expect(TimePreference.evening.displayName == "Evening")
+        #expect(TimePreference.any.displayName == "Any time")
+    }
+
+    @Test func dayOfWeekDisplayNamesAreCorrect() {
+        let expected: [(DayOfWeek, String)] = [
+            (.monday, "Monday"), (.tuesday, "Tuesday"), (.wednesday, "Wednesday"),
+            (.thursday, "Thursday"), (.friday, "Friday"), (.saturday, "Saturday"),
+            (.sunday, "Sunday")
+        ]
+        for (day, name) in expected {
+            #expect(day.displayName == name)
+        }
+    }
+
+    @Test func dayOfWeekShortNamesAreThreeCharacters() {
+        for day in DayOfWeek.allCases {
+            #expect(day.shortName.count == 3)
+        }
+    }
+
+    @Test func dayOfWeekShortNamesMatchDisplayNamePrefix() {
+        let expected: [(DayOfWeek, String)] = [
+            (.monday, "Mon"), (.tuesday, "Tue"), (.wednesday, "Wed"),
+            (.thursday, "Thu"), (.friday, "Fri"), (.saturday, "Sat"),
+            (.sunday, "Sun")
+        ]
+        for (day, short) in expected {
+            #expect(day.shortName == short)
+        }
+    }
+}
+
 // MARK: - DayOfWeek Navigation
 
 @Suite("DayOfWeek — Next Day")
