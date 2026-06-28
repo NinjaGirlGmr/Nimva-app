@@ -4,10 +4,15 @@ import SwiftData
 @main
 struct NimvaApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    // Set to true the first time the user either signs in or explicitly skips.
+    // Once true, the sign-in screen never appears again.
+    @AppStorage("hasSeenSignInPrompt") private var hasSeenSignInPrompt = false
     @AppStorage("preferredColorScheme") private var preferredColorScheme = "system"
 
-    // Converts the stored string to SwiftUI's ColorScheme type.
-    // nil means follow the system setting (the default).
+    // @State on a reference type makes AuthService's @Observable changes drive re-renders.
+    // .environment() shares it with all child views.
+    @State private var authService = AuthService()
+
     private var resolvedColorScheme: ColorScheme? {
         switch preferredColorScheme {
         case "light": return .light
@@ -41,13 +46,24 @@ struct NimvaApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if hasCompletedOnboarding {
-                ContentView()
-                    .preferredColorScheme(resolvedColorScheme)
-            } else {
-                OnboardingView()
-                    .preferredColorScheme(resolvedColorScheme)
+            Group {
+                if authService.authState == .unknown {
+                    // Brief loading state while checkCredentialState() runs on launch.
+                    // Typically resolves in under 200ms so no spinner needed.
+                    NimvaColors.background.ignoresSafeArea()
+                } else if !hasSeenSignInPrompt {
+                    SignInView()
+                } else if !hasCompletedOnboarding {
+                    OnboardingView()
+                } else {
+                    ContentView()
+                }
             }
+            .preferredColorScheme(resolvedColorScheme)
+            .environment(authService)
+            // Verify the stored Apple credential on every cold launch.
+            // Sets authState from .unknown to .signedIn or .anonymous.
+            .task { await authService.checkCredentialState() }
         }
         .modelContainer(sharedModelContainer)
     }

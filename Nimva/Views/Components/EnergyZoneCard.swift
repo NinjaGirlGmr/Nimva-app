@@ -44,19 +44,21 @@ struct EnergyZoneCard: View {
                     Text(moodLabel)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(NimvaColors.textPrimary)
-                        .contentTransition(.opacity)
+                        .id(selectedDay)
+                        .transition(.squashStretch)
 
                     Text(dayNote)
                         .font(.system(size: 11))
                         .foregroundStyle(NimvaColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
-                        .contentTransition(.opacity)
+                        .id(selectedDay)
+                        .transition(.squashStretch)
 
                     Spacer(minLength: 8)
 
                     WeeklyEnergyBar(percent: weeklyPercent)
                 }
-                .animation(reduceMotion ? .none : NimvaAnimation.stateChange, value: selectedDay)
+                .animation(reduceMotion ? .none : NimvaAnimation.squashStretch, value: selectedDay)
             }
             .padding(16)
 
@@ -145,52 +147,66 @@ struct EnergyZoneCard: View {
 // MARK: - Ember Avatar
 
 // Placeholder circle for Ember until character art is ready.
-// The warm glow radiates from the center, making Ember the light source of the card.
+// Two-layer glow with different durations — they drift in and out of phase
+// over time, so the pulse never feels mechanical or perfectly looped.
 private struct EmberAvatar: View {
     let ringColor: Color
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var glowPulsing = false
+    @State private var glowing = false
 
     var body: some View {
         ZStack {
-            // Soft radial glow — breathes slowly to feel alive, skipped if reduce motion is on
+            // Outer corona — slow, large, very soft; bleeds warmth into the surrounding card
             Circle()
                 .fill(
                     RadialGradient(
-                        gradient: Gradient(colors: [
-                            NimvaColors.amberWarm.opacity(0.32),
-                            Color.clear
-                        ]),
+                        colors: [NimvaColors.amberWarm.opacity(0.6), Color.clear],
                         center: .center,
                         startRadius: 0,
-                        endRadius: 32
+                        endRadius: 40
                     )
                 )
-                .frame(width: 64, height: 64)
-                .blur(radius: 4)
-                .scaleEffect(glowPulsing ? 1.1 : 1.0)
-                .opacity(glowPulsing ? 0.44 : 0.32)
+                .frame(width: 82, height: 82)
+                .blur(radius: 14)
+                .scaleEffect(glowing ? 1.28 : 0.88)
+                .opacity(glowing ? 0.68 : 0.08)
                 .animation(
-                    reduceMotion ? .none : .easeInOut(duration: 1.8).repeatForever(autoreverses: true),
-                    value: glowPulsing
+                    reduceMotion ? .none : .easeInOut(duration: 2.4).repeatForever(autoreverses: true),
+                    value: glowing
                 )
-                .onAppear { glowPulsing = true }
+
+            // Inner glow — tighter, brighter, slightly faster; the "heartbeat" layer
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [NimvaColors.amberWarm.opacity(0.95), Color.clear],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 22
+                    )
+                )
+                .frame(width: 56, height: 56)
+                .blur(radius: 7)
+                .scaleEffect(glowing ? 1.18 : 0.82)
+                .opacity(glowing ? 0.9 : 0.22)
+                .animation(
+                    reduceMotion ? .none : .easeInOut(duration: 1.65).repeatForever(autoreverses: true),
+                    value: glowing
+                )
 
             // Avatar circle — ring color shifts warm/cool based on day load
             Circle()
                 .fill(NimvaColors.surfaceDeep)
                 .frame(width: 48, height: 48)
-                .overlay(
-                    Circle()
-                        .strokeBorder(ringColor, lineWidth: 2)
-                )
+                .overlay(Circle().strokeBorder(ringColor, lineWidth: 2))
 
             // Placeholder emoji — replaced by custom Ember art in production
             Text("🐣")
                 .font(.system(size: 22))
         }
         .frame(width: 56, height: 56)
+        .onAppear { glowing = true }
         .nimvaAnimation(NimvaAnimation.stateChange, value: ringColor)
     }
 }
