@@ -272,9 +272,18 @@ struct SettingsView: View {
     // MARK: - Actions
 
     private func resetPatterns() {
-        // Per-category energy baselines will be cleared here once the check-in
-        // flow is built and baselines are persisted in SwiftData.
-        // For now, the confirmation dialog itself communicates intent to the user.
+        // Clear learned per-category baselines from UserDefaults
+        PatternService.shared.reset()
+
+        // Clear check-in ratings from all WeekCache records so the
+        // feedback loop restarts from scratch and the check-in banner
+        // reappears on the home screen
+        let caches = (try? modelContext.fetch(FetchDescriptor<WeekCache>())) ?? []
+        for cache in caches {
+            cache.checkInRating = nil
+            cache.checkInHardestDayRawValue = nil
+            cache.checkInCompletedAt = nil
+        }
     }
 
     private func clearAllData() {
