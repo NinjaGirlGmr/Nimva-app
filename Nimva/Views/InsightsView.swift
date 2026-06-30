@@ -66,10 +66,20 @@ private struct InsightsProContent: View {
 
 // MARK: - Weekly Trend Card
 
+// Stored as a String so AppStorage can persist it across launches without a custom encoder.
+private enum TrendStyle: String {
+    case wave, bars
+}
+
 private struct WeeklyTrendCard: View {
     let caches: [WeekCache]
 
-    // Reverse so the chart reads oldest → newest (left to right)
+    // Persisted permanently — user sets this once and never thinks about it again.
+    // Wave is the default: reads at a glance without requiring number-by-number comparison,
+    // which matters for ADHD users who process patterns before detail.
+    @AppStorage("insightsTrendStyle") private var trendStyle: TrendStyle = .wave
+
+    // Oldest → newest so the chart reads left to right naturally
     private var chartData: [WeekDatum] {
         caches.reversed().map {
             WeekDatum(
@@ -82,15 +92,20 @@ private struct WeeklyTrendCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label("Weekly load", systemImage: "chart.bar.fill")
-                .font(NimvaFont.sectionLabel)
-                .foregroundStyle(NimvaColors.textMuted)
-                .tracking(1.0)
+            headerRow
 
             if chartData.isEmpty {
                 emptyState
             } else {
-                trendChart
+                Group {
+                    if trendStyle == .wave {
+                        waveChart
+                    } else {
+                        barChart
+                    }
+                }
+                .animation(.easeInOut(duration: 0.25), value: trendStyle)
+
                 legendRow
             }
         }
@@ -99,28 +114,121 @@ private struct WeeklyTrendCard: View {
         .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.cardRadius))
     }
 
-    private var emptyState: some View {
-        Text("Generate your first week in the Plan tab to start tracking your energy.")
-            .font(NimvaFont.body)
-            .foregroundStyle(NimvaColors.textSecondary)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.vertical, 32)
+    // MARK: Header
+
+    private var headerRow: some View {
+        HStack(alignment: .center) {
+            Text("WEEKLY LOAD")
+                .font(NimvaFont.sectionLabel)
+                .foregroundStyle(NimvaColors.textMuted)
+                .tracking(1.0)
+
+            Spacer()
+
+            // Persistent style toggle — two icon buttons, selected one highlighted
+            HStack(spacing: 0) {
+                styleToggleButton(.wave,  icon: "waveform")
+                styleToggleButton(.bars,  icon: "chart.bar.fill")
+            }
+            .padding(3)
+            .background(NimvaColors.surfaceDeep)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
     }
 
-    private var trendChart: some View {
+    @ViewBuilder
+    private func styleToggleButton(_ style: TrendStyle, icon: String) -> some View {
+        let isSelected = trendStyle == style
+        Button {
+            trendStyle = style
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(isSelected ? NimvaColors.textPrimary : NimvaColors.textMuted)
+                .frame(width: 32, height: 28)
+                .background(isSelected ? NimvaColors.purpleMuted : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        // Accessibility: announce which view this switches to, not just the icon
+        .accessibilityLabel(style == .wave ? "Wave view" : "Bar chart view")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    // MARK: Wave chart
+
+    private var waveChart: some View {
+        Chart(chartData) { datum in
+            // Soft gradient fill under the curve — adds depth without competing with the line
+            AreaMark(
+                x: .value("Week", datum.label),
+                y: .value("Heavy days", datum.heavyDayCount)
+            )
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [NimvaColors.purplePrimary.opacity(0.22), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .interpolationMethod(.catmullRom)
+
+            LineMark(
+                x: .value("Week", datum.label),
+                y: .value("Heavy days", datum.heavyDayCount)
+            )
+            .foregroundStyle(NimvaColors.purplePrimary)
+            .interpolationMethod(.catmullRom)
+            .lineStyle(StrokeStyle(lineWidth: 2))
+
+            // Colored dots show severity; number annotation below so detail
+            // is available without needing to read the y-axis
+            PointMark(
+                x: .value("Week", datum.label),
+                y: .value("Heavy days", datum.heavyDayCount)
+            )
+            .foregroundStyle(severityColor(for: datum.heavyDayCount))
+            .symbolSize(64)
+            .annotation(position: .bottom, spacing: 4) {
+                Text("\(datum.heavyDayCount)")
+                    .font(NimvaFont.micro)
+                    .foregroundStyle(NimvaColors.textMuted)
+            }
+        }
+        .chartYScale(domain: 0...7)
+        .chartYAxis {
+            AxisMarks(values: [0, 7]) { _ in
+                AxisGridLine().foregroundStyle(NimvaColors.border.opacity(0.3))
+                AxisValueLabel()
+                    .foregroundStyle(NimvaColors.textMuted)
+                    .font(NimvaFont.micro)
+            }
+        }
+        .chartXAxis {
+            AxisMarks { _ in
+                AxisValueLabel()
+                    .foregroundStyle(NimvaColors.textMuted)
+                    .font(NimvaFont.micro)
+            }
+        }
+        .frame(height: 180)
+    }
+
+    // MARK: Bar chart
+
+    private var barChart: some View {
         Chart(chartData) { datum in
             BarMark(
                 x: .value("Week", datum.label),
                 y: .value("Heavy days", datum.heavyDayCount)
             )
-            .foregroundStyle(barColor(for: datum.heavyDayCount))
+            .foregroundStyle(severityColor(for: datum.heavyDayCount))
             .cornerRadius(4)
         }
         .chartYScale(domain: 0...7)
         .chartYAxis {
             AxisMarks(values: [0, 2, 4, 7]) { _ in
-                AxisGridLine()
-                    .foregroundStyle(NimvaColors.border.opacity(0.4))
+                AxisGridLine().foregroundStyle(NimvaColors.border.opacity(0.4))
                 AxisValueLabel()
                     .foregroundStyle(NimvaColors.textMuted)
                     .font(NimvaFont.micro)
@@ -134,6 +242,16 @@ private struct WeeklyTrendCard: View {
             }
         }
         .frame(height: 160)
+    }
+
+    // MARK: Shared
+
+    private var emptyState: some View {
+        Text("Generate your first week in the Plan tab to start tracking your energy.")
+            .font(NimvaFont.body)
+            .foregroundStyle(NimvaColors.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 32)
     }
 
     private var legendRow: some View {
@@ -153,8 +271,8 @@ private struct WeeklyTrendCard: View {
         }
     }
 
-    // Thresholds: 0–1 heavy days is a light week, 2–3 is mixed, 4+ is heavy
-    private func barColor(for heavyDayCount: Int) -> Color {
+    // Thresholds: 0–1 = light week, 2–3 = mixed, 4+ = heavy
+    private func severityColor(for heavyDayCount: Int) -> Color {
         switch heavyDayCount {
         case 0...1: return NimvaColors.teal
         case 2...3: return NimvaColors.amber
