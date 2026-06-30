@@ -13,6 +13,7 @@ struct HomeView: View {
 
     @State private var selectedDay: DayOfWeek = Self.todayDayOfWeek()
     @State private var showingAddEvent = false
+    @State private var showingCheckIn = false
     @State private var eventToEdit: Event?
 
     // Convenience accessor — at most one cache entry exists at a time
@@ -98,6 +99,38 @@ struct HomeView: View {
                         userType: userType
                     )
                     .padding(.horizontal, 20)
+
+                    // ── Check-in banner ──
+                    // Shown only when a week has been generated but not yet checked in.
+                    // Disappears automatically once checkInRating is set.
+                    if let cache, cache.checkInRating == nil {
+                        Button { showingCheckIn = true } label: {
+                            HStack(spacing: 12) {
+                                Text("😌")
+                                    .font(.system(size: 20))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("How did this week feel?")
+                                        .font(NimvaFont.cardTitle)
+                                        .foregroundStyle(NimvaColors.textPrimary)
+                                    Text("Check in — takes about a minute")
+                                        .font(NimvaFont.micro)
+                                        .foregroundStyle(NimvaColors.textMuted)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(NimvaColors.textMuted)
+                            }
+                            .padding(14)
+                            .background(NimvaColors.cardDark)
+                            .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.cardRadius))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 20)
+                        .sheet(isPresented: $showingCheckIn) {
+                            WeeklyCheckInView(cache: cache, onDismiss: { showingCheckIn = false })
+                        }
+                    }
 
                     // ── Day event list ──
                     VStack(spacing: 0) {
