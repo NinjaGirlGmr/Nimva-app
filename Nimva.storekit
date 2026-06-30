@@ -1,0 +1,110 @@
+{
+  "identifier" : "5A8F2C1B-3D47-4E9A-B621-0F8C9A3E7D42",
+  "nonConsumableProducts" : [
+
+  ],
+  "nonRenewingSubscriptionProducts" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_locale" : "en_US",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "D8A3F172-4C91-4B2E-9E53-7A1B0C4F8D29",
+      "localizations" : [
+
+      ],
+      "name" : "Nimva PRO",
+      "products" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "2.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
+          "introductoryOffer" : {
+            "duration" : 2,
+            "durationUnit" : "WEEK",
+            "offerIdentifier" : "com.nimva.pro.monthly.trial",
+            "offerMode" : "FREE_TRIAL",
+            "offerType" : 1
+          },
+          "localizations" : [
+            {
+              "description" : "Energy-aware scheduling insights, pattern coaching, and multi-week planning.",
+              "displayName" : "Nimva PRO",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.nimva.pro.monthly",
+          "referenceName" : "Nimva PRO Monthly",
+          "subscriptionGroupID" : "D8A3F172-4C91-4B2E-9E53-7A1B0C4F8D29",
+          "subscriptionPeriod" : "P1M",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 2,
+    "minor" : 0
+  }
+}
