@@ -16,7 +16,7 @@ struct ContentView: View {
                     Label("Plan", systemImage: "calendar")
                 }
 
-            PlaceholderTab(title: "Insights", icon: "sparkles")
+            InsightsView()
                 .tabItem {
                     Label("Insights", systemImage: "sparkles")
                 }

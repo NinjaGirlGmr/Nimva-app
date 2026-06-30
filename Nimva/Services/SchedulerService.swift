@@ -17,8 +17,12 @@ enum SchedulerService {
 
         let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible)
 
-        // Remove stale cache before writing the new one
-        try context.delete(model: WeekCache.self)
+        // Replace only this week's cache — older weeks are kept for Insights history
+        let currentStart = currentWeekStart()
+        let existing = try context.fetch(FetchDescriptor<WeekCache>())
+        existing
+            .filter { Calendar.current.isDate($0.weekStartDate, equalTo: currentStart, toGranularity: .weekOfYear) }
+            .forEach { context.delete($0) }
 
         let json = try encodePlacements(schedule.placedFlexibleEvents)
         let heavyDayValues = schedule.heavyDays.map { $0.rawValue }
@@ -30,6 +34,13 @@ enum SchedulerService {
             heavyDayValues: heavyDayValues
         )
         context.insert(cache)
+
+        // Trim history to 8 weeks so SwiftData doesn't accumulate unbounded records.
+        // Insights only renders the last 8 weeks, so anything older has no UX value.
+        let all = try context.fetch(FetchDescriptor<WeekCache>(sortBy: [SortDescriptor(\.weekStartDate, order: .reverse)]))
+        if all.count > 8 {
+            all.dropFirst(8).forEach { context.delete($0) }
+        }
     }
 
     /// Reads the current cache and decodes it back into a WeekSchedule.

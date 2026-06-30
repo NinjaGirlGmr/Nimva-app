@@ -6,6 +6,10 @@ struct NimvaApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("preferredColorScheme") private var preferredColorScheme = "system"
 
+    // Single ProService instance shared across the whole app via environment.
+    // Created here so subscription state survives tab switches.
+    @State private var proService = ProService()
+
     // Converts the stored string to SwiftUI's ColorScheme type.
     // nil means follow the system setting (the default).
     private var resolvedColorScheme: ColorScheme? {
@@ -45,9 +49,11 @@ struct NimvaApp: App {
             if hasCompletedOnboarding {
                 ContentView()
                     .preferredColorScheme(resolvedColorScheme)
+                    .environment(proService)
             } else {
                 OnboardingView()
                     .preferredColorScheme(resolvedColorScheme)
+                    .environment(proService)
             }
         }
         .modelContainer(sharedModelContainer)
