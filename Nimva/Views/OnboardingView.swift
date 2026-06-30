@@ -7,8 +7,11 @@ struct OnboardingView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     // Flag HomeView reads once on first appear to auto-open AddEventView
     @AppStorage("openAddEventOnLaunch") private var openAddEventOnLaunch = false
+    // Shown once after the last screen — never again after the user has seen it
+    @AppStorage("hasSeenProTrialOffer") private var hasSeenProTrialOffer = false
 
     @State private var step = 0
+    @State private var showingProTrial = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -47,6 +50,14 @@ struct OnboardingView: View {
             .animation(.spring(response: 0.35, dampingFraction: 0.7), value: step)
             .padding(.top, 60)
         }
+        // Full-screen cover so the trial prompt feels like its own moment,
+        // not a sheet that can be swiped away accidentally
+        .fullScreenCover(isPresented: $showingProTrial) {
+            ProTrialPromptView {
+                hasSeenProTrialOffer = true
+                withAnimation { hasCompletedOnboarding = true }
+            }
+        }
     }
 
     private func advance() {
@@ -55,7 +66,13 @@ struct OnboardingView: View {
 
     private func finish(addEvent: Bool) {
         openAddEventOnLaunch = addEvent
-        withAnimation { hasCompletedOnboarding = true }
+        // Show the trial prompt once before entering the app.
+        // If already seen (e.g. user re-runs onboarding somehow), skip straight through.
+        if hasSeenProTrialOffer {
+            withAnimation { hasCompletedOnboarding = true }
+        } else {
+            showingProTrial = true
+        }
     }
 }
 
