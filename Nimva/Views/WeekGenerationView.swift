@@ -18,6 +18,7 @@ struct WeekGenerationView: View {
     @State private var schedule: WeekSchedule?
     // Which days have had their flexible events "dropped in" during the building animation
     @State private var revealedDays: Set<DayOfWeek> = []
+    @State private var showingScheduleError = false
 
     private var fixedEvents: [Event]    { events.filter(\.isFixed) }
     private var flexibleEvents: [Event] { events.filter { !$0.isFixed } }
@@ -41,6 +42,11 @@ struct WeekGenerationView: View {
                 .padding(.top, 24)
                 .padding(.horizontal, 16)
             }
+        }
+        .alert("Couldn't build your week", isPresented: $showingScheduleError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Something went wrong generating your schedule. Try again or restart the app if the problem persists.")
         }
     }
 
@@ -350,10 +356,13 @@ struct WeekGenerationView: View {
     // MARK: - Actions
 
     private func startBuilding() {
-        // Run the algorithm and persist the result
-        try? SchedulerService.regenerate(context: modelContext, events: events)
-        // Read the result back directly from the context (synchronous fetch)
-        schedule = try? SchedulerService.loadCachedSchedule(context: modelContext, events: events)
+        do {
+            try SchedulerService.regenerate(context: modelContext, events: events)
+            schedule = try SchedulerService.loadCachedSchedule(context: modelContext, events: events)
+        } catch {
+            showingScheduleError = true
+            return
+        }
 
         withAnimation { genState = .building }
         revealedDays = []
