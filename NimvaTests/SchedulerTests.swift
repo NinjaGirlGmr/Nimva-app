@@ -300,6 +300,7 @@ struct PatternLearningTests {
 // MARK: - User Type Detection
 
 @Suite("User Type Detection")
+@MainActor
 struct UserTypeDetectionTests {
 
     // Creates plain unmanaged Event instances. detectUserType only reads isFixed,
