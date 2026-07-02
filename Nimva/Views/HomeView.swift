@@ -15,6 +15,7 @@ struct HomeView: View {
     @State private var showingAddEvent = false
     @State private var showingCheckIn = false
     @State private var eventToEdit: Event?
+    @State private var showingScheduleError = false
 
     // Convenience accessor — at most one cache entry exists at a time
     private var cache: WeekCache? { caches.first }
@@ -214,12 +215,21 @@ struct HomeView: View {
                 recomputeSchedule()
             }
         }
+        .alert("Couldn't update your schedule", isPresented: $showingScheduleError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Something went wrong saving your week. Try again or restart the app if the problem persists.")
+        }
     }
 
     // MARK: - Helpers
 
     func recomputeSchedule() {
-        try? SchedulerService.regenerate(context: modelContext, events: events)
+        do {
+            try SchedulerService.regenerate(context: modelContext, events: events)
+        } catch {
+            showingScheduleError = true
+        }
     }
 
     private var greetingText: String {

@@ -18,6 +18,10 @@ struct SettingsView: View {
     @State private var showingResetPatternsConfirm = false
     @State private var showingClearDataConfirm = false
     @State private var showingExportInfo = false
+    #if DEBUG
+    @State private var showingSeedConfirm = false
+    @State private var seedMessage: String? = nil
+    #endif
 
     var body: some View {
         ZStack {
@@ -33,6 +37,9 @@ struct SettingsView: View {
                     calendarsSection
                     accountSection
                     versionFooter
+                    #if DEBUG
+                    developerSection
+                    #endif
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
@@ -290,6 +297,39 @@ struct SettingsView: View {
         try? modelContext.delete(model: Event.self)
         try? modelContext.delete(model: WeekCache.self)
     }
+
+    // MARK: - Developer section (DEBUG only)
+
+    #if DEBUG
+    private var developerSection: some View {
+        SettingsSection(title: "Developer Tools") {
+            ActionRow(label: "Seed sample data", style: .normal) {
+                showingSeedConfirm = true
+            }
+            SettingsDivider()
+            ActionRow(label: "Clear seeded data", style: .destructive) {
+                clearAllData()
+                seedMessage = "All data cleared."
+            }
+            if let msg = seedMessage {
+                Text(msg)
+                    .font(.system(size: 11))
+                    .foregroundStyle(NimvaColors.textMuted)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 10)
+            }
+        }
+        .confirmationDialog("Seed sample data?", isPresented: $showingSeedConfirm, titleVisibility: .visible) {
+            Button("Seed (replaces all data)", role: .destructive) {
+                SeedService.seed(context: modelContext)
+                seedMessage = "Seeded 12 events + 7 weeks of history."
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Replaces all existing events and week history with a realistic sample dataset. Tuesday will be consistently heavy to trigger Insights pattern callouts.")
+        }
+    }
+    #endif
 }
 
 // MARK: - Sub-components (private to this file)
