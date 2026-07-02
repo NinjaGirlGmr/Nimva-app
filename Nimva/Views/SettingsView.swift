@@ -1,10 +1,14 @@
 import SwiftUI
 import SwiftData
+import EventKit
 
 struct SettingsView: View {
     // @AppStorage persists each preference to UserDefaults automatically.
     // Changes are instant — no save button needed.
+    @Query private var events: [Event]
+
     @AppStorage("displayName") private var displayName = "Your Name"
+    @AppStorage("lastCalendarImportDate") private var lastCalendarImportDate: Double = 0
     @AppStorage("preferredColorScheme") private var preferredColorScheme = "system"
     @AppStorage("checkInReminderEnabled") private var checkInReminderEnabled = true
     @AppStorage("soundsHapticsEnabled") private var soundsHapticsEnabled = true
@@ -15,6 +19,10 @@ struct SettingsView: View {
 
     @State private var showingNameEditor = false
     @State private var nameEditDraft = ""
+    @State private var ekStore = EKEventStore()
+    @State private var showingCalendarImport = false
+    @State private var showingCalendarDenied = false
+    @State private var calendarCandidates: [CalendarImportService.ImportCandidate] = []
     @State private var showingResetPatternsConfirm = false
     @State private var showingClearDataConfirm = false
     @State private var showingExportInfo = false
@@ -74,6 +82,28 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This permanently deletes all your events and schedule history. This cannot be undone.")
+        }
+        .sheet(isPresented: $showingCalendarImport) {
+            CalendarImportView(
+                candidates: calendarCandidates,
+                onImport: { selected in
+                    CalendarImportService.insert(selected, into: modelContext)
+                    lastCalendarImportDate = Date().timeIntervalSince1970
+                    showingCalendarImport = false
+                    recomputeAfterImport()
+                },
+                onCancel: { showingCalendarImport = false }
+            )
+        }
+        .alert("Calendar Access Needed", isPresented: $showingCalendarDenied) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Nimva needs calendar access to import your events. Enable it in Settings › Privacy › Calendars.")
         }
     }
 
@@ -216,24 +246,37 @@ struct SettingsView: View {
 
     private var calendarsSection: some View {
         SettingsSection(title: "Calendars") {
-            HStack(spacing: 14) {
-                Image(systemName: "calendar.badge.clock")
-                    .font(.system(size: 16))
-                    .foregroundStyle(NimvaColors.textMuted)
-                    .frame(width: 22)
+            Button { importFromCalendar() } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.system(size: 16))
+                        .foregroundStyle(NimvaColors.teal)
+                        .frame(width: 22)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Apple Calendar & Google Calendar")
-                        .font(.system(size: 14))
-                        .foregroundStyle(NimvaColors.textPrimary)
-                    Text("Coming in a future update")
-                        .font(.system(size: 11))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Import from Apple Calendar")
+                            .font(.system(size: 14))
+                            .foregroundStyle(NimvaColors.textPrimary)
+                        if lastCalendarImportDate > 0 {
+                            Text("Last imported \(Date(timeIntervalSince1970: lastCalendarImportDate), style: .relative) ago")
+                                .font(.system(size: 11))
+                                .foregroundStyle(NimvaColors.textMuted)
+                        } else {
+                            Text("Pull this week's events in once")
+                                .font(.system(size: 11))
+                                .foregroundStyle(NimvaColors.textMuted)
+                        }
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(NimvaColors.textMuted)
                 }
-                Spacer()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .buttonStyle(.plain)
         }
     }
 
@@ -277,6 +320,33 @@ struct SettingsView: View {
     }
 
     // MARK: - Actions
+
+    private func importFromCalendar() {
+        Task {
+            let authorized: Bool
+            if CalendarImportService.isAuthorized {
+                authorized = true
+            } else {
+                authorized = await CalendarImportService.requestAccess(store: ekStore)
+            }
+            await MainActor.run {
+                if authorized {
+                    calendarCandidates = CalendarImportService.fetchCandidates(
+                        store: ekStore,
+                        existingEvents: Array(events)
+                    )
+                    showingCalendarImport = true
+                } else {
+                    showingCalendarDenied = true
+                }
+            }
+        }
+    }
+
+    private func recomputeAfterImport() {
+        let all = (try? modelContext.fetch(FetchDescriptor<Event>())) ?? []
+        try? SchedulerService.regenerate(context: modelContext, events: all)
+    }
 
     private func resetPatterns() {
         // Clear learned per-category baselines from UserDefaults

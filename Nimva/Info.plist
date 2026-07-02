@@ -6,5 +6,7 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Nimva reads your Apple Calendar events so you can import them into your week without re-entering them manually. Nimva never writes to your calendar.</string>
 </dict>
 </plist>
