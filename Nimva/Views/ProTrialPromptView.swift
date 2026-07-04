@@ -30,8 +30,8 @@ struct ProTrialPromptView: View {
 
     private var emberHeader: some View {
         VStack(spacing: 14) {
-            Text("😊")
-                .font(.system(size: 64))
+            EmberView(expression: .happy, size: .big)
+                .frame(width: 88, height: 88)
 
             Text("One more thing before you start")
                 .font(NimvaFont.pageTitle)

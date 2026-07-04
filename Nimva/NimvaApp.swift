@@ -4,21 +4,9 @@ import SwiftData
 @main
 struct NimvaApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
-    @AppStorage("preferredColorScheme") private var preferredColorScheme = "system"
-
     // Single ProService instance shared across the whole app via environment.
     // Created here so subscription state survives tab switches.
     @State private var proService = ProService()
-
-    // Converts the stored string to SwiftUI's ColorScheme type.
-    // nil means follow the system setting (the default).
-    private var resolvedColorScheme: ColorScheme? {
-        switch preferredColorScheme {
-        case "light": return .light
-        case "dark":  return .dark
-        default:      return nil
-        }
-    }
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([Event.self, WeekCache.self])
@@ -40,7 +28,17 @@ struct NimvaApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
+            // Persistent store failed (e.g. schema migration error on simulator).
+            // In DEBUG, fall back to an in-memory store so the app stays runnable
+            // while we diagnose. In release this is a hard crash — a corrupt store
+            // that can't be recovered should be surfaced, not silently discarded.
+            #if DEBUG
+            print("⚠️ SwiftData: persistent store failed (\(error)). Falling back to in-memory store.")
+            let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            return try! ModelContainer(for: schema, configurations: [fallback])
+            #else
             fatalError("Could not create ModelContainer: \(error)")
+            #endif
         }
     }()
 
@@ -48,11 +46,11 @@ struct NimvaApp: App {
         WindowGroup {
             if hasCompletedOnboarding {
                 ContentView()
-                    .preferredColorScheme(resolvedColorScheme)
+                    .preferredColorScheme(.dark)
                     .environment(proService)
             } else {
                 OnboardingView()
-                    .preferredColorScheme(resolvedColorScheme)
+                    .preferredColorScheme(.dark)
                     .environment(proService)
             }
         }

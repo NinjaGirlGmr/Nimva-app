@@ -193,8 +193,8 @@ private struct ConceptScreen: View {
                 VStack(spacing: 32) {
                     // Ember speech bubble
                     VStack(spacing: 0) {
-                        Text("😌")
-                            .font(.system(size: 48))
+                        EmberView(expression: .calm, size: .big)
+                            .frame(width: 88, height: 88)
 
                         Text("Most apps manage your time.\nNimva manages your **energy**.")
                             .font(.system(size: 15))
@@ -437,8 +437,8 @@ private struct ReadyScreen: View {
                 VStack(spacing: 32) {
                     // Ember + heading
                     VStack(spacing: 12) {
-                        Text("😊")
-                            .font(.system(size: 56))
+                        EmberView(expression: .happy, size: .big)
+                            .frame(width: 88, height: 88)
                             .padding(.top, 100)
 
                         Text("You're all set")

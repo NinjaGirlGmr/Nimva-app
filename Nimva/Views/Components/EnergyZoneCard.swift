@@ -38,7 +38,7 @@ struct EnergyZoneCard: View {
         VStack(spacing: 0) {
             // ── Top row: Ember + mood text + energy bar ──
             HStack(alignment: .top, spacing: 14) {
-                EmberAvatar(ringColor: emberRingColor)
+                EmberAvatar(ringColor: emberRingColor, expression: emberExpression)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(moodLabel)
@@ -78,6 +78,15 @@ struct EnergyZoneCard: View {
         }
         .background(NimvaColors.cardDark)
         .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var emberExpression: EmberExpression {
+        switch selectedLoad {
+        case ..<0.5: return .happy
+        case ..<1.5: return .calm
+        case ..<2.5: return .concerned
+        default:     return .exhausted
+        }
     }
 
     private var moodLabel: String {
@@ -151,6 +160,7 @@ struct EnergyZoneCard: View {
 // over time, so the pulse never feels mechanical or perfectly looped.
 private struct EmberAvatar: View {
     let ringColor: Color
+    let expression: EmberExpression
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var glowing = false
@@ -201,9 +211,8 @@ private struct EmberAvatar: View {
                 .frame(width: 48, height: 48)
                 .overlay(Circle().strokeBorder(ringColor, lineWidth: 2))
 
-            // Placeholder emoji — replaced by custom Ember art in production
-            Text("🐣")
-                .font(.system(size: 22))
+            EmberView(expression: expression, size: .mini)
+                .frame(width: 44, height: 44)
         }
         .frame(width: 56, height: 56)
         .onAppear { glowing = true }

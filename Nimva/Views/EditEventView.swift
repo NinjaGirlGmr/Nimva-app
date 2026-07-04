@@ -46,18 +46,14 @@ struct EditEventView: View {
                                 Text(day.displayName).tag(day)
                             }
                         }
-                        DatePicker("Start time",
-                                   selection: Binding(
-                                    get: { event.startTime ?? Date() },
-                                    set: { event.startTime = $0 }
-                                   ),
-                                   displayedComponents: .hourAndMinute)
-                        DatePicker("End time",
-                                   selection: Binding(
-                                    get: { event.endTime ?? Date() },
-                                    set: { event.endTime = $0 }
-                                   ),
-                                   displayedComponents: .hourAndMinute)
+                        TimeInputRow(label: "Start time", date: Binding(
+                            get: { event.startTime ?? Date() },
+                            set: { event.startTime = $0 }
+                        ))
+                        TimeInputRow(label: "End time", date: Binding(
+                            get: { event.endTime ?? Date() },
+                            set: { event.endTime = $0 }
+                        ))
                     }
                 } else {
                     Section("Timing") {

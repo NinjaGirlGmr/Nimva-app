@@ -87,7 +87,7 @@ struct WeeklyCheckInView: View {
     private var step1: some View {
         VStack(spacing: 28) {
             emberSpeech(
-                expression: "😌",
+                expression: .calm,
                 text: "How did your energy hold up this week?"
             )
 
@@ -127,7 +127,7 @@ struct WeeklyCheckInView: View {
     private var step2: some View {
         VStack(spacing: 28) {
             emberSpeech(
-                expression: "🤔",
+                expression: .thinking,
                 text: "Which day hit hardest?"
             )
 
@@ -182,7 +182,7 @@ struct WeeklyCheckInView: View {
     private var step3: some View {
         VStack(spacing: 28) {
             emberSpeech(
-                expression: "😐",
+                expression: .calm,
                 text: "Did the schedule feel manageable?"
             )
 
@@ -221,7 +221,7 @@ struct WeeklyCheckInView: View {
     private var step4: some View {
         VStack(spacing: 28) {
             emberSpeech(
-                expression: "😌",
+                expression: .calm,
                 text: "Did you get any real rest this week?"
             )
 
@@ -260,8 +260,8 @@ struct WeeklyCheckInView: View {
     private var step5: some View {
         VStack(spacing: 28) {
             VStack(spacing: 12) {
-                Text(closingExpression)
-                    .font(.system(size: 64))
+                EmberView(expression: closingExpression, size: .big)
+                    .frame(width: 88, height: 88)
 
                 Text("You made it through.")
                     .font(.system(size: 24, weight: .bold))
@@ -292,12 +292,12 @@ struct WeeklyCheckInView: View {
 
     // MARK: Closing copy
 
-    private var closingExpression: String {
-        guard let rating = overallRating else { return "😊" }
+    private var closingExpression: EmberExpression {
+        guard let rating = overallRating else { return .happy }
         switch rating {
-        case 0.0..<0.4: return "😊"
-        case 0.4..<0.7: return "😌"
-        default:        return "😮‍💨"
+        case 0.0..<0.4: return .happy
+        case 0.4..<0.7: return .calm
+        default:        return .concerned
         }
     }
 
@@ -335,10 +335,10 @@ struct WeeklyCheckInView: View {
 
     // MARK: Shared components
 
-    private func emberSpeech(expression: String, text: String) -> some View {
+    private func emberSpeech(expression: EmberExpression, text: String) -> some View {
         VStack(spacing: 0) {
-            Text(expression)
-                .font(.system(size: 52))
+            EmberView(expression: expression, size: .big)
+                .frame(width: 88, height: 88)
 
             Text(text)
                 .font(.system(size: 18, weight: .semibold))

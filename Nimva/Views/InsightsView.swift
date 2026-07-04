@@ -433,8 +433,8 @@ private struct InsightsLockedContent: View {
         VStack(spacing: 20) {
             // Ember with lock badge
             ZStack(alignment: .bottomTrailing) {
-                Text("😌")
-                    .font(.system(size: 56))
+                EmberView(expression: .calm, size: .big)
+                    .frame(width: 88, height: 88)
                 Image(systemName: "lock.fill")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(NimvaColors.amber)

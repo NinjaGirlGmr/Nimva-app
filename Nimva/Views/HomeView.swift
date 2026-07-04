@@ -107,8 +107,8 @@ struct HomeView: View {
                     if let cache, cache.checkInRating == nil {
                         Button { showingCheckIn = true } label: {
                             HStack(spacing: 12) {
-                                Text("😌")
-                                    .font(.system(size: 20))
+                                EmberView(expression: .calm, size: .mini)
+                                    .frame(width: 32, height: 32)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("How did this week feel?")
                                         .font(NimvaFont.cardTitle)
@@ -193,7 +193,6 @@ struct HomeView: View {
                     .frame(width: 56, height: 56)
                     .background(NimvaColors.purplePrimary)
                     .clipShape(Circle())
-                    .shadow(color: NimvaColors.purplePrimary.opacity(0.5), radius: 12, x: 0, y: 4)
             }
             .pressScale()
             .padding(24)
