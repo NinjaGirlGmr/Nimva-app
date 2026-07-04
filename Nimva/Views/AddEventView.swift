@@ -2,19 +2,12 @@ import SwiftUI
 import SwiftData
 
 struct AddEventView: View {
-    // @Environment pulls values SwiftUI manages for us automatically.
-    // modelContext is the SwiftData "save file" — we call modelContext.insert()
-    // to save a new event, and modelContext.delete() to remove one.
     @Environment(\.modelContext) private var modelContext
-
-    // dismiss() is a function SwiftUI gives us to close this sheet.
     @Environment(\.dismiss) private var dismiss
 
-    // @State holds temporary form data while the user is filling things out.
-    // SwiftUI watches these — any change causes the view to redraw automatically.
     @State private var name: String = ""
     @State private var isFixed: Bool = true
-    @State private var selectedDay: DayOfWeek = .monday
+    @State private var selectedDays: Set<DayOfWeek> = [.monday]
     @State private var startTime: Date = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
     @State private var endTime: Date = Calendar.current.date(bySettingHour: 10, minute: 0, second: 0, of: Date()) ?? Date()
     @State private var preferredWindow: TimePreference = .any
@@ -29,9 +22,6 @@ struct AddEventView: View {
             Form {
 
                 // MARK: Event type
-                // Picker with .segmented style renders as the Fixed | Flexible toggle
-                // from the design. $isFixed is a "binding" — a two-way connection
-                // between the picker and the @State variable above.
                 Section {
                     Picker("Event type", selection: $isFixed) {
                         Text("Fixed").tag(true)
@@ -45,19 +35,34 @@ struct AddEventView: View {
                     TextField("What's the event?", text: $name)
                 }
 
-                // MARK: Timing — changes based on event type
-                // SwiftUI only builds the views inside an `if` when the condition
-                // is true, so the Fixed fields disappear entirely when Flexible
-                // is selected, and vice versa.
+                // MARK: Timing
                 if isFixed {
                     Section("Timing") {
-                        Picker("Day", selection: $selectedDay) {
-                            ForEach(DayOfWeek.allCases, id: \.self) { day in
-                                Text(day.displayName).tag(day)
+                        // Multi-day chips — tap to toggle; great for recurring events like MWF classes
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Day")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            HStack(spacing: 6) {
+                                ForEach(DayOfWeek.allCases, id: \.self) { day in
+                                    DayChip(
+                                        label: String(day.shortName.prefix(2)),
+                                        isSelected: selectedDays.contains(day)
+                                    ) {
+                                        if selectedDays.contains(day) {
+                                            // Keep at least one day selected
+                                            if selectedDays.count > 1 { selectedDays.remove(day) }
+                                        } else {
+                                            selectedDays.insert(day)
+                                        }
+                                    }
+                                }
                             }
                         }
-                        DatePicker("Start time", selection: $startTime, displayedComponents: .hourAndMinute)
-                        DatePicker("End time", selection: $endTime, displayedComponents: .hourAndMinute)
+                        .padding(.vertical, 4)
+
+                        TimeInputRow(label: "Start time", date: $startTime)
+                        TimeInputRow(label: "End time",   date: $endTime)
                     }
                 } else {
                     Section("Timing") {
@@ -66,7 +71,6 @@ struct AddEventView: View {
                                 Text(window.displayName).tag(window)
                             }
                         }
-                        // Stepper lets the user increment/decrement duration in 15-min steps
                         Stepper(
                             value: $durationMinutes,
                             in: 15...480,
@@ -76,7 +80,6 @@ struct AddEventView: View {
                         }
                     }
 
-                    // Nimva note shown only for flexible events, per the design
                     Section {
                         Label(
                             "Nimva will find the best slot based on your energy load",
@@ -89,9 +92,6 @@ struct AddEventView: View {
 
                 // MARK: Energy
                 Section("Energy") {
-                    // LazyVGrid arranges children in a grid.
-                    // GridItem(.flexible()) means each column stretches to fill available width.
-                    // Repeating it twice gives us a 2-column layout.
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
                         ForEach(EnergyLabel.allCases, id: \.self) { label in
                             Button {
@@ -109,8 +109,6 @@ struct AddEventView: View {
                     }
                     .padding(.vertical, 4)
 
-                    // Fine-tune slider — lets the user nudge the cost within the
-                    // selected label's general range
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Fine-tune")
                             .font(.caption)
@@ -120,7 +118,7 @@ struct AddEventView: View {
                     }
                 }
 
-                // MARK: Pattern learning toggle
+                // MARK: Pattern learning
                 Section {
                     Toggle("Learn my patterns", isOn: $patternLearningEnabled)
                 } footer: {
@@ -136,7 +134,6 @@ struct AddEventView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add to week") { saveEvent() }
-                        // .disabled greys out the button and blocks taps when name is empty
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
@@ -153,23 +150,115 @@ struct AddEventView: View {
         return "\(hours)h \(minutes)m"
     }
 
-    // Creates the Event model and hands it to SwiftData to persist
+    // Creates one Event per selected day for fixed events (supports MWF-style recurring).
     private func saveEvent() {
-        let event = Event(
-            name: name.trimmingCharacters(in: .whitespaces),
-            isFixed: isFixed,
-            fixedDay: isFixed ? selectedDay : nil,
-            startTime: isFixed ? startTime : nil,
-            endTime: isFixed ? endTime : nil,
-            preferredWindow: isFixed ? nil : preferredWindow,
-            duration: isFixed ? nil : TimeInterval(durationMinutes * 60),
-            energyCost: energyCost,
-            category: category,
-            patternLearningEnabled: patternLearningEnabled
-        )
-        // insert() tells SwiftData to save this event to persistent storage.
-        // It's automatically synced to CloudKit once that's configured.
-        modelContext.insert(event)
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        if isFixed {
+            for day in selectedDays.sorted(by: { $0.rawValue < $1.rawValue }) {
+                modelContext.insert(Event(
+                    name: trimmedName,
+                    isFixed: true,
+                    fixedDay: day,
+                    startTime: startTime,
+                    endTime: endTime,
+                    energyCost: energyCost,
+                    category: category,
+                    patternLearningEnabled: patternLearningEnabled
+                ))
+            }
+        } else {
+            modelContext.insert(Event(
+                name: trimmedName,
+                isFixed: false,
+                preferredWindow: preferredWindow,
+                duration: TimeInterval(durationMinutes * 60),
+                energyCost: energyCost,
+                category: category,
+                patternLearningEnabled: patternLearningEnabled
+            ))
+        }
         dismiss()
+    }
+}
+
+// MARK: - Day Chip
+
+private struct DayChip: View {
+    let label: String
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            Text(label)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(isSelected ? .white : .primary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(isSelected ? Color.purple : Color(.tertiarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .frame(minHeight: 44)
+    }
+}
+
+// MARK: - Time Input Row
+// Shared by AddEventView and EditEventView. Shows the time as a typeable text field;
+// falls back to the previous value if the input can't be parsed.
+
+struct TimeInputRow: View {
+    let label: String
+    @Binding var date: Date
+
+    @State private var text = ""
+    @FocusState private var isFocused: Bool
+
+    private static let displayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.timeStyle = .short  // "9:30 AM"
+        return f
+    }()
+
+    var body: some View {
+        HStack {
+            Text(label)
+            Spacer()
+            TextField("9:00 AM", text: $text)
+                .multilineTextAlignment(.trailing)
+                .focused($isFocused)
+                .onSubmit { commit() }
+                .onChange(of: isFocused) { _, focused in
+                    if !focused { commit() }
+                }
+                .onAppear { text = Self.displayFormatter.string(from: date) }
+                .onChange(of: date) { _, d in
+                    if !isFocused { text = Self.displayFormatter.string(from: d) }
+                }
+        }
+    }
+
+    private func commit() {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        let formats = ["h:mm a", "h:mma", "H:mm", "h:mm", "h a", "ha"]
+        let cal = Calendar.current
+        var base = cal.dateComponents([.year, .month, .day], from: date)
+
+        for format in formats {
+            let f = DateFormatter()
+            f.dateFormat = format
+            if let parsed = f.date(from: trimmed) {
+                let t = cal.dateComponents([.hour, .minute], from: parsed)
+                base.hour = t.hour
+                base.minute = t.minute
+                if let result = cal.date(from: base) {
+                    date = result
+                    text = Self.displayFormatter.string(from: result)
+                    return
+                }
+            }
+        }
+        // Reset to current value if parse failed
+        text = Self.displayFormatter.string(from: date)
     }
 }

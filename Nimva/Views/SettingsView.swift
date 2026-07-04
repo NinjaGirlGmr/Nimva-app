@@ -9,7 +9,6 @@ struct SettingsView: View {
 
     @AppStorage("displayName") private var displayName = "Your Name"
     @AppStorage("lastCalendarImportDate") private var lastCalendarImportDate: Double = 0
-    @AppStorage("preferredColorScheme") private var preferredColorScheme = "system"
     @AppStorage("checkInReminderEnabled") private var checkInReminderEnabled = true
     @AppStorage("soundsHapticsEnabled") private var soundsHapticsEnabled = true
     @AppStorage("globalPatternLearning") private var globalPatternLearning = true
@@ -139,8 +138,7 @@ struct SettingsView: View {
                     ))
                     .frame(width: 58, height: 58)
 
-                Text("🐣")
-                    .font(.system(size: 24))
+                EmberView(expression: .calm, size: .mini)
                     .frame(width: 46, height: 46)
                     .background(NimvaColors.surfaceDeep)
                     .clipShape(Circle())
@@ -185,7 +183,7 @@ struct SettingsView: View {
                     .font(.system(size: 14))
                     .foregroundStyle(NimvaColors.textPrimary)
                 Spacer()
-                Text(preferredColorScheme.capitalized)
+                Text("Dark")
                     .font(.system(size: 12))
                     .foregroundStyle(NimvaColors.textMuted)
             }
@@ -194,27 +192,11 @@ struct SettingsView: View {
 
             SettingsDivider()
 
-            // Custom 3-way theme picker — native segmented control is hard to tint dark
-            HStack(spacing: 6) {
-                ForEach(["system", "light", "dark"], id: \.self) { scheme in
-                    Button { preferredColorScheme = scheme } label: {
-                        Text(scheme.capitalized)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(preferredColorScheme == scheme ? .white : NimvaColors.textSecondary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 9)
-                            .background(
-                                preferredColorScheme == scheme
-                                    ? NimvaColors.purplePrimary
-                                    : Color.clear
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                }
-            }
-            .padding(8)
-            .background(NimvaColors.background)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            Text("Light mode coming in a future update.")
+                .font(.system(size: 11))
+                .foregroundStyle(NimvaColors.textMuted)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             .padding(.horizontal, 12)
             .padding(.bottom, 12)
         }

@@ -190,8 +190,7 @@ struct WeekGenerationView: View {
                     )
                     .frame(width: 56, height: 56)
 
-                Text(emberEmoji)
-                    .font(.system(size: 26))
+                EmberView(expression: emberExpression, size: .mini)
                     .frame(width: 44, height: 44)
                     .background(NimvaColors.cardDark)
                     .clipShape(Circle())
@@ -216,11 +215,11 @@ struct WeekGenerationView: View {
         .animation(.easeInOut(duration: 0.3), value: genState)
     }
 
-    private var emberEmoji: String {
+    private var emberExpression: EmberExpression {
         switch genState {
-        case .ready:    return "😴"
-        case .building: return "🤔"
-        case .done:     return "😊"
+        case .ready:    return .calm
+        case .building: return .thinking
+        case .done:     return .happy
         }
     }
 

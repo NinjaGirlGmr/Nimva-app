@@ -91,8 +91,7 @@
 ## Character / Mascot
 
 **Name:** Ember (character name within app called Nimva)
-**Style:** Black and white, simple, calm yet playful
-**Highlight color:** Pale purple/teal accents that adapt to light/dark mode
+**Style:** Soft, rounded, calm yet playful — environmental shadow blending so she feels *made of* the app's atmosphere rather than pasted on top of it
 **Emotional range:** Subtle — never dramatic or anxious
 - 😴 Relaxed / waiting
 - 🙂 Ready / content
@@ -102,13 +101,33 @@
 - 😐 Neutral / okay
 - 😮‍💨 Concerned (heavy week) — subtle raised eyebrow, not alarmed
 
+### Ember's Color Palette (finalised)
+
+| Zone | Color | Hex |
+|---|---|---|
+| Body + lower face | App background | `#100c28` |
+| Stomach + nose bridge | Deep purple | `#2a1a5e` |
+| Nose + top of head | Coral | `#e0825a` |
+| Cheek accents | Plum | `#83446b` |
+| Frills | Mid purple | `#4c3280` |
+| Frill frames | Bright amber | `#f7c46a` |
+| Transition (amber→body) | Warm amber | `#f2a84b` |
+| Nose tip + lips | Cream | `#fdf1da` |
+| Eyes | Pale gold shades (multi-tone) | — |
+
+**Design rationale:** Body uses `#100c28` (the actual app background) so Ember feels embedded in the scene. Coral nose/top of head (`#e0825a`) is a deliberate pop — the same coral used for flexible events, tying the character into the data color system. The amber frill frames (`#f7c46a`) match the existing `amberWarm` glow rendered behind her in code, making the glow feel like it emanates from her frills specifically.
+
+**Mood state shifts:** Brighten the amber/coral areas for a good week; desaturate toward the purple tones for a heavy one. Silhouette stays identical — only color temperature shifts.
+
+**Small size rule (24pt mini):** Expression must read from eye shape and body brightness alone — no fine detail. The cream nose tip and pale gold eye shine are the two anchor points that stay legible at tiny sizes.
+
 **Character placement:**
 - Home screen: energy meter zone
 - Week generation: reacts during build process
 - Check-in: speaks through speech bubbles each step
 - Done screens: larger, more expressive
 
-*Custom character art to replace emoji placeholders in production*
+*Sprite sizes: 56pt standard · 64pt big moment · 24pt mini*
 
 ---
 
