@@ -2,7 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-<key>NSCalendarsFullAccessUsageDescription</key>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Nimva reads your Apple Calendar events so you can import them into your week without re-entering them manually. Nimva never writes to your calendar.</string>
 </dict>
 </plist>
