@@ -317,8 +317,8 @@ private struct EnergyTagScreen: View {
                 VStack(spacing: 28) {
                     // Header
                     VStack(spacing: 10) {
-                        Text(selectedChip == nil ? "😌" : "😊")
-                            .font(.system(size: 48))
+                        EmberView(expression: selectedChip == nil ? .calm : .happy, size: .big)
+                            .frame(width: 88, height: 88)
                             .animation(.easeInOut(duration: 0.2), value: selectedChip != nil)
 
                         Text("One quick thing")
