@@ -199,8 +199,6 @@ struct SettingsView: View {
 
             SettingsDivider()
 
-            SettingsDivider()
-
             ToggleRow(
                 label: "Alt energy colours",
                 subtitle: "Cyan / indigo / rose instead of teal / amber / coral",
