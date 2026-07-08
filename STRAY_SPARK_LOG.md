@@ -111,3 +111,63 @@ This log pairs naturally with GitHub Issues once development moves to a reposito
 **Tags:** #accessibility #design-change #decision
 
 ---
+
+### 2026-06-28 — TestFlight detection: sandboxReceipt is the canonical iOS approach
+
+**Spark:** Needed a way to auto-unlock PRO for beta testers on TestFlight without requiring a real StoreKit purchase, and without the unlock accidentally persisting when the app hits the App Store.
+
+**Chase:** Several approaches: `#if DEBUG` (too broad — catches Simulator and local dev, not just TestFlight), a custom entitlement (overkill), or reading `Bundle.main.appStoreReceiptURL`. On TestFlight builds, the receipt URL ends in `sandboxReceipt` rather than `receipt` — Apple's documented distinction between sandbox and production.
+
+**Catch:** Used `Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"` in `ProService.isTestFlight`. One gotcha: Xcode reported a deprecation warning saying "deprecated in macOS 15.0" — this is macOS-only. The API is still correct and recommended for iOS. Left as-is with a comment in source.
+
+**Tags:** #decision #storekit #testflight
+
+---
+
+### 2026-06-28 — Multi-day fixed events: one Event per day, not a model change
+
+**Spark:** Users wanted to add recurring fixed events (MWF class) without tapping through Add Event three times. The obvious approach was adding a `repeatDays: [DayOfWeek]` field to the Event model.
+
+**Chase:** A model change means a SwiftData migration, a ModelConfiguration version bump, and every Event consumer needing to handle an array. For MVP with no live users migration is low-risk — but the model complexity is permanent and leaks into every query.
+
+**Catch:** `saveEvent()` in AddEventView loops over `selectedDays` and creates one `Event` per day. Multi-day selection is a UX convenience layer only — not a data model concern. Each Event is independent, can be edited or deleted individually, and existing code that handles single events works unchanged.
+
+**Tags:** #decision #data-model
+
+---
+
+### 2026-07-04 — Dark mode was already the only working mode
+
+**Spark:** User asked about adding a light mode. Settings had a 3-button theme picker writing to AppStorage. Started looking at what a real light mode toggle would require.
+
+**Chase:** Nimva uses entirely custom NimvaColors — hardcoded dark hex literals, not system adaptive colors with `dynamicProvider`. Switching to "light" via the picker would have just shown dark colors on a white background — broken, not styled. The feature was never real.
+
+**Catch:** Removed the picker from Settings, added a static "Dark" label and placeholder note. Hardcoded `.preferredColorScheme(.dark)` in NimvaApp.swift. Light mode properly deferred to a design pass post-launch (issue #20). The fix was admitting the current state and making it explicit rather than leaving a broken toggle in place.
+
+**Tags:** #decision #design-change
+
+---
+
+### 2026-07-05 — Procedural glow beats a drawn asset for radial ambient light
+
+**Spark:** Wanted a soft ambient glow behind Ember's face to make the face-only display feel less flat and communicate expression through color.
+
+**Chase:** Three options: (1) drawn PNG glow asset per expression color, (2) greyscale map + hue shift via `colorMultiply`, (3) procedural SwiftUI `Circle` with blur. Drawn approach needs separate assets per color and can't animate between them. Greyscale map is useful when the shape is complex. For a pure radial soft glow, a blurred circle *is* mathematically the same result as any drawn radial gradient.
+
+**Catch:** Went procedural: `Circle().fill(glowColor).blur(radius: 28).opacity(0.22).scaleEffect(1.35)`. Color is expression-driven via `EmberExpression.glowColor`. SwiftUI's `.animation()` cross-fades automatically on expression change — something drawn assets can't do without multiple files and manual interpolation. Zero asset files added.
+
+**Tags:** #decision #design-change #ember
+
+---
+
+### 2026-07-05 — private → internal is the right pattern for testable logic
+
+**Spark:** Writing tests for `CalendarImportService` and time parsing hit a wall: `nimvaDay`, `dedupKey`, and `parseTimeString` were all `private`, so `@testable import Nimva` couldn't reach them.
+
+**Chase:** Options: (1) test indirectly through public methods — fragile and tests too much at once, (2) move test code into the app target — wrong separation, (3) change `private` to `internal` on the specific methods being tested.
+
+**Catch:** Changed `nimvaDay` and `dedupKey` to `internal`. Extracted `parseTimeString` from `TimeInputRow.commit()` into a module-level `internal` function. `@testable import` grants access to `internal` symbols — that's exactly what it's for. Rule now in CLAUDE.md and CONTRIBUTING.md: logic that needs testing should be `internal`, not `private`, and extracted out of view code into standalone functions.
+
+**Tags:** #decision #testing #swift-pattern
+
+---

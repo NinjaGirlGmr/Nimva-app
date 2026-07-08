@@ -423,7 +423,10 @@ private struct ReadyScreen: View {
     let onAddEvent: () -> Void
     let onSkip: () -> Void
 
+    @AppStorage("displayName") private var displayName = ""
+    @State private var nameInput = ""
     @State private var showAddEvent = false
+    @FocusState private var nameFocused: Bool
 
     private let steps = [
         ("1", "Add your fixed events", "Classes, meetings — anything with a set time"),
@@ -448,6 +451,21 @@ private struct ReadyScreen: View {
                         Text("Here's how to get your first week built:")
                             .font(.system(size: 14))
                             .foregroundStyle(NimvaColors.textSecondary)
+                    }
+
+                    // Name input — sets the AppStorage key HomeView uses for the greeting
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("What should Nimva call you?")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(NimvaColors.textSecondary)
+                        TextField("Your name (optional)", text: $nameInput)
+                            .font(.system(size: 15))
+                            .foregroundStyle(NimvaColors.textPrimary)
+                            .padding(14)
+                            .background(NimvaColors.cardDark)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .focused($nameFocused)
+                            .onSubmit { saveName() }
                     }
 
                     // Step checklist
@@ -483,6 +501,7 @@ private struct ReadyScreen: View {
 
             VStack(spacing: 12) {
                 Button {
+                    saveName()
                     showAddEvent = true
                 } label: {
                     Text("Add my first event")
@@ -494,7 +513,10 @@ private struct ReadyScreen: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
 
-                Button(action: onSkip) {
+                Button {
+                    saveName()
+                    onSkip()
+                } label: {
                     Text("Maybe later")
                         .font(.system(size: 14))
                         .foregroundStyle(NimvaColors.textMuted)
@@ -508,6 +530,13 @@ private struct ReadyScreen: View {
         // before being dropped into the main app — smoother first-run experience
         .sheet(isPresented: $showAddEvent, onDismiss: onAddEvent) {
             AddEventView()
+        }
+    }
+
+    private func saveName() {
+        let trimmed = nameInput.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            displayName = trimmed
         }
     }
 }

@@ -20,8 +20,10 @@ struct EnergyZoneCard: View {
         return !isHeavy && heavyDays.contains(nextDay)
     }
 
-    // Ember's glow ring shifts warm (amber) for heavy days, cool (teal) for light
-    private var emberRingColor: Color { isHeavy ? NimvaColors.amberWarm : NimvaColors.teal }
+    @AppStorage("useAltEnergyPalette") private var useAltPalette = false
+
+    // Ember's glow ring shifts heavy → light colour based on the active energy palette
+    private var emberRingColor: Color { isHeavy ? NimvaColors.energyHeavy(useAltPalette) : NimvaColors.energyLight(useAltPalette) }
 
     // Weekly energy level: sum of all loads / (7 days × heavy threshold)
     private var weeklyPercent: Double {
@@ -225,6 +227,8 @@ private struct EmberAvatar: View {
 private struct WeeklyEnergyBar: View {
     let percent: Double  // 0.0–1.0
 
+    @AppStorage("useAltEnergyPalette") private var useAltPalette = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Weekly energy")
@@ -240,14 +244,14 @@ private struct WeeklyEnergyBar: View {
                         .fill(NimvaColors.purpleMuted)
                         .frame(height: 6)
 
-                    // Fill — gradient teal → mauve → amber per design spec
+                    // Fill — gradient light → heavy per energy palette
                     RoundedRectangle(cornerRadius: 4)
                         .fill(
                             LinearGradient(
                                 gradient: Gradient(colors: [
-                                    NimvaColors.teal,
-                                    Color(hex: "a8689c"),  // mauve
-                                    NimvaColors.amberWarm
+                                    NimvaColors.energyLight(useAltPalette),
+                                    Color(hex: "a8689c"),  // mauve midpoint
+                                    NimvaColors.energyHeavy(useAltPalette)
                                 ]),
                                 startPoint: .leading,
                                 endPoint: .trailing

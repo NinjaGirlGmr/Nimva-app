@@ -11,11 +11,16 @@ struct HomeView: View {
     // Set to true by OnboardingView when the user taps "Add my first event"
     @AppStorage("openAddEventOnLaunch") private var openAddEventOnLaunch = false
 
+    @AppStorage("displayName") private var displayName = "Your Name"
+
     @State private var selectedDay: DayOfWeek = Self.todayDayOfWeek()
     @State private var showingAddEvent = false
     @State private var showingCheckIn = false
     @State private var eventToEdit: Event?
     @State private var showingScheduleError = false
+    @State private var contentAppeared = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Convenience accessor — at most one cache entry exists at a time
     private var cache: WeekCache? { caches.first }
@@ -67,53 +72,56 @@ struct HomeView: View {
         ZStack(alignment: .bottomTrailing) {
             NimvaColors.background.ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: 20) {
-                    // ── Greeting ──
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(greetingText)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(NimvaColors.textMuted)
-                                .textCase(.uppercase)
-                                .kerning(0.6)
-                            Text("Your week")
-                                .font(.system(size: 22, weight: .semibold))
-                                .foregroundStyle(NimvaColors.textPrimary)
+            if events.isEmpty {
+                firstRunEmptyState
+            } else {
+                ScrollView {
+                    VStack(spacing: 20) {
+                        // ── Greeting ──
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(greetingText)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(NimvaColors.textMuted)
+                                    .textCase(.uppercase)
+                                    .kerning(0.6)
+                                Text("Your week")
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundStyle(NimvaColors.textPrimary)
+                            }
+                            Spacer()
                         }
-                        Spacer()
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
 
-                    // ── Week strip ──
-                    WeekStripView(selectedDay: $selectedDay, dailyLoads: dailyLoads)
-                        .padding(.horizontal, 12)
+                        // ── Week strip ──
+                        WeekStripView(selectedDay: $selectedDay, dailyLoads: dailyLoads)
+                            .padding(.horizontal, 12)
 
-                    // ── Energy zone card ──
-                    EnergyZoneCard(
-                        selectedDay: selectedDay,
-                        dailyLoads: dailyLoads,
-                        heavyDays: heavyDays,
-                        eventsOnSelectedDay: eventsForSelectedDay.count,
-                        overflowCount: overflowCount,
-                        userType: userType
-                    )
-                    .padding(.horizontal, 20)
+                        // ── Energy zone card ──
+                        EnergyZoneCard(
+                            selectedDay: selectedDay,
+                            dailyLoads: dailyLoads,
+                            heavyDays: heavyDays,
+                            eventsOnSelectedDay: eventsForSelectedDay.count,
+                            overflowCount: overflowCount,
+                            userType: userType
+                        )
+                        .padding(.horizontal, 20)
 
-                    // ── Check-in banner ──
-                    // Shown only when a week has been generated but not yet checked in.
-                    // Disappears automatically once checkInRating is set.
-                    if let cache, cache.checkInRating == nil {
-                        Button { showingCheckIn = true } label: {
+                        // ── Generate week nudge ──
+                        // Shown when events exist but no schedule has been built yet.
+                        if cache == nil {
                             HStack(spacing: 12) {
-                                EmberView(expression: .calm, size: .mini)
-                                    .frame(width: 32, height: 32)
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(NimvaColors.teal)
+                                    .frame(width: 32)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("How did this week feel?")
+                                    Text("Ready to build your week?")
                                         .font(NimvaFont.cardTitle)
                                         .foregroundStyle(NimvaColors.textPrimary)
-                                    Text("Check in — takes about a minute")
+                                    Text("Go to the Week tab to schedule your events")
                                         .font(NimvaFont.micro)
                                         .foregroundStyle(NimvaColors.textMuted)
                                 }
@@ -124,65 +132,103 @@ struct HomeView: View {
                             }
                             .padding(14)
                             .background(NimvaColors.cardDark)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: NimvaLayout.cardRadius)
+                                    .stroke(NimvaColors.teal.opacity(0.3), lineWidth: 1)
+                            )
                             .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.cardRadius))
+                            .padding(.horizontal, 20)
                         }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 20)
-                        .sheet(isPresented: $showingCheckIn) {
-                            WeeklyCheckInView(cache: cache, onDismiss: { showingCheckIn = false })
-                        }
-                    }
 
-                    // ── Day event list ──
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text(selectedDay.displayName)
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(NimvaColors.textMuted)
-                                .textCase(.uppercase)
-                                .kerning(0.7)
-                                .contentTransition(.opacity)
-                            Spacer()
-                            Text("\(eventsForSelectedDay.count) events")
-                                .font(.system(size: 10))
-                                .foregroundStyle(NimvaColors.textMuted)
-                                .contentTransition(.numericText())
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 10)
-                        .nimvaAnimation(NimvaAnimation.stateChange, value: selectedDay)
-
-                        if eventsForSelectedDay.isEmpty {
-                            VStack(spacing: 8) {
-                                Text("Nothing scheduled")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(NimvaColors.textMuted)
-                                Text("Tap + to add an event")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(NimvaColors.textMuted.opacity(0.6))
+                        // ── Check-in banner ──
+                        // Shown only when a week has been generated but not yet checked in.
+                        if let cache, cache.checkInRating == nil {
+                            Button { showingCheckIn = true } label: {
+                                HStack(spacing: 0) {
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(NimvaColors.teal)
+                                        .frame(width: 3)
+                                    HStack(spacing: 12) {
+                                        EmberView(expression: .calm, size: .mini)
+                                            .frame(width: 32, height: 32)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("How did this week feel?")
+                                                .font(NimvaFont.cardTitle)
+                                                .foregroundStyle(NimvaColors.textPrimary)
+                                            Text("Check in — takes about a minute")
+                                                .font(NimvaFont.micro)
+                                                .foregroundStyle(NimvaColors.textMuted)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(NimvaColors.textMuted)
+                                    }
+                                    .padding(14)
+                                }
+                                .background(NimvaColors.cardDark)
+                                .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.cardRadius))
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 32)
-                        } else {
-                            VStack(spacing: 8) {
-                                ForEach(eventsForSelectedDay) { event in
-                                    EventCard(event: event)
-                                        .pressScale()
-                                        .padding(.horizontal, 20)
-                                        .onTapGesture { eventToEdit = event }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 20)
+                            .sheet(isPresented: $showingCheckIn) {
+                                WeeklyCheckInView(cache: cache, onDismiss: { showingCheckIn = false })
+                            }
+                        }
+
+                        // ── Day event list ──
+                        VStack(spacing: 0) {
+                            HStack {
+                                Text(selectedDay.displayName)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(NimvaColors.textMuted)
+                                    .textCase(.uppercase)
+                                    .kerning(0.7)
+                                    .contentTransition(.opacity)
+                                Spacer()
+                                Text("\(eventsForSelectedDay.count) event\(eventsForSelectedDay.count == 1 ? "" : "s")")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(NimvaColors.textMuted)
+                                    .contentTransition(.numericText())
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 10)
+                            .nimvaAnimation(NimvaAnimation.stateChange, value: selectedDay)
+
+                            if eventsForSelectedDay.isEmpty {
+                                VStack(spacing: 6) {
+                                    Text("Nothing scheduled")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(NimvaColors.textMuted)
+                                    Text("Tap + to add an event")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(NimvaColors.textMuted.opacity(0.6))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 32)
+                            } else {
+                                VStack(spacing: 8) {
+                                    ForEach(Array(eventsForSelectedDay.enumerated()), id: \.element.id) { index, event in
+                                        EventCard(event: event, index: index)
+                                            .id("\(selectedDay.rawValue)-\(event.id)")
+                                            .pressScale()
+                                            .padding(.horizontal, 20)
+                                            .onTapGesture { eventToEdit = event }
+                                    }
                                 }
                             }
                         }
-                    }
-                    .nimvaAnimation(NimvaAnimation.stateChange, value: selectedDay)
+                        .nimvaAnimation(NimvaAnimation.stateChange, value: selectedDay)
 
-                    // Bottom padding so the FAB doesn't cover the last event
-                    Spacer(minLength: 80)
+                        Spacer(minLength: 80)
+                    }
+                    .padding(.top, 16)
+                    .opacity(contentAppeared ? 1 : 0)
+                    .offset(y: contentAppeared ? 0 : 12)
                 }
-                .padding(.top, 16)
             }
 
-            // ── Floating add button ──
+            // ── Floating add button ── (always visible)
             Button {
                 NimvaHaptics.medium()
                 showingAddEvent = true
@@ -204,14 +250,19 @@ struct HomeView: View {
             EditEventView(event: event)
         }
         .onAppear {
-            // If the user tapped "Add my first event" at the end of onboarding, open the sheet now
             if openAddEventOnLaunch {
                 openAddEventOnLaunch = false
                 showingAddEvent = true
             }
-            // Seed the cache on first launch if events exist but no cache has been built yet
             if cache == nil && !events.isEmpty {
                 recomputeSchedule()
+            }
+            if !reduceMotion {
+                withAnimation(NimvaAnimation.cardAppear.delay(0.08)) {
+                    contentAppeared = true
+                }
+            } else {
+                contentAppeared = true
             }
         }
         .alert("Couldn't update your schedule", isPresented: $showingScheduleError) {
@@ -233,10 +284,50 @@ struct HomeView: View {
 
     private var greetingText: String {
         let hour = Calendar.current.component(.hour, from: Date())
+        let base: String
         switch hour {
-        case 5..<12:  return "Good morning"
-        case 12..<17: return "Good afternoon"
-        default:      return "Good evening"
+        case 5..<12:  base = "Good morning"
+        case 12..<17: base = "Good afternoon"
+        default:      base = "Good evening"
+        }
+        let name = displayName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, name != "Your Name" else { return base }
+        return "\(base), \(name)"
+    }
+
+    private var firstRunEmptyState: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            EmberView(expression: .calm, size: .standard)
+                .frame(width: 120, height: 120)
+                .opacity(contentAppeared ? 1 : 0)
+                .scaleEffect(contentAppeared ? 1 : 0.85)
+                .nimvaAnimation(NimvaAnimation.squashStretch, value: contentAppeared)
+            VStack(spacing: 8) {
+                Text("Let's build your week")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(NimvaColors.textPrimary)
+                Text("Add your first event with the + button below.\nNimva will schedule around your energy.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(NimvaColors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .opacity(contentAppeared ? 1 : 0)
+            .offset(y: contentAppeared ? 0 : 8)
+            .nimvaAnimation(NimvaAnimation.cardAppear.delay(0.15), value: contentAppeared)
+            Spacer()
+            Spacer()
+        }
+        .padding(.horizontal, 40)
+        .onAppear {
+            if reduceMotion {
+                contentAppeared = true
+            } else {
+                withAnimation(NimvaAnimation.cardAppear.delay(0.1)) {
+                    contentAppeared = true
+                }
+            }
         }
     }
 
@@ -264,49 +355,65 @@ private struct FlexRecord: Decodable {
 
 private struct EventCard: View {
     let event: Event
+    var index: Int = 0
+
+    @AppStorage("useAltEnergyPalette") private var useAltPalette = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var visible = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Color dot — purple for fixed, teal for flexible
-            Circle()
+        HStack(spacing: 0) {
+            // Left accent bar — purple for fixed, teal for flexible
+            RoundedRectangle(cornerRadius: 2)
                 .fill(event.isFixed ? NimvaColors.purplePrimary : NimvaColors.teal)
-                .frame(width: 8, height: 8)
-                .padding(.leading, 4)
+                .frame(width: 3)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(event.name)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(NimvaColors.textPrimary)
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(event.name)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(NimvaColors.textPrimary)
+                    Text(subtitleText)
+                        .font(.system(size: 11))
+                        .foregroundStyle(NimvaColors.textSecondary)
+                }
 
-                Text(subtitleText)
-                    .font(.system(size: 11))
-                    .foregroundStyle(NimvaColors.textSecondary)
+                Spacer()
+
+                // Energy badge
+                Text(energyLabel)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(energyColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(energyColor.opacity(0.12))
+                    .clipShape(Capsule())
+
+                // Type tag
+                Text(event.isFixed ? "Fixed" : "Flex")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(NimvaColors.textMuted)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(NimvaColors.purpleMuted.opacity(0.5))
+                    .clipShape(Capsule())
             }
-
-            Spacer()
-
-            // Energy badge
-            Text(energyLabel)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(energyColor)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(energyColor.opacity(0.12))
-                .clipShape(Capsule())
-
-            // Type tag
-            Text(event.isFixed ? "Fixed" : "Flex")
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(NimvaColors.textMuted)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background(NimvaColors.purpleMuted.opacity(0.5))
-                .clipShape(Capsule())
+            .padding(14)
         }
-        .padding(14)
         .background(NimvaColors.cardDark)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .contentShape(Rectangle())
+        .opacity(visible ? 1 : 0)
+        .offset(y: visible ? 0 : 8)
+        .onAppear {
+            if reduceMotion {
+                visible = true
+            } else {
+                withAnimation(NimvaAnimation.cardAppear.delay(Double(index) * 0.06)) {
+                    visible = true
+                }
+            }
+        }
     }
 
     private var subtitleText: String {
@@ -336,10 +443,9 @@ private struct EventCard: View {
 
     private var energyColor: Color {
         switch event.energyCost {
-        case ..<0.35: return NimvaColors.teal
-        case ..<0.6:  return NimvaColors.amber
-        case ..<0.85: return NimvaColors.coral
-        default:      return NimvaColors.coral
+        case ..<0.35: return NimvaColors.energyLight(useAltPalette)
+        case ..<0.6:  return NimvaColors.energyMixed(useAltPalette)
+        default:      return NimvaColors.energyHeavy(useAltPalette)
         }
     }
 }

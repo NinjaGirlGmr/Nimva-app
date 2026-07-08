@@ -11,6 +11,9 @@ echo "--- Nimva CI: pre-xcodebuild ---"
 # agvtool must run from the directory containing the .xcodeproj.
 if [ -n "$CI_BUILD_NUMBER" ]; then
     echo "Setting CFBundleVersion to $CI_BUILD_NUMBER"
+    /usr/libexec/PlistBuddy \
+        -c "Set :CFBundleVersion $CI_BUILD_NUMBER" \
+        "$CI_PRIMARY_REPOSITORY_PATH/Nimva/Info.plist" 2>/dev/null || \
     (cd "$CI_PRIMARY_REPOSITORY_PATH" && agvtool new-version -all "$CI_BUILD_NUMBER")
 fi
 

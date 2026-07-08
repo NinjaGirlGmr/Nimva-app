@@ -20,6 +20,15 @@ Check `docs/design-reference.md` for:
 - Typography roles (Outfit for headers/numbers, Nunito for body — once applied)
 - Cross-screen consistency rules section — covers spacing, glow usage, stat chip patterns
 
+## Testing
+
+Write tests alongside every new function or logic change — not after. Coverage is continuous, not a cleanup pass.
+
+- New logic → new `@Test` in the matching `NimvaTests/[Feature]Tests.swift` file
+- New domain with no existing suite → create `[Feature]Tests.swift`
+- UI layout / animation / colors → exempt, test the logic behind it instead
+- If a function can't be tested as-is, extract it to a module-level `internal` function so `@testable import` can reach it
+
 ## Accessibility Checklist (quick reference)
 
 From `docs/technical-requirements.md` section 3.3 — keep these in mind for every screen:
