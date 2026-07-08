@@ -65,12 +65,12 @@ struct CalendarImportView: View {
             Text("📅")
                 .font(.system(size: 42))
 
-            Text(candidates.isEmpty ? "All caught up" : "Found \(candidates.count) new \(candidates.count == 1 ? "event" : "events")")
+            Text(candidates.isEmpty ? "Nothing new this week" : "Found \(candidates.count) new \(candidates.count == 1 ? "event" : "events")")
                 .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(NimvaColors.textPrimary)
 
             Text(candidates.isEmpty
-                ? "Your Apple Calendar events are already in Nimva."
+                ? "No new timed events were found in your Apple Calendar for this week."
                 : "Select which events to add to this week.")
                 .font(.system(size: 13))
                 .foregroundStyle(NimvaColors.textSecondary)

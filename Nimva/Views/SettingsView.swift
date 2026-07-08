@@ -324,16 +324,17 @@ struct SettingsView: View {
             } else {
                 authorized = await CalendarImportService.requestAccess(store: ekStore)
             }
-            await MainActor.run {
-                if authorized {
-                    calendarCandidates = CalendarImportService.fetchCandidates(
-                        store: ekStore,
-                        existingEvents: Array(events)
-                    )
+            if authorized {
+                let existing = await MainActor.run { Array(events) }
+                let candidates = await Task.detached(priority: .userInitiated) {
+                    CalendarImportService.fetchCandidates(store: ekStore, existingEvents: existing)
+                }.value
+                await MainActor.run {
+                    calendarCandidates = candidates
                     showingCalendarImport = true
-                } else {
-                    showingCalendarDenied = true
                 }
+            } else {
+                await MainActor.run { showingCalendarDenied = true }
             }
         }
     }
