@@ -15,21 +15,11 @@ enum CalendarImportService {
     // MARK: - Authorization
 
     static var isAuthorized: Bool {
-        let status = EKEventStore.authorizationStatus(for: .event)
-        if #available(iOS 17, *) { return status == .fullAccess }
-        return status == .authorized
+        EKEventStore.authorizationStatus(for: .event) == .fullAccess
     }
 
     static func requestAccess(store: EKEventStore) async -> Bool {
-        if #available(iOS 17, *) {
-            return (try? await store.requestFullAccessToEvents()) ?? false
-        } else {
-            return await withCheckedContinuation { cont in
-                store.requestAccess(to: .event) { granted, _ in
-                    cont.resume(returning: granted)
-                }
-            }
-        }
+        (try? await store.requestFullAccessToEvents()) ?? false
     }
 
     // MARK: - Fetch
@@ -92,7 +82,7 @@ enum CalendarImportService {
 
     // MARK: - Helpers
 
-    private static func dedupKey(name: String, day: DayOfWeek) -> String {
+    static func dedupKey(name: String, day: DayOfWeek) -> String {
         "\(name.lowercased())_\(day.rawValue)"
     }
 
@@ -106,7 +96,7 @@ enum CalendarImportService {
 
     // Calendar.weekday: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
     // DayOfWeek.rawValue: 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat 7=Sun
-    private static func nimvaDay(from date: Date) -> DayOfWeek? {
+    static func nimvaDay(from date: Date) -> DayOfWeek? {
         switch Calendar.current.component(.weekday, from: date) {
         case 2: return .monday
         case 3: return .tuesday

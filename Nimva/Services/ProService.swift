@@ -11,12 +11,19 @@ final class ProService {
     private(set) var purchaseInProgress: Bool = false
     private(set) var product: Product? = nil
 
-    // In DEBUG builds, PRO is always unlocked so every screen is testable
-    // without a real subscription or sandbox account.
+    // TestFlight builds deliver a sandbox receipt ("sandboxReceipt") instead of a
+    // real StoreKit receipt. We use that to auto-unlock PRO for beta testers so
+    // they can evaluate Insights without going through a purchase flow.
+    static var isTestFlight: Bool {
+        Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+    }
+
+    // PRO is enabled when: the user has an active subscription, OR we're in a
+    // TestFlight beta build, OR this is a DEBUG build (simulator / local testing).
     #if DEBUG
     var isProEnabled: Bool { true }
     #else
-    var isProEnabled: Bool { isProUser }
+    var isProEnabled: Bool { isProUser || Self.isTestFlight }
     #endif
 
     init() {

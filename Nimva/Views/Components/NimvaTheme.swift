@@ -42,6 +42,17 @@ enum NimvaColors {
     // Heavy-day dot in the week strip — a load indicator, not an event color,
     // so it's exempt from the coral replacement rule
     static let heavyBlue     = Color(hex: "378add")
+
+    // Alt energy palette — icon ring colours, lightened for AA contrast on dark bg
+    // Classic:  teal (#1d9e75) / amber (#ef9f27) / coral (#e0825a)
+    // Alt:      cyan (#3dcfb6, 10:1) / indigo (#7c52d4, 3.78:1) / rose (#c45a9e, 4.95:1)
+    static let altEnergyLight = Color(hex: "3dcfb6")
+    static let altEnergyMixed = Color(hex: "7c52d4")
+    static let altEnergyHeavy = Color(hex: "c45a9e")
+
+    static func energyLight(_ alt: Bool) -> Color { alt ? altEnergyLight : teal }
+    static func energyMixed(_ alt: Bool) -> Color { alt ? altEnergyMixed : amber }
+    static func energyHeavy(_ alt: Bool) -> Color { alt ? altEnergyHeavy : coral }
 }
 
 // MARK: - Typography

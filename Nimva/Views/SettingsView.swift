@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("checkInReminderEnabled") private var checkInReminderEnabled = true
     @AppStorage("soundsHapticsEnabled") private var soundsHapticsEnabled = true
     @AppStorage("globalPatternLearning") private var globalPatternLearning = true
+    @AppStorage("useAltEnergyPalette") private var useAltEnergyPalette = false
 
     // modelContext lets us delete SwiftData records (used by Clear all data)
     @Environment(\.modelContext) private var modelContext
@@ -25,6 +26,7 @@ struct SettingsView: View {
     @State private var showingResetPatternsConfirm = false
     @State private var showingClearDataConfirm = false
     @State private var showingExportInfo = false
+    @State private var showingRecomputeError = false
     #if DEBUG
     @State private var showingSeedConfirm = false
     @State private var seedMessage: String? = nil
@@ -103,6 +105,11 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Nimva needs calendar access to import your events. Enable it in Settings › Privacy › Calendars.")
+        }
+        .alert("Couldn't update schedule", isPresented: $showingRecomputeError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Events were imported, but the schedule couldn't be rebuilt. Try regenerating your week manually.")
         }
     }
 
@@ -191,6 +198,14 @@ struct SettingsView: View {
             .padding(.vertical, 14)
 
             SettingsDivider()
+
+            SettingsDivider()
+
+            ToggleRow(
+                label: "Alt energy colours",
+                subtitle: "Cyan / indigo / rose instead of teal / amber / coral",
+                isOn: $useAltEnergyPalette
+            )
 
             Text("Light mode coming in a future update.")
                 .font(.system(size: 11))
@@ -326,8 +341,12 @@ struct SettingsView: View {
     }
 
     private func recomputeAfterImport() {
-        let all = (try? modelContext.fetch(FetchDescriptor<Event>())) ?? []
-        try? SchedulerService.regenerate(context: modelContext, events: all)
+        do {
+            let all = try modelContext.fetch(FetchDescriptor<Event>())
+            try SchedulerService.regenerate(context: modelContext, events: all)
+        } catch {
+            showingRecomputeError = true
+        }
     }
 
     private func resetPatterns() {

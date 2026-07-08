@@ -92,7 +92,7 @@ struct EditEventView: View {
                                     .padding(.vertical, 10)
                             }
                             .buttonStyle(.bordered)
-                            .tint(selectedLabel == label ? .purple : .secondary)
+                            .tint(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.textMuted)
                         }
                     }
                     .padding(.vertical, 4)
@@ -102,7 +102,7 @@ struct EditEventView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Slider(value: $event.energyCost, in: 0.0...1.0, step: 0.01)
-                            .tint(.purple)
+                            .tint(NimvaColors.purplePrimary)
                     }
                 }
 
@@ -114,8 +114,11 @@ struct EditEventView: View {
                         .font(.caption)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(NimvaColors.background)
             .navigationTitle("Edit Event")
             .navigationBarTitleDisplayMode(.inline)
+            .tint(NimvaColors.purplePrimary)
             .onAppear {
                 // Set the chip highlight to whichever label is closest to the stored cost
                 selectedLabel = EnergyLabel.allCases.min(by: {

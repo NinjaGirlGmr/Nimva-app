@@ -35,6 +35,10 @@ private struct InsightsProContent: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if ProService.isTestFlight {
+                    betaBanner
+                }
+
                 headerSection
 
                 WeeklyTrendCard(caches: recentCaches)
@@ -48,6 +52,31 @@ private struct InsightsProContent: View {
             .padding(NimvaLayout.screenPadding)
         }
         .scrollIndicators(.hidden)
+    }
+
+    private var betaBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "flask.fill")
+                .font(.system(size: 13))
+                .foregroundStyle(NimvaColors.amberWarm)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Beta build — PRO unlocked")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(NimvaColors.amberWarm)
+                Text("Insights are free to use while you're testing. Thanks for being a beta tester!")
+                    .font(.system(size: 11))
+                    .foregroundStyle(NimvaColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(NimvaColors.amberWarm.opacity(0.1))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(NimvaColors.amberWarm.opacity(0.3), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private var headerSection: some View {
@@ -78,6 +107,7 @@ private struct WeeklyTrendCard: View {
     // Wave is the default: reads at a glance without requiring number-by-number comparison,
     // which matters for ADHD users who process patterns before detail.
     @AppStorage("insightsTrendStyle") private var trendStyle: TrendStyle = .wave
+    @AppStorage("useAltEnergyPalette") private var useAltPalette = false
 
     // Oldest → newest so the chart reads left to right naturally
     private var chartData: [WeekDatum] {
@@ -256,9 +286,9 @@ private struct WeeklyTrendCard: View {
 
     private var legendRow: some View {
         HStack(spacing: 16) {
-            legendItem(NimvaColors.teal,  "Light (0–1)")
-            legendItem(NimvaColors.amber, "Mixed (2–3)")
-            legendItem(NimvaColors.coral, "Heavy (4+)")
+            legendItem(NimvaColors.energyLight(useAltPalette), "Light (0–1)")
+            legendItem(NimvaColors.energyMixed(useAltPalette), "Mixed (2–3)")
+            legendItem(NimvaColors.energyHeavy(useAltPalette), "Heavy (4+)")
         }
         .font(NimvaFont.micro)
         .foregroundStyle(NimvaColors.textSecondary)
@@ -274,9 +304,9 @@ private struct WeeklyTrendCard: View {
     // Thresholds: 0–1 = light week, 2–3 = mixed, 4+ = heavy
     private func severityColor(for heavyDayCount: Int) -> Color {
         switch heavyDayCount {
-        case 0...1: return NimvaColors.teal
-        case 2...3: return NimvaColors.amber
-        default:    return NimvaColors.coral
+        case 0...1: return NimvaColors.energyLight(useAltPalette)
+        case 2...3: return NimvaColors.energyMixed(useAltPalette)
+        default:    return NimvaColors.energyHeavy(useAltPalette)
         }
     }
 
@@ -400,6 +430,8 @@ private struct BuildingDataCard: View {
 private struct InsightsLockedContent: View {
     @Environment(ProService.self) private var proService
 
+    @State private var showingPurchaseError = false
+
     // Fake bar heights for the decorative blurred background.
     // These are never derived from real user data — the spec requires the
     // locked view to show only generic placeholder visuals.
@@ -410,6 +442,11 @@ private struct InsightsLockedContent: View {
             blurredBackground
             upgradeCard
                 .padding(NimvaLayout.screenPadding)
+        }
+        .alert("Purchase failed", isPresented: $showingPurchaseError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Something went wrong. Please check your connection and try again.")
         }
     }
 
@@ -469,7 +506,13 @@ private struct InsightsLockedContent: View {
 
             VStack(spacing: 12) {
                 Button {
-                    Task { try? await proService.purchase() }
+                    Task {
+                        do {
+                            try await proService.purchase()
+                        } catch {
+                            showingPurchaseError = true
+                        }
+                    }
                 } label: {
                     Group {
                         if proService.purchaseInProgress {
@@ -516,4 +559,18 @@ private struct InsightsLockedContent: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
+}
+
+#Preview("Locked — free user") {
+    ZStack {
+        NimvaColors.background.ignoresSafeArea()
+        InsightsLockedContent()
+    }
+    .environment(ProService())
+}
+
+#Preview("Unlocked — PRO user") {
+    InsightsView()
+        .environment(ProService())
+        .modelContainer(for: [WeekCache.self], inMemory: true)
 }

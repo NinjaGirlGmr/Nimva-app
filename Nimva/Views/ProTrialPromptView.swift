@@ -85,7 +85,9 @@ struct ProTrialPromptView: View {
             // Primary — attempts the purchase, then continues regardless of result
             Button {
                 Task {
-                    _ = try? await proService.purchase()
+                    // Purchase failure is non-fatal here — user enters the app either way
+                    // and can retry from the Insights tab.
+                    try? await proService.purchase()
                     onComplete()
                 }
             } label: {

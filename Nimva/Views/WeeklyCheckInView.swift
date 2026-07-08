@@ -310,7 +310,7 @@ struct WeeklyCheckInView: View {
         let heavyDay = hardestDay != nil
 
         if rough && noRest {
-            return "A heavy week without much rest — that compounds. Let's keep an eye on \(heavyDay ? hardestDay!.displayName + "s" : "the pattern") going forward."
+            return "A heavy week without much rest — that compounds. Let's keep an eye on \(hardestDay.map { $0.displayName + "s" } ?? "the pattern") going forward."
         } else if rough {
             return "That sounds genuinely hard. You don't have to pretend it wasn't."
         } else if noRest && badFit {

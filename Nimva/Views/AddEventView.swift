@@ -63,6 +63,11 @@ struct AddEventView: View {
 
                         TimeInputRow(label: "Start time", date: $startTime)
                         TimeInputRow(label: "End time",   date: $endTime)
+                        if endTime <= startTime {
+                            Text("End time must be after start time")
+                                .font(.caption)
+                                .foregroundStyle(NimvaColors.coral)
+                        }
                     }
                 } else {
                     Section("Timing") {
@@ -104,7 +109,7 @@ struct AddEventView: View {
                                     .padding(.vertical, 10)
                             }
                             .buttonStyle(.bordered)
-                            .tint(selectedLabel == label ? .purple : .secondary)
+                            .tint(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.textMuted)
                         }
                     }
                     .padding(.vertical, 4)
@@ -114,7 +119,7 @@ struct AddEventView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Slider(value: $energyCost, in: 0.0...1.0, step: 0.01)
-                            .tint(.purple)
+                            .tint(NimvaColors.purplePrimary)
                     }
                 }
 
@@ -126,15 +131,19 @@ struct AddEventView: View {
                         .font(.caption)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(NimvaColors.background)
             .navigationTitle("Add Event")
             .navigationBarTitleDisplayMode(.inline)
+            .tint(NimvaColors.purplePrimary)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add to week") { saveEvent() }
-                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty ||
+                                  (isFixed && endTime <= startTime))
                 }
             }
         }
@@ -192,15 +201,37 @@ private struct DayChip: View {
         Button(action: onTap) {
             Text(label)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(isSelected ? .white : .primary)
+                .foregroundStyle(isSelected ? .white : NimvaColors.textSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .background(isSelected ? Color.purple : Color(.tertiarySystemGroupedBackground))
+                .background(isSelected ? NimvaColors.purplePrimary : NimvaColors.surfaceDeep)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
         .frame(minHeight: 44)
     }
+}
+
+// MARK: - Time Parsing
+// Shared by TimeInputRow and tests. Tries common time string formats in order;
+// preserves the date component of `base` so callers don't lose the day.
+func parseTimeString(_ input: String, relativeTo base: Date) -> Date? {
+    let trimmed = input.trimmingCharacters(in: .whitespaces)
+    guard !trimmed.isEmpty else { return nil }
+    let formats = ["h:mm a", "h:mma", "H:mm", "h:mm", "h a", "ha"]
+    let cal = Calendar.current
+    var baseComps = cal.dateComponents([.year, .month, .day], from: base)
+    for format in formats {
+        let f = DateFormatter()
+        f.dateFormat = format
+        if let parsed = f.date(from: trimmed) {
+            let t = cal.dateComponents([.hour, .minute], from: parsed)
+            baseComps.hour = t.hour
+            baseComps.minute = t.minute
+            return cal.date(from: baseComps)
+        }
+    }
+    return nil
 }
 
 // MARK: - Time Input Row
@@ -239,26 +270,9 @@ struct TimeInputRow: View {
     }
 
     private func commit() {
-        let trimmed = text.trimmingCharacters(in: .whitespaces)
-        let formats = ["h:mm a", "h:mma", "H:mm", "h:mm", "h a", "ha"]
-        let cal = Calendar.current
-        var base = cal.dateComponents([.year, .month, .day], from: date)
-
-        for format in formats {
-            let f = DateFormatter()
-            f.dateFormat = format
-            if let parsed = f.date(from: trimmed) {
-                let t = cal.dateComponents([.hour, .minute], from: parsed)
-                base.hour = t.hour
-                base.minute = t.minute
-                if let result = cal.date(from: base) {
-                    date = result
-                    text = Self.displayFormatter.string(from: result)
-                    return
-                }
-            }
+        if let result = parseTimeString(text, relativeTo: date) {
+            date = result
         }
-        // Reset to current value if parse failed
         text = Self.displayFormatter.string(from: date)
     }
 }
