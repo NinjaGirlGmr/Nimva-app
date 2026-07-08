@@ -8,12 +8,10 @@ echo "--- Nimva CI: pre-xcodebuild ---"
 
 # Auto-increment build number using the Xcode Cloud build counter.
 # CI_BUILD_NUMBER is provided by Xcode Cloud automatically.
+# agvtool must run from the directory containing the .xcodeproj.
 if [ -n "$CI_BUILD_NUMBER" ]; then
     echo "Setting CFBundleVersion to $CI_BUILD_NUMBER"
-    /usr/libexec/PlistBuddy \
-        -c "Set :CFBundleVersion $CI_BUILD_NUMBER" \
-        "$CI_PRIMARY_REPOSITORY_PATH/Nimva/Info.plist" 2>/dev/null || \
-    agvtool new-version -all "$CI_BUILD_NUMBER"
+    (cd "$CI_PRIMARY_REPOSITORY_PATH" && agvtool new-version -all "$CI_BUILD_NUMBER")
 fi
 
 echo "--- pre-xcodebuild complete ---"
