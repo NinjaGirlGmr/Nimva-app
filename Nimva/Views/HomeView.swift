@@ -12,6 +12,7 @@ struct HomeView: View {
     @AppStorage("openAddEventOnLaunch") private var openAddEventOnLaunch = false
 
     @AppStorage("displayName") private var displayName = "Your Name"
+    @AppStorage("selectedTab") private var selectedTab = 0
 
     @State private var selectedDay: DayOfWeek = Self.todayDayOfWeek()
     @State private var showingAddEvent = false
@@ -100,45 +101,76 @@ struct HomeView: View {
                             .padding(.horizontal, 12)
 
                         // ── Energy zone card ──
-                        EnergyZoneCard(
-                            selectedDay: selectedDay,
-                            dailyLoads: dailyLoads,
-                            heavyDays: heavyDays,
-                            eventsOnSelectedDay: eventsForSelectedDay.count,
-                            overflowCount: overflowCount,
-                            userType: userType
-                        )
-                        .padding(.horizontal, 20)
-
-                        // ── Generate week nudge ──
-                        // Shown when events exist but no schedule has been built yet.
-                        if cache == nil {
-                            HStack(spacing: 12) {
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 16))
-                                    .foregroundStyle(NimvaColors.teal)
-                                    .frame(width: 32)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Ready to build your week?")
-                                        .font(NimvaFont.cardTitle)
-                                        .foregroundStyle(NimvaColors.textPrimary)
-                                    Text("Go to the Week tab to schedule your events")
-                                        .font(NimvaFont.micro)
-                                        .foregroundStyle(NimvaColors.textMuted)
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(NimvaColors.textMuted)
-                            }
-                            .padding(14)
-                            .background(NimvaColors.cardDark)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: NimvaLayout.cardRadius)
-                                    .stroke(NimvaColors.teal.opacity(0.3), lineWidth: 1)
+                        // Only shown after the first build — before that dailyLoads
+                        // are all zeros and the card conveys nothing meaningful.
+                        if cache != nil {
+                            EnergyZoneCard(
+                                selectedDay: selectedDay,
+                                dailyLoads: dailyLoads,
+                                heavyDays: heavyDays,
+                                eventsOnSelectedDay: eventsForSelectedDay.count,
+                                overflowCount: overflowCount,
+                                userType: userType
                             )
-                            .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.cardRadius))
                             .padding(.horizontal, 20)
+                        }
+
+                        // ── Nudge card ──
+                        // Before first build: guide the user toward adding enough events,
+                        // then toward actually building — revealed progressively.
+                        if cache == nil {
+                            if events.count < 3 {
+                                let remaining = 3 - events.count
+                                HStack(spacing: 12) {
+                                    Image(systemName: "plus.circle")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(NimvaColors.purplePrimary)
+                                        .frame(width: 32)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Keep going")
+                                            .font(NimvaFont.cardTitle)
+                                            .foregroundStyle(NimvaColors.textPrimary)
+                                        Text("Add \(remaining) more event\(remaining == 1 ? "" : "s") to unlock week building")
+                                            .font(NimvaFont.micro)
+                                            .foregroundStyle(NimvaColors.textMuted)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(14)
+                                .background(NimvaColors.cardDark)
+                                .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.cardRadius))
+                                .padding(.horizontal, 20)
+                            } else {
+                                Button { selectedTab = 1 } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "sparkles")
+                                            .font(.system(size: 16))
+                                            .foregroundStyle(NimvaColors.teal)
+                                            .frame(width: 32)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Ready to build your week?")
+                                                .font(NimvaFont.cardTitle)
+                                                .foregroundStyle(NimvaColors.textPrimary)
+                                            Text("Tap to go to the Plan tab")
+                                                .font(NimvaFont.micro)
+                                                .foregroundStyle(NimvaColors.textMuted)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(NimvaColors.textMuted)
+                                    }
+                                    .padding(14)
+                                    .background(NimvaColors.cardDark)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: NimvaLayout.cardRadius)
+                                            .stroke(NimvaColors.teal.opacity(0.3), lineWidth: 1)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.cardRadius))
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.horizontal, 20)
+                            }
                         }
 
                         // ── Check-in banner ──
@@ -237,20 +269,23 @@ struct HomeView: View {
                 .transition(.opacity)
             }
 
-            // ── Floating add button ── (always visible)
-            Button {
-                NimvaHaptics.medium()
-                showingAddEvent = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
-                    .background(NimvaColors.purplePrimary)
-                    .clipShape(Circle())
+            // ── Floating add button ──
+            // Hidden in the empty state — the inline CTA button is the single action there.
+            if !events.isEmpty {
+                Button {
+                    NimvaHaptics.medium()
+                    showingAddEvent = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background(NimvaColors.purplePrimary)
+                        .clipShape(Circle())
+                }
+                .pressScale()
+                .padding(24)
             }
-            .pressScale()
-            .padding(24)
         }
         .animation(reduceMotion ? .none : NimvaAnimation.cardAppear, value: events.isEmpty)
         .sheet(isPresented: $showingAddEvent, onDismiss: recomputeSchedule) {
@@ -260,6 +295,11 @@ struct HomeView: View {
             EditEventView(event: event)
         }
         .onAppear {
+            // Snap to today on initial load only — preserves intentional day selection
+            // when the user switches tabs and returns, but corrects stale state on relaunch.
+            if !contentAppeared {
+                selectedDay = Self.todayDayOfWeek()
+            }
             if openAddEventOnLaunch {
                 openAddEventOnLaunch = false
                 showingAddEvent = true
@@ -317,7 +357,7 @@ struct HomeView: View {
                 Text("Let's build your week")
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(NimvaColors.textPrimary)
-                Text("Add your first event with the + button below.\nNimva will schedule around your energy.")
+                Text("Tag your events by how much energy they take — Nimva schedules around that.")
                     .font(.system(size: 14))
                     .foregroundStyle(NimvaColors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -326,10 +366,25 @@ struct HomeView: View {
             .opacity(contentAppeared ? 1 : 0)
             .offset(y: contentAppeared ? 0 : 8)
             .nimvaAnimation(NimvaAnimation.cardAppear.delay(0.15), value: contentAppeared)
+
+            Button {
+                showingAddEvent = true
+            } label: {
+                Text("Add your first event")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(NimvaColors.teal)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .opacity(contentAppeared ? 1 : 0)
+            .nimvaAnimation(NimvaAnimation.cardAppear.delay(0.25), value: contentAppeared)
+
             Spacer()
             Spacer()
         }
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 32)
         .onAppear {
             if reduceMotion {
                 contentAppeared = true

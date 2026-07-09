@@ -4,27 +4,33 @@ import SwiftData
 // Root tab container.
 // HomeView handles the Home tab; Plan, Insights, and Me are stubs for now.
 struct ContentView: View {
+    @AppStorage("selectedTab") private var selectedTab = 0
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             HomeView()
                 .tabItem {
                     Label("Home", systemImage: "calendar.day.timeline.left")
                 }
+                .tag(0)
 
             WeekGenerationView()
                 .tabItem {
                     Label("Plan", systemImage: "calendar")
                 }
+                .tag(1)
 
             InsightsView()
                 .tabItem {
                     Label("Insights", systemImage: "sparkles")
                 }
+                .tag(2)
 
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape.fill")
                 }
+                .tag(3)
         }
         // Dark background bleeds through the tab bar area
         .background(NimvaColors.background)
