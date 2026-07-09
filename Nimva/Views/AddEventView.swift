@@ -103,7 +103,7 @@ struct AddEventView: View {
 
                 // MARK: Energy
                 Section("Energy") {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
+                    VStack(spacing: 8) {
                         ForEach(EnergyLabel.allCases, id: \.self) { label in
                             Button {
                                 selectedLabel = label
@@ -122,6 +122,7 @@ struct AddEventView: View {
                                     )
                             }
                             .buttonStyle(.plain)
+                            .frame(minHeight: 44)
                         }
                     }
                     .padding(.vertical, 4)

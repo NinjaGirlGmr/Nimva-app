@@ -1,6 +1,7 @@
 import Foundation
 
 enum EnergyLabel: Double, CaseIterable, Codable {
+    case noEnergy = 0.0
     case alright = 0.25
     case manageable = 0.5
     case takesEffort = 0.75
@@ -10,9 +11,10 @@ enum EnergyLabel: Double, CaseIterable, Codable {
 
     var displayName: String {
         switch self {
-        case .alright: return "Alright"
-        case .manageable: return "Manageable"
-        case .takesEffort: return "Takes Effort"
+        case .noEnergy:      return "No energy"
+        case .alright:       return "Alright"
+        case .manageable:    return "Manageable"
+        case .takesEffort:   return "Takes Effort"
         case .prettyDraining: return "Pretty Draining"
         }
     }
