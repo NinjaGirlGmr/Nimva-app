@@ -8,7 +8,7 @@ struct ContentView: View {
         TabView {
             HomeView()
                 .tabItem {
-                    Label("Home", systemImage: "house.fill")
+                    Label("Home", systemImage: "calendar.day.timeline.left")
                 }
 
             WeekGenerationView()
@@ -23,7 +23,7 @@ struct ContentView: View {
 
             SettingsView()
                 .tabItem {
-                    Label("Me", systemImage: "person.fill")
+                    Label("Settings", systemImage: "gearshape.fill")
                 }
         }
         // Dark background bleeds through the tab bar area

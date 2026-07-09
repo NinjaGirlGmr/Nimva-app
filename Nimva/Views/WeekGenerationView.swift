@@ -14,6 +14,7 @@ struct WeekGenerationView: View {
 
     @State private var genState: GenerationState = .ready
     @State private var progress: Double = 0.0
+    @State private var showingAddEvent = false
     // Holds the algorithm result so we can display placements without re-fetching
     @State private var schedule: WeekSchedule?
     // Which days have had their flexible events "dropped in" during the building animation
@@ -43,6 +44,7 @@ struct WeekGenerationView: View {
                 .padding(.horizontal, 16)
             }
         }
+        .sheet(isPresented: $showingAddEvent) { AddEventView() }
         .alert("Couldn't build your week", isPresented: $showingScheduleError) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -60,11 +62,19 @@ struct WeekGenerationView: View {
                     .foregroundStyle(NimvaColors.textMuted)
                     .textCase(.uppercase)
                     .kerning(0.7)
-                Text("Week generation")
+                Text("Plan")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(NimvaColors.textPrimary)
             }
             Spacer()
+            Button { showingAddEvent = true } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(NimvaColors.purplePrimary)
+                    .frame(width: 36, height: 36)
+                    .background(NimvaColors.purplePrimary.opacity(0.12))
+                    .clipShape(Circle())
+            }
         }
     }
 
@@ -109,7 +119,7 @@ struct WeekGenerationView: View {
                 .kerning(0.7)
 
             if flexibleEvents.isEmpty {
-                Text("No flexible events yet — add some with the + button on Home")
+                Text("No flexible events yet — tap + above to add one")
                     .font(.system(size: 13))
                     .foregroundStyle(NimvaColors.textMuted)
                     .padding(.vertical, 8)
@@ -299,16 +309,34 @@ struct WeekGenerationView: View {
     private var actionArea: some View {
         switch genState {
         case .ready:
-            Button(action: startBuilding) {
-                Label("Build my week", systemImage: "sparkles")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(events.isEmpty ? NimvaColors.purplePrimary.opacity(0.4) : NimvaColors.purplePrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+            if events.count < 3 {
+                VStack(spacing: 14) {
+                    Text("Add at least 3 events and Nimva will arrange your week around them.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(NimvaColors.textMuted)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 8)
+                    Button { showingAddEvent = true } label: {
+                        Label("Add an event", systemImage: "plus")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(NimvaColors.purplePrimary)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                }
+            } else {
+                Button(action: startBuilding) {
+                    Label("Build my week", systemImage: "sparkles")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(NimvaColors.purplePrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
             }
-            .disabled(events.isEmpty)
 
         case .building:
             HStack(spacing: 10) {
