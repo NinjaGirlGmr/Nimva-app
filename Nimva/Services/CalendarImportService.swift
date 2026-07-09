@@ -118,7 +118,7 @@ enum CalendarImportService {
             )
             context.insert(event)
         }
-        try? context.save()
+        _ = try? context.save()
     }
 
     // MARK: - Helpers

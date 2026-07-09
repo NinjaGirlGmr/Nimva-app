@@ -438,21 +438,14 @@ struct SettingsView: View {
     }
 
     private func refreshCalendar() {
-        Task {
-            let existing = await MainActor.run { Array(events) }
-            let ids = await MainActor.run { selectedCalendarIDs }
-            let candidates = await Task.detached(priority: .userInitiated) {
-                CalendarImportService.fetchCandidates(
-                    store: ekStore,
-                    existingEvents: existing,
-                    selectedCalendarIDs: ids
-                )
-            }.value
-            await MainActor.run {
-                calendarCandidates = candidates
-                showingCalendarImport = true
-            }
-        }
+        let existing = Array(events)
+        let ids = selectedCalendarIDs
+        calendarCandidates = CalendarImportService.fetchCandidates(
+            store: ekStore,
+            existingEvents: existing,
+            selectedCalendarIDs: ids
+        )
+        showingCalendarImport = true
     }
 
     private func recomputeAfterImport() {
