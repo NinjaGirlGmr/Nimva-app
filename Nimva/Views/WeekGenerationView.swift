@@ -244,7 +244,7 @@ struct WeekGenerationView: View {
         switch genState {
         case .ready:    return .calm
         case .building: return .thinking
-        case .done:     return .happy
+        case .done, .approved: return .happy
         }
     }
 
@@ -252,6 +252,7 @@ struct WeekGenerationView: View {
         switch genState {
         case .ready:    return "Ready when you are"
         case .building: return "Finding the best slots..."
+        case .approved: return "Week is set"
         case .done:
             switch userType {
             case .optimizer:      return "Looks like a solid week"
@@ -268,6 +269,8 @@ struct WeekGenerationView: View {
             return n == 0 ? "Add flexible events first" : "\(n) flexible event\(n == 1 ? "" : "s") to place"
         case .building:
             return "Working through your energy load..."
+        case .approved:
+            return ""
         case .done:
             switch userType {
             case .optimizer, .patternLearner:
@@ -392,6 +395,9 @@ struct WeekGenerationView: View {
                         )
                 }
             }
+
+        case .approved:
+            EmptyView()
         }
     }
 
