@@ -78,7 +78,7 @@ enum EmberSize {
     // How far above center the spin emote sits
     var spinEmoteOffset: CGFloat {
         switch self {
-        case .mini:     return 0
+        case .mini:     return -12
         case .standard: return -22
         case .big:      return -30
         }
@@ -139,12 +139,11 @@ struct EmberView: View {
                     .id(displayed)
                     .transition(.opacity)
 
-                // Emote overlay — only shown for expressions that have one
-                if size != .mini {
-                    emoteLayer(for: displayed)
-                        .id("emote_\(displayed.rawValue)")
-                        .transition(.opacity)
-                }
+                // Emote overlay — shown at all sizes; glow is still suppressed at mini
+                // to avoid bleeding into surrounding card backgrounds
+                emoteLayer(for: displayed)
+                    .id("emote_\(displayed.rawValue)")
+                    .transition(.opacity)
             }
             .scaleEffect(breathing ? size.breathScale : 1.0)
             .offset(y: breathing ? -size.breathLift : 0)

@@ -414,6 +414,62 @@ struct SchedulerTypesTests {
             #expect(day.shortName == short)
         }
     }
+
+    @Test func orderedForLocaleContainsAllSevenDays() {
+        #expect(Set(DayOfWeek.orderedForLocale) == Set(DayOfWeek.allCases))
+        #expect(DayOfWeek.orderedForLocale.count == 7)
+    }
+
+    @Test func orderedForLocaleFirstDayMatchesCalendar() {
+        let first = DayOfWeek.orderedForLocale.first
+        if Calendar.current.firstWeekday == 1 {
+            #expect(first == .sunday)
+        } else {
+            #expect(first == .monday)
+        }
+    }
+}
+
+// MARK: - startingFrom constraint (#45)
+
+@Suite("Scheduler — Today-Forward Constraint")
+struct SchedulerStartingFromTests {
+
+    @Test func flexibleEventsNeverLandBeforeStartDay() {
+        let flexible = (0..<5).map { FlexibleEvent(name: "E\($0)", energyCost: 0.5) }
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: .thursday)
+
+        let tooEarly: [DayOfWeek] = [.monday, .tuesday, .wednesday]
+        for event in schedule.placedFlexibleEvents {
+            #expect(!tooEarly.contains(event.day))
+        }
+    }
+
+    @Test func flexibleEventsLandOnOrAfterStartDay() {
+        let flexible = [FlexibleEvent(name: "Task", energyCost: 0.5)]
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: .friday)
+
+        let placed = schedule.placedFlexibleEvents.first
+        #expect(placed != nil)
+        #expect((placed?.day.rawValue ?? 0) >= DayOfWeek.friday.rawValue)
+    }
+
+    @Test func sundayStartAllowsOnlySunday() {
+        let flexible = (0..<3).map { FlexibleEvent(name: "E\($0)", energyCost: 0.25) }
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: .sunday)
+
+        for event in schedule.placedFlexibleEvents {
+            #expect(event.day == .sunday)
+        }
+    }
+
+    @Test func nilStartUsesAllDays() {
+        let flexible = (0..<7).map { FlexibleEvent(name: "E\($0)", energyCost: 0.5) }
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: nil)
+
+        let uniqueDays = Set(schedule.placedFlexibleEvents.map { $0.day })
+        #expect(uniqueDays.count == 7)
+    }
 }
 
 // MARK: - DayOfWeek Navigation

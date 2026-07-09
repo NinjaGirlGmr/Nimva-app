@@ -46,7 +46,7 @@ struct AddEventView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(NimvaColors.textMuted)
                             HStack(spacing: 6) {
-                                ForEach(DayOfWeek.allCases, id: \.self) { day in
+                                ForEach(DayOfWeek.orderedForLocale, id: \.self) { day in
                                     DayChip(
                                         label: String(day.shortName.prefix(2)),
                                         isSelected: selectedDays.contains(day)

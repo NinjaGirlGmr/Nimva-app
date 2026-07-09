@@ -51,6 +51,16 @@ enum DayOfWeek: Int, CaseIterable, Codable, Hashable {
     // Returns the next day within the same week, or nil for Sunday.
     // Used to look ahead for forward warnings ("tomorrow looks heavy").
     var next: DayOfWeek? { DayOfWeek(rawValue: rawValue + 1) }
+
+    // Week display order that matches the device locale.
+    // US default (firstWeekday == 1): Sunday … Saturday.
+    // ISO/European (firstWeekday == 2): Monday … Sunday (same as allCases).
+    static var orderedForLocale: [DayOfWeek] {
+        if Calendar.current.firstWeekday == 1 {
+            return [.sunday, .monday, .tuesday, .wednesday, .thursday, .friday, .saturday]
+        }
+        return allCases
+    }
 }
 
 // Which mode a user appears to be in, detected from their schedule data — never asked.

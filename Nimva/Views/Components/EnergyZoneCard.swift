@@ -26,10 +26,8 @@ struct EnergyZoneCard: View {
     private var emberRingColor: Color { isHeavy ? NimvaColors.energyHeavy(useAltPalette) : NimvaColors.energyLight(useAltPalette) }
 
     // Weekly energy level: sum of all loads / (7 days × heavy threshold)
-    private var weeklyPercent: Double {
-        let total = dailyLoads.values.reduce(0, +)
-        let capacity = Double(DayOfWeek.allCases.count) * Scheduler.heavyDayThreshold
-        return min(total / capacity, 1.0)
+    private var dailyPercent: Double {
+        min(selectedLoad / Scheduler.heavyDayThreshold, 1.0)
     }
 
     private var heaviestDayName: String {
@@ -58,7 +56,7 @@ struct EnergyZoneCard: View {
 
                     Spacer(minLength: 8)
 
-                    WeeklyEnergyBar(percent: weeklyPercent)
+                    WeeklyEnergyBar(percent: dailyPercent)
                 }
                 .animation(reduceMotion ? .none : NimvaAnimation.squashStretch, value: selectedDay)
             }
@@ -231,7 +229,7 @@ private struct WeeklyEnergyBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Weekly energy")
+            Text("Day load")
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(NimvaColors.textMuted)
                 .textCase(.uppercase)

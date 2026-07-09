@@ -15,6 +15,8 @@ struct WeeklyCheckInView: View {
     @State private var scheduleMatch: ScheduleMatch? = nil
     @State private var gotRest: RestLevel? = nil
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private enum ScheduleMatch { case yes, mixed, no }
     private enum RestLevel    { case yes, little, no }
 
@@ -62,7 +64,7 @@ struct WeeklyCheckInView: View {
             }
             Spacer()
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: step)
+        .nimvaAnimation(.spring(response: 0.35, dampingFraction: 0.7), value: step)
     }
 
     // MARK: Step router
@@ -79,7 +81,8 @@ struct WeeklyCheckInView: View {
     }
 
     private func advance() {
-        withAnimation(.easeInOut(duration: 0.3)) { step += 1 }
+        NimvaHaptics.selection()
+        withAnimation(reduceMotion ? .none : NimvaAnimation.stateChange) { step += 1 }
     }
 
     // MARK: Step 1 — Overall energy
@@ -133,8 +136,9 @@ struct WeeklyCheckInView: View {
 
             VStack(spacing: 10) {
                 // Two rows of days + full-width "no standout" at bottom
+                // orderedForLocale respects US Sun–Sat vs ISO Mon–Sun
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    ForEach(DayOfWeek.allCases, id: \.self) { day in
+                    ForEach(DayOfWeek.orderedForLocale, id: \.self) { day in
                         dayButton(day)
                     }
                 }
@@ -263,7 +267,7 @@ struct WeeklyCheckInView: View {
                 EmberView(expression: closingExpression, size: .big)
                     .frame(width: 88, height: 88)
 
-                Text("You made it through.")
+                Text(closingTitle)
                     .font(.system(size: 24, weight: .bold))
                     .foregroundStyle(NimvaColors.textPrimary)
                     .multilineTextAlignment(.center)
@@ -273,12 +277,21 @@ struct WeeklyCheckInView: View {
                     .foregroundStyle(NimvaColors.textSecondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let day = hardestDay {
+                    Text("\(day.displayName) was the rough one — I'll keep that in mind when planning next week.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(NimvaColors.textMuted)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
+                }
             }
 
             Button {
                 persistAndDismiss()
             } label: {
-                Text("Close")
+                Text("Back to home")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
@@ -301,16 +314,26 @@ struct WeeklyCheckInView: View {
         }
     }
 
+    // Headline varies by how the week actually felt — the ending should match the mood.
+    private var closingTitle: String {
+        switch overallRating ?? 0.5 {
+        case ..<0.2: return "Strong week."
+        case ..<0.5: return "Solid week."
+        case ..<0.8: return "You got through it."
+        default:     return "You made it through."
+        }
+    }
+
     // Generates a short, honest acknowledgment from the check-in answers.
     // Warm but not dismissive — the app should validate, not reassure.
+    // Hardest day is handled by its own dedicated line in step5, not here.
     private var closingMessage: String {
-        let rough    = (overallRating ?? 0) >= 0.67
-        let noRest   = gotRest == .no
-        let badFit   = scheduleMatch == .no
-        let heavyDay = hardestDay != nil
+        let rough  = (overallRating ?? 0) >= 0.67
+        let noRest = gotRest == .no
+        let badFit = scheduleMatch == .no
 
         if rough && noRest {
-            return "A heavy week without much rest — that compounds. Let's keep an eye on \(hardestDay.map { $0.displayName + "s" } ?? "the pattern") going forward."
+            return "A heavy week without much rest — that compounds. Let's make next week a bit lighter."
         } else if rough {
             return "That sounds genuinely hard. You don't have to pretend it wasn't."
         } else if noRest && badFit {
