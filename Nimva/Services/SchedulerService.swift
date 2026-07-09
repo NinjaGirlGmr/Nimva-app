@@ -15,7 +15,7 @@ enum SchedulerService {
         let fixed = events.compactMap { toFixedEvent($0) }
         let flexible = events.compactMap { toFlexibleEvent($0) }
 
-        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible)
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible, startingFrom: todayAsDayOfWeek())
 
         // Replace only this week's cache — older weeks are kept for Insights history
         let currentStart = currentWeekStart()
@@ -163,5 +163,20 @@ enum SchedulerService {
         var cal = Calendar.current
         cal.firstWeekday = 2  // Monday
         return cal.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+    }
+
+    // Calendar.weekday: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
+    // DayOfWeek.rawValue: 1=Mon … 7=Sun
+    private static func todayAsDayOfWeek() -> DayOfWeek {
+        switch Calendar.current.component(.weekday, from: Date()) {
+        case 1: return .sunday
+        case 2: return .monday
+        case 3: return .tuesday
+        case 4: return .wednesday
+        case 5: return .thursday
+        case 6: return .friday
+        case 7: return .saturday
+        default: return .monday
+        }
     }
 }

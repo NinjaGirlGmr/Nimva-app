@@ -8,7 +8,7 @@ struct WeekStripView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(DayOfWeek.allCases, id: \.self) { day in
+            ForEach(DayOfWeek.orderedForLocale, id: \.self) { day in
                 DayColumn(
                     day: day,
                     load: dailyLoads[day] ?? 0,
@@ -62,7 +62,7 @@ private struct DayColumn: View {
         .scaleEffect(isSelected ? 1.15 : 1.0)
         .frame(minHeight: 44)
         .contentShape(Rectangle())
-        .nimvaAnimation(NimvaAnimation.stateChange, value: isSelected)
+        .nimvaAnimation(NimvaAnimation.buttonPress, value: isSelected)
     }
 
     private var loadColor: Color {

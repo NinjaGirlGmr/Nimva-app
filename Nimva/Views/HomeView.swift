@@ -74,6 +74,7 @@ struct HomeView: View {
 
             if events.isEmpty {
                 firstRunEmptyState
+                    .transition(.opacity)
             } else {
                 ScrollView {
                     VStack(spacing: 20) {
@@ -195,30 +196,37 @@ struct HomeView: View {
                             .padding(.bottom, 10)
                             .nimvaAnimation(NimvaAnimation.stateChange, value: selectedDay)
 
-                            if eventsForSelectedDay.isEmpty {
-                                VStack(spacing: 6) {
-                                    Text("Nothing scheduled")
-                                        .font(.system(size: 14))
-                                        .foregroundStyle(NimvaColors.textMuted)
-                                    Text("Tap + to add an event")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(NimvaColors.textMuted.opacity(0.6))
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 32)
-                            } else {
-                                VStack(spacing: 8) {
-                                    ForEach(Array(eventsForSelectedDay.enumerated()), id: \.element.id) { index, event in
-                                        EventCard(event: event, index: index)
-                                            .id("\(selectedDay.rawValue)-\(event.id)")
-                                            .pressScale()
-                                            .padding(.horizontal, 20)
-                                            .onTapGesture { eventToEdit = event }
+                            Group {
+                                if eventsForSelectedDay.isEmpty {
+                                    VStack(spacing: 6) {
+                                        Text("Nothing scheduled")
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(NimvaColors.textMuted)
+                                        Text("Tap + to add an event")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(NimvaColors.textMuted.opacity(0.6))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 32)
+                                } else {
+                                    VStack(spacing: 8) {
+                                        ForEach(Array(eventsForSelectedDay.enumerated()), id: \.element.id) { index, event in
+                                            EventCard(event: event, index: index)
+                                                .id("\(selectedDay.rawValue)-\(event.id)")
+                                                .pressScale()
+                                                .padding(.horizontal, 20)
+                                                .onTapGesture { eventToEdit = event }
+                                        }
                                     }
                                 }
                             }
+                            .id(selectedDay)
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .offset(y: 8)),
+                                removal: .opacity
+                            ))
+                            .nimvaAnimation(NimvaAnimation.cardAppear, value: selectedDay)
                         }
-                        .nimvaAnimation(NimvaAnimation.stateChange, value: selectedDay)
 
                         Spacer(minLength: 80)
                     }
@@ -226,6 +234,7 @@ struct HomeView: View {
                     .opacity(contentAppeared ? 1 : 0)
                     .offset(y: contentAppeared ? 0 : 12)
                 }
+                .transition(.opacity)
             }
 
             // ── Floating add button ── (always visible)
@@ -243,6 +252,7 @@ struct HomeView: View {
             .pressScale()
             .padding(24)
         }
+        .animation(reduceMotion ? .none : NimvaAnimation.cardAppear, value: events.isEmpty)
         .sheet(isPresented: $showingAddEvent, onDismiss: recomputeSchedule) {
             AddEventView()
         }

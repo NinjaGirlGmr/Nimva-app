@@ -35,7 +35,7 @@ struct EditEventView: View {
                             get: { event.fixedDay ?? .monday },
                             set: { event.fixedDay = $0 }
                         )) {
-                            ForEach(DayOfWeek.allCases, id: \.self) { day in
+                            ForEach(DayOfWeek.orderedForLocale, id: \.self) { day in
                                 Text(day.displayName).tag(day)
                             }
                         }
