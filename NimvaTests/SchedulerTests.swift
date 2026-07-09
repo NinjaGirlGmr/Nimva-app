@@ -94,6 +94,15 @@ struct SchedulerEdgeCaseTests {
 
         #expect(schedule.placedFlexibleEvents.count == 1)
     }
+
+    @Test func noEnergyEventsDoNotContributeToLoad() {
+        // A "No energy" event (holiday, reminder) should leave the day load at zero
+        let fixed = [FixedEvent(name: "Holiday", day: .monday, energyCost: 0.0)]
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: [])
+
+        #expect((schedule.dailyLoads[.monday] ?? 0.0) == 0.0)
+        #expect(!schedule.heavyDays.contains(.monday))
+    }
 }
 
 // MARK: - Balance Score
@@ -367,6 +376,7 @@ struct UserTypeDetectionTests {
 struct SchedulerTypesTests {
 
     @Test func energyLabelCostsMatchRawValues() {
+        #expect(EnergyLabel.noEnergy.cost == 0.0)
         #expect(EnergyLabel.alright.cost == 0.25)
         #expect(EnergyLabel.manageable.cost == 0.5)
         #expect(EnergyLabel.takesEffort.cost == 0.75)
@@ -374,10 +384,16 @@ struct SchedulerTypesTests {
     }
 
     @Test func energyLabelDisplayNamesAreCorrect() {
+        #expect(EnergyLabel.noEnergy.displayName == "No energy")
         #expect(EnergyLabel.alright.displayName == "Alright")
         #expect(EnergyLabel.manageable.displayName == "Manageable")
         #expect(EnergyLabel.takesEffort.displayName == "Takes Effort")
         #expect(EnergyLabel.prettyDraining.displayName == "Pretty Draining")
+    }
+
+    @Test func energyLabelAllCasesContainsFiveEntries() {
+        #expect(EnergyLabel.allCases.count == 5)
+        #expect(EnergyLabel.allCases.first == .noEnergy)
     }
 
     @Test func timePreferenceDisplayNamesAreCorrect() {
