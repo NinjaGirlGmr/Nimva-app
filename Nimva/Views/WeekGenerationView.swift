@@ -6,11 +6,14 @@ private enum GenerationState: Equatable {
     case ready      // before the user taps "Build my week"
     case building   // algorithm is running + animated reveal
     case done       // result is ready; user can approve or redo
+    case approved   // brief confirmation moment before returning home
 }
 
 struct WeekGenerationView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Event.createdAt) private var events: [Event]
+
+    @AppStorage("selectedTab") private var selectedTab = 0
 
     @State private var genState: GenerationState = .ready
     @State private var progress: Double = 0.0
@@ -21,6 +24,8 @@ struct WeekGenerationView: View {
     @State private var revealedDays: Set<DayOfWeek> = []
     @State private var showingScheduleError = false
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var fixedEvents: [Event]    { events.filter(\.isFixed) }
     private var flexibleEvents: [Event] { events.filter { !$0.isFixed } }
     private var userType: UserType      { SchedulerService.detectUserType(events: events) }
@@ -29,21 +34,31 @@ struct WeekGenerationView: View {
         ZStack {
             NimvaColors.background.ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: 24) {
-                    headerRow
-                    dayGrid
-                    if genState == .ready    { unscheduledSection }
-                    if genState == .done     { insightChips }
-                    emberCard
-                    energyProgressBar
-                    actionArea
-                    Spacer(minLength: 40)
+            if genState == .approved {
+                approvedView
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.96)),
+                        removal: .opacity
+                    ))
+            } else {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        headerRow
+                        dayGrid
+                        if genState == .ready    { unscheduledSection }
+                        if genState == .done     { insightChips }
+                        emberCard
+                        energyProgressBar
+                        actionArea
+                        Spacer(minLength: 40)
+                    }
+                    .padding(.top, 24)
+                    .padding(.horizontal, 16)
                 }
-                .padding(.top, 24)
-                .padding(.horizontal, 16)
+                .transition(.opacity)
             }
         }
+        .animation(reduceMotion ? .none : NimvaAnimation.squashStretch, value: genState == .approved)
         .sheet(isPresented: $showingAddEvent) { AddEventView() }
         .alert("Couldn't build your week", isPresented: $showingScheduleError) {
             Button("OK", role: .cancel) { }
@@ -416,10 +431,71 @@ struct WeekGenerationView: View {
         }
     }
 
-    // Week is already saved in SwiftData by SchedulerService.regenerate — just navigate away.
-    // For now we reset to .ready so the screen can be reused; the tab bar will route home.
+    // Week is already saved in SwiftData by SchedulerService.regenerate.
+    // Fire success haptic, then show the approval confirmation before routing home.
     private func approveWeek() {
-        withAnimation { genState = .ready; progress = 0 }
+        NimvaHaptics.success()
+        withAnimation(NimvaAnimation.cardAppear) { genState = .approved }
+    }
+
+    // MARK: - Approved view
+
+    private var approvedView: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 16) {
+                EmberView(expression: .happy, size: .big)
+                    .frame(width: 88, height: 88)
+
+                VStack(spacing: 8) {
+                    Text(approvalTitle)
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(NimvaColors.textPrimary)
+                        .multilineTextAlignment(.center)
+
+                    Text(approvalMessage)
+                        .font(.system(size: 14))
+                        .foregroundStyle(NimvaColors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 8)
+            }
+
+            Spacer()
+
+            Button {
+                withAnimation { genState = .ready; progress = 0 }
+                selectedTab = 0
+            } label: {
+                Text("Back to home")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(NimvaColors.teal)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .padding(.horizontal, 28)
+            .padding(.bottom, 40)
+        }
+    }
+
+    private var approvalTitle: String {
+        switch schedule?.heavyDays.count ?? 0 {
+        case 0:    return "Week is looking light."
+        case 1, 2: return "Week is set."
+        default:   return "Week mapped."
+        }
+    }
+
+    private var approvalMessage: String {
+        switch schedule?.heavyDays.count ?? 0 {
+        case 0:    return "Solid breathing room across the board — you've built yourself some space."
+        case 1, 2: return "Flex time is placed around your heavier days. You've got this."
+        default:   return "It's a packed one — Nimva's placed flex tasks in the gaps. Protect them."
+        }
     }
 
     private func redo() {
