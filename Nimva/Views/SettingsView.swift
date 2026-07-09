@@ -13,6 +13,11 @@ struct SettingsView: View {
     @AppStorage("soundsHapticsEnabled") private var soundsHapticsEnabled = true
     @AppStorage("globalPatternLearning") private var globalPatternLearning = true
     @AppStorage("useAltEnergyPalette") private var useAltEnergyPalette = false
+    @AppStorage("selectedCalendarIDsCSV") private var selectedCalendarIDsCSV: String = ""
+
+    private var selectedCalendarIDs: Set<String> {
+        Set(selectedCalendarIDsCSV.split(separator: ",").map(String.init).filter { !$0.isEmpty })
+    }
 
     // modelContext lets us delete SwiftData records (used by Clear all data)
     @Environment(\.modelContext) private var modelContext
@@ -20,6 +25,9 @@ struct SettingsView: View {
     @State private var showingNameEditor = false
     @State private var nameEditDraft = ""
     @State private var ekStore = EKEventStore()
+    @State private var isCalendarAuthorized = CalendarImportService.isAuthorized
+    @State private var availableCalendars: [CalendarImportService.CalendarInfo] = []
+    @State private var showingCalendarPicker = false
     @State private var showingCalendarImport = false
     @State private var showingCalendarDenied = false
     @State private var calendarCandidates: [CalendarImportService.ImportCandidate] = []
@@ -27,6 +35,7 @@ struct SettingsView: View {
     @State private var showingClearDataConfirm = false
     @State private var showingExportInfo = false
     @State private var showingRecomputeError = false
+    @State private var showingOnboarding = false
     #if DEBUG
     @State private var showingSeedConfirm = false
     @State private var seedMessage: String? = nil
@@ -45,6 +54,7 @@ struct SettingsView: View {
                     energyLearningSection
                     calendarsSection
                     accountSection
+                    helpSection
                     versionFooter
                     #if DEBUG
                     developerSection
@@ -84,6 +94,16 @@ struct SettingsView: View {
         } message: {
             Text("This permanently deletes all your events and schedule history. This cannot be undone.")
         }
+        .sheet(isPresented: $showingCalendarPicker) {
+            CalendarPickerView(
+                calendars: availableCalendars,
+                selectedIDs: Binding(
+                    get: { selectedCalendarIDs },
+                    set: { selectedCalendarIDsCSV = $0.joined(separator: ",") }
+                ),
+                onDone: { showingCalendarPicker = false }
+            )
+        }
         .sheet(isPresented: $showingCalendarImport) {
             CalendarImportView(
                 candidates: calendarCandidates,
@@ -106,6 +126,9 @@ struct SettingsView: View {
         } message: {
             Text("Nimva needs calendar access to import your events. Enable it in Settings › Privacy › Calendars.")
         }
+        .sheet(isPresented: $showingOnboarding) {
+            OnboardingView()
+        }
         .alert("Couldn't update schedule", isPresented: $showingRecomputeError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -118,12 +141,12 @@ struct SettingsView: View {
     private var pageHeader: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Account")
+                Text("Preferences")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(NimvaColors.textMuted)
                     .textCase(.uppercase)
                     .kerning(0.7)
-                Text("Me")
+                Text("Settings")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(NimvaColors.textPrimary)
             }
@@ -241,38 +264,102 @@ struct SettingsView: View {
 
     private var calendarsSection: some View {
         SettingsSection(title: "Calendars") {
-            Button { importFromCalendar() } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "calendar.badge.plus")
-                        .font(.system(size: 16))
-                        .foregroundStyle(NimvaColors.teal)
-                        .frame(width: 22)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Import from Apple Calendar")
-                            .font(.system(size: 14))
-                            .foregroundStyle(NimvaColors.textPrimary)
-                        if lastCalendarImportDate > 0 {
-                            Text("Last imported \(Date(timeIntervalSince1970: lastCalendarImportDate), style: .relative) ago")
-                                .font(.system(size: 11))
-                                .foregroundStyle(NimvaColors.textMuted)
-                        } else {
-                            Text("Pull this week's events in once")
+            if !isCalendarAuthorized {
+                Button { connectCalendar() } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "calendar.badge.plus")
+                            .font(.system(size: 16))
+                            .foregroundStyle(NimvaColors.teal)
+                            .frame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Connect Apple Calendar")
+                                .font(.system(size: 14))
+                                .foregroundStyle(NimvaColors.textPrimary)
+                            Text("Grant access to import your events")
                                 .font(.system(size: 11))
                                 .foregroundStyle(NimvaColors.textMuted)
                         }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(NimvaColors.textMuted)
                     }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(NimvaColors.textMuted)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .contentShape(Rectangle())
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+            } else {
+                // Calendar picker row
+                Button { openCalendarPicker() } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 16))
+                            .foregroundStyle(NimvaColors.purplePrimary)
+                            .frame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Calendars")
+                                .font(.system(size: 14))
+                                .foregroundStyle(NimvaColors.textPrimary)
+                            Text(calendarSelectionSummary)
+                                .font(.system(size: 11))
+                                .foregroundStyle(NimvaColors.textMuted)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(NimvaColors.textMuted)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                SettingsDivider()
+
+                // Refresh / import row
+                Button { refreshCalendar() } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 16))
+                            .foregroundStyle(NimvaColors.teal)
+                            .frame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Refresh from Calendar")
+                                .font(.system(size: 14))
+                                .foregroundStyle(NimvaColors.textPrimary)
+                            if lastCalendarImportDate > 0 {
+                                Text("Last imported \(Date(timeIntervalSince1970: lastCalendarImportDate), style: .relative) ago")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(NimvaColors.textMuted)
+                            } else {
+                                Text("Pull this week's events into Nimva")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(NimvaColors.textMuted)
+                            }
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(NimvaColors.textMuted)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
+    }
+
+    private var calendarSelectionSummary: String {
+        let ids = selectedCalendarIDs
+        if ids.isEmpty { return "No calendars selected — tap to choose" }
+        let matched = availableCalendars.filter { ids.contains($0.id) }.map(\.title)
+        if matched.isEmpty { return "\(ids.count) selected" }
+        if matched.count <= 2 { return matched.joined(separator: ", ") }
+        return "\(matched[0]), \(matched[1]) +\(matched.count - 2) more"
     }
 
     // MARK: - Account
@@ -305,6 +392,16 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Help
+
+    private var helpSection: some View {
+        SettingsSection(title: "Help") {
+            ActionRow(label: "How Nimva works", style: .normal) {
+                showingOnboarding = true
+            }
+        }
+    }
+
     // MARK: - Version footer
 
     private var versionFooter: some View {
@@ -316,25 +413,44 @@ struct SettingsView: View {
 
     // MARK: - Actions
 
-    private func importFromCalendar() {
+    private func connectCalendar() {
         Task {
-            let authorized: Bool
-            if CalendarImportService.isAuthorized {
-                authorized = true
-            } else {
-                authorized = await CalendarImportService.requestAccess(store: ekStore)
-            }
-            if authorized {
-                let existing = await MainActor.run { Array(events) }
-                let candidates = await Task.detached(priority: .userInitiated) {
-                    CalendarImportService.fetchCandidates(store: ekStore, existingEvents: existing)
-                }.value
-                await MainActor.run {
-                    calendarCandidates = candidates
-                    showingCalendarImport = true
+            let granted = await CalendarImportService.requestAccess(store: ekStore)
+            await MainActor.run {
+                if granted {
+                    isCalendarAuthorized = true
+                    availableCalendars = CalendarImportService.availableCalendars(store: ekStore)
+                    // Pre-select all calendars on first connect
+                    if selectedCalendarIDsCSV.isEmpty {
+                        selectedCalendarIDsCSV = availableCalendars.map(\.id).joined(separator: ",")
+                    }
+                    showingCalendarPicker = true
+                } else {
+                    showingCalendarDenied = true
                 }
-            } else {
-                await MainActor.run { showingCalendarDenied = true }
+            }
+        }
+    }
+
+    private func openCalendarPicker() {
+        availableCalendars = CalendarImportService.availableCalendars(store: ekStore)
+        showingCalendarPicker = true
+    }
+
+    private func refreshCalendar() {
+        Task {
+            let existing = await MainActor.run { Array(events) }
+            let ids = await MainActor.run { selectedCalendarIDs }
+            let candidates = await Task.detached(priority: .userInitiated) {
+                CalendarImportService.fetchCandidates(
+                    store: ekStore,
+                    existingEvents: existing,
+                    selectedCalendarIDs: ids
+                )
+            }.value
+            await MainActor.run {
+                calendarCandidates = candidates
+                showingCalendarImport = true
             }
         }
     }

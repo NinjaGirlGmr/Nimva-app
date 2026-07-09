@@ -14,7 +14,7 @@ struct AddEventView: View {
     @State private var durationMinutes: Int = 60
     @State private var selectedLabel: EnergyLabel = .manageable
     @State private var energyCost: Double = EnergyLabel.manageable.cost
-    @State private var patternLearningEnabled: Bool = true
+    @AppStorage("globalPatternLearning") private var globalPatternLearning = true
     @State private var category: String = "General"
 
     var body: some View {
@@ -29,20 +29,22 @@ struct AddEventView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+                .listRowBackground(NimvaColors.cardDark)
 
                 // MARK: Name
                 Section("Event name") {
                     TextField("What's the event?", text: $name)
+                        .foregroundStyle(NimvaColors.textPrimary)
                 }
+                .listRowBackground(NimvaColors.cardDark)
 
                 // MARK: Timing
                 if isFixed {
                     Section("Timing") {
-                        // Multi-day chips — tap to toggle; great for recurring events like MWF classes
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Day")
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(NimvaColors.textMuted)
                             HStack(spacing: 6) {
                                 ForEach(DayOfWeek.allCases, id: \.self) { day in
                                     DayChip(
@@ -50,7 +52,6 @@ struct AddEventView: View {
                                         isSelected: selectedDays.contains(day)
                                     ) {
                                         if selectedDays.contains(day) {
-                                            // Keep at least one day selected
                                             if selectedDays.count > 1 { selectedDays.remove(day) }
                                         } else {
                                             selectedDays.insert(day)
@@ -69,6 +70,7 @@ struct AddEventView: View {
                                 .foregroundStyle(NimvaColors.coral)
                         }
                     }
+                    .listRowBackground(NimvaColors.cardDark)
                 } else {
                     Section("Timing") {
                         Picker("Preferred window", selection: $preferredWindow) {
@@ -76,14 +78,17 @@ struct AddEventView: View {
                                 Text(window.displayName).tag(window)
                             }
                         }
+                        .foregroundStyle(NimvaColors.textPrimary)
                         Stepper(
                             value: $durationMinutes,
                             in: 15...480,
                             step: 15
                         ) {
                             Text("Duration: \(formattedDuration)")
+                                .foregroundStyle(NimvaColors.textPrimary)
                         }
                     }
+                    .listRowBackground(NimvaColors.cardDark)
 
                     Section {
                         Label(
@@ -91,8 +96,9 @@ struct AddEventView: View {
                             systemImage: "sparkles"
                         )
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(NimvaColors.textMuted)
                     }
+                    .listRowBackground(NimvaColors.cardDark)
                 }
 
                 // MARK: Energy
@@ -104,32 +110,23 @@ struct AddEventView: View {
                                 energyCost = label.cost
                             } label: {
                                 Text(label.displayName)
-                                    .font(.subheadline)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(selectedLabel == label ? .white : NimvaColors.textSecondary)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 10)
+                                    .background(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.surfaceDeep)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.border, lineWidth: 1)
+                                    )
                             }
-                            .buttonStyle(.bordered)
-                            .tint(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.textMuted)
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.vertical, 4)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Fine-tune")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Slider(value: $energyCost, in: 0.0...1.0, step: 0.01)
-                            .tint(NimvaColors.purplePrimary)
-                    }
                 }
-
-                // MARK: Pattern learning
-                Section {
-                    Toggle("Learn my patterns", isOn: $patternLearningEnabled)
-                } footer: {
-                    Text("Nimva uses your check-in ratings to improve suggestions over time.")
-                        .font(.caption)
-                }
+                .listRowBackground(NimvaColors.cardDark)
             }
             .scrollContentBackground(.hidden)
             .background(NimvaColors.background)
@@ -139,6 +136,7 @@ struct AddEventView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .foregroundStyle(NimvaColors.textMuted)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add to week") { saveEvent() }
@@ -159,7 +157,6 @@ struct AddEventView: View {
         return "\(hours)h \(minutes)m"
     }
 
-    // Creates one Event per selected day for fixed events (supports MWF-style recurring).
     private func saveEvent() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         if isFixed {
@@ -172,7 +169,7 @@ struct AddEventView: View {
                     endTime: endTime,
                     energyCost: energyCost,
                     category: category,
-                    patternLearningEnabled: patternLearningEnabled
+                    patternLearningEnabled: globalPatternLearning
                 ))
             }
         } else {
@@ -183,7 +180,7 @@ struct AddEventView: View {
                 duration: TimeInterval(durationMinutes * 60),
                 energyCost: energyCost,
                 category: category,
-                patternLearningEnabled: patternLearningEnabled
+                patternLearningEnabled: globalPatternLearning
             ))
         }
         dismiss()
@@ -254,9 +251,11 @@ struct TimeInputRow: View {
     var body: some View {
         HStack {
             Text(label)
+                .foregroundStyle(NimvaColors.textPrimary)
             Spacer()
             TextField("9:00 AM", text: $text)
                 .multilineTextAlignment(.trailing)
+                .foregroundStyle(NimvaColors.textSecondary)
                 .focused($isFocused)
                 .onSubmit { commit() }
                 .onChange(of: isFocused) { _, focused in

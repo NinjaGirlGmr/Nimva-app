@@ -1,15 +1,23 @@
 import EventKit
 import SwiftData
+import SwiftUI
 import Foundation
 
 enum CalendarImportService {
 
     struct ImportCandidate: Identifiable {
-        let id: String          // EKEvent.eventIdentifier — stable across fetches
+        let id: String
         let title: String
         let day: DayOfWeek
         let startTime: Date
         let endTime: Date
+        let calendarTitle: String
+    }
+
+    struct CalendarInfo: Identifiable {
+        let id: String          // EKCalendar.calendarIdentifier
+        let title: String
+        let color: Color
     }
 
     // MARK: - Authorization
@@ -22,14 +30,46 @@ enum CalendarImportService {
         (try? await store.requestFullAccessToEvents()) ?? false
     }
 
+    // MARK: - Available Calendars
+
+    // Returns all writable event calendars on the device — excludes read-only
+    // subscribed calendars (holidays, birthdays, sports) that users almost never
+    // want imported into Nimva.
+    static func availableCalendars(store: EKEventStore) -> [CalendarInfo] {
+        store.calendars(for: .event)
+            .filter { $0.allowsContentModifications || $0.type == .local || $0.type == .calDAV }
+            .map { cal in
+                CalendarInfo(
+                    id: cal.calendarIdentifier,
+                    title: cal.title,
+                    color: Color(cgColor: cal.cgColor)
+                )
+            }
+            .sorted { $0.title < $1.title }
+    }
+
     // MARK: - Fetch
 
-    // Returns timed (non-all-day) calendar events for the current week that
-    // don't already exist in Nimva. Sorted by day so the review sheet reads
-    // Mon → Sun naturally.
-    static func fetchCandidates(store: EKEventStore, existingEvents: [Event]) -> [ImportCandidate] {
+    // Returns timed (non-all-day) events for the current week that aren't
+    // already in Nimva. Filters to selectedCalendarIDs when provided; falls
+    // back to all calendars if none are selected.
+    static func fetchCandidates(
+        store: EKEventStore,
+        existingEvents: [Event],
+        selectedCalendarIDs: Set<String> = []
+    ) -> [ImportCandidate] {
         let (start, end) = currentWeekRange()
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+
+        let filteredCalendars: [EKCalendar]?
+        if selectedCalendarIDs.isEmpty {
+            filteredCalendars = nil
+        } else {
+            filteredCalendars = store.calendars(for: .event)
+                .filter { selectedCalendarIDs.contains($0.calendarIdentifier) }
+            if filteredCalendars?.isEmpty == true { return [] }
+        }
+
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: filteredCalendars)
         let ekEvents = store.events(matching: predicate)
 
         let existingKeys = Set(
@@ -57,7 +97,8 @@ enum CalendarImportService {
                 title: title,
                 day: day,
                 startTime: startDate,
-                endTime: endDate
+                endTime: endDate,
+                calendarTitle: ek.calendar?.title ?? ""
             )
         }
         .sorted { $0.day.rawValue < $1.day.rawValue }
@@ -86,6 +127,7 @@ enum CalendarImportService {
         "\(name.lowercased())_\(day.rawValue)"
     }
 
+    // Week range always starts Monday regardless of device locale.
     private static func currentWeekRange() -> (start: Date, end: Date) {
         var cal = Calendar.current
         cal.firstWeekday = 2
