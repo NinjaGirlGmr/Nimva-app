@@ -4,8 +4,11 @@ import SwiftData
 struct EditEventView: View {
     @Bindable var event: Event
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     @State private var selectedLabel: EnergyLabel = .manageable
+    @State private var showingDeleteConfirm = false
+    @FocusState private var nameFieldFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -25,6 +28,7 @@ struct EditEventView: View {
                 Section("Event name") {
                     TextField("What's the event?", text: $event.name)
                         .foregroundStyle(NimvaColors.textPrimary)
+                        .focused($nameFieldFocused)
                 }
                 .listRowBackground(NimvaColors.cardDark)
 
@@ -76,6 +80,17 @@ struct EditEventView: View {
                     .listRowBackground(NimvaColors.cardDark)
                 }
 
+                // MARK: Delete
+                Section {
+                    Button(role: .destructive) {
+                        showingDeleteConfirm = true
+                    } label: {
+                        Text("Delete Event")
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                }
+                .listRowBackground(NimvaColors.cardDark)
+
                 // MARK: Energy
                 Section("Energy") {
                     VStack(spacing: 8) {
@@ -110,6 +125,27 @@ struct EditEventView: View {
             .navigationTitle("Edit Event")
             .navigationBarTitleDisplayMode(.inline)
             .tint(NimvaColors.purplePrimary)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { nameFieldFocused = false }
+                        .foregroundStyle(NimvaColors.purplePrimary)
+                }
+            }
+            .confirmationDialog(
+                "Delete \"\(event.name)\"?",
+                isPresented: $showingDeleteConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Delete Event", role: .destructive) {
+                    modelContext.delete(event)
+                    try? modelContext.save()
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This can't be undone.")
+            }
             .onAppear {
                 selectedLabel = EnergyLabel.allCases.min(by: {
                     abs($0.cost - event.energyCost) < abs($1.cost - event.energyCost)
@@ -117,7 +153,10 @@ struct EditEventView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") {
+                        try? modelContext.save()
+                        dismiss()
+                    }
                 }
             }
         }

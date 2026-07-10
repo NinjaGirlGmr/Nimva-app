@@ -20,6 +20,9 @@ struct HomeView: View {
     @State private var eventToEdit: Event?
     @State private var showingScheduleError = false
     @State private var contentAppeared = false
+    @State private var undoSnapshot: DeletedEventSnapshot? = nil
+    @State private var showUndoBanner = false
+    @State private var undoTask: Task<Void, Never>? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -97,7 +100,7 @@ struct HomeView: View {
                         .padding(.top, 8)
 
                         // ── Week strip ──
-                        WeekStripView(selectedDay: $selectedDay, dailyLoads: dailyLoads)
+                        WeekStripView(selectedDay: $selectedDay, dailyLoads: dailyLoads, today: Self.todayDayOfWeek())
                             .padding(.horizontal, 12)
 
                         // ── Energy zone card ──
@@ -231,10 +234,10 @@ struct HomeView: View {
                             Group {
                                 if eventsForSelectedDay.isEmpty {
                                     VStack(spacing: 6) {
-                                        Text("Nothing scheduled")
+                                        Text(emptyDayMessage.headline)
                                             .font(.system(size: 14))
                                             .foregroundStyle(NimvaColors.textMuted)
-                                        Text("Tap + to add an event")
+                                        Text(emptyDayMessage.sub)
                                             .font(.system(size: 12))
                                             .foregroundStyle(NimvaColors.textMuted.opacity(0.6))
                                     }
@@ -243,11 +246,17 @@ struct HomeView: View {
                                 } else {
                                     VStack(spacing: 8) {
                                         ForEach(Array(eventsForSelectedDay.enumerated()), id: \.element.id) { index, event in
-                                            EventCard(event: event, index: index)
+                                            EventCard(event: event, index: index, onTap: { eventToEdit = event })
                                                 .id("\(selectedDay.rawValue)-\(event.id)")
-                                                .pressScale()
                                                 .padding(.horizontal, 20)
-                                                .onTapGesture { eventToEdit = event }
+                                                .contextMenu {
+                                                    Button { eventToEdit = event } label: {
+                                                        Label("Edit", systemImage: "pencil")
+                                                    }
+                                                    Button(role: .destructive) { deleteEvent(event) } label: {
+                                                        Label("Delete", systemImage: "trash")
+                                                    }
+                                                }
                                         }
                                     }
                                 }
@@ -258,6 +267,15 @@ struct HomeView: View {
                                 removal: .opacity
                             ))
                             .nimvaAnimation(NimvaAnimation.cardAppear, value: selectedDay)
+                            .simultaneousGesture(
+                                DragGesture(minimumDistance: 30)
+                                    .onEnded { value in
+                                        let h = value.translation.width
+                                        let v = value.translation.height
+                                        guard abs(h) > abs(v) * 1.5, abs(h) > 50 else { return }
+                                        swipeDay(by: h < 0 ? 1 : -1)
+                                    }
+                            )
                         }
 
                         Spacer(minLength: 80)
@@ -287,6 +305,14 @@ struct HomeView: View {
                 .padding(24)
             }
         }
+        .overlay(alignment: .bottom) {
+            if showUndoBanner {
+                undoBannerView
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(10)
+            }
+        }
+        .animation(reduceMotion ? .none : NimvaAnimation.cardAppear, value: showUndoBanner)
         .animation(reduceMotion ? .none : NimvaAnimation.cardAppear, value: events.isEmpty)
         .sheet(isPresented: $showingAddEvent, onDismiss: recomputeSchedule) {
             AddEventView()
@@ -330,6 +356,80 @@ struct HomeView: View {
         } catch {
             showingScheduleError = true
         }
+    }
+
+    private func deleteEvent(_ event: Event) {
+        undoSnapshot = DeletedEventSnapshot(from: event)
+        modelContext.delete(event)
+        recomputeSchedule()
+        undoTask?.cancel()
+        withAnimation(NimvaAnimation.cardAppear) { showUndoBanner = true }
+        undoTask = Task {
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                withAnimation(NimvaAnimation.stateChange) { showUndoBanner = false }
+                undoSnapshot = nil
+            }
+        }
+    }
+
+    private func undoDelete() {
+        guard let snap = undoSnapshot else { return }
+        undoTask?.cancel()
+        modelContext.insert(snap.recreate())
+        recomputeSchedule()
+        withAnimation(NimvaAnimation.stateChange) { showUndoBanner = false }
+        undoSnapshot = nil
+    }
+
+    private func swipeDay(by offset: Int) {
+        let days = DayOfWeek.orderedForLocale
+        guard let idx = days.firstIndex(of: selectedDay) else { return }
+        let newIdx = idx + offset
+        guard days.indices.contains(newIdx) else { return }
+        NimvaHaptics.selection()
+        withAnimation(NimvaAnimation.stateChange) { selectedDay = days[newIdx] }
+    }
+
+    private var emptyDayMessage: (headline: String, sub: String) {
+        let today = Self.todayDayOfWeek()
+        let isToday = selectedDay == today
+        let isWeekend = selectedDay == .saturday || selectedDay == .sunday
+        let days = DayOfWeek.orderedForLocale
+        let prevDayHeavy: Bool = {
+            guard let idx = days.firstIndex(of: selectedDay), idx > 0 else { return false }
+            return heavyDays.contains(days[idx - 1])
+        }()
+
+        if isWeekend {
+            return ("A day off.", "Hold onto it.")
+        } else if prevDayHeavy && isToday {
+            return ("Light day after a tough one.", "Protect this space.")
+        } else if isToday {
+            return ("Open space today.", "A good thing.")
+        } else {
+            return ("Nothing here.", "Protect this gap.")
+        }
+    }
+
+    private var undoBannerView: some View {
+        HStack {
+            Text("Event deleted")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(NimvaColors.textSecondary)
+            Spacer()
+            Button("Undo") { undoDelete() }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(NimvaColors.teal)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(NimvaColors.cardDark)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(NimvaColors.border, lineWidth: 1))
+        .padding(.horizontal, 20)
+        .padding(.bottom, 96)
     }
 
     private var greetingText: String {
@@ -407,6 +507,47 @@ struct HomeView: View {
     }
 }
 
+// MARK: - DeletedEventSnapshot
+
+private struct DeletedEventSnapshot {
+    let name: String
+    let isFixed: Bool
+    let fixedDay: DayOfWeek?
+    let startTime: Date?
+    let endTime: Date?
+    let preferredWindow: TimePreference?
+    let duration: TimeInterval?
+    let energyCost: Double
+    let category: String
+    let patternLearningEnabled: Bool
+    let isRecurring: Bool
+
+    init(from event: Event) {
+        name = event.name
+        isFixed = event.isFixed
+        fixedDay = event.fixedDay
+        startTime = event.startTime
+        endTime = event.endTime
+        preferredWindow = event.preferredWindow
+        duration = event.duration
+        energyCost = event.energyCost
+        category = event.category
+        patternLearningEnabled = event.patternLearningEnabled
+        isRecurring = event.isRecurring
+    }
+
+    func recreate() -> Event {
+        Event(
+            name: name, isFixed: isFixed, fixedDay: fixedDay,
+            startTime: startTime, endTime: endTime,
+            preferredWindow: preferredWindow, duration: duration,
+            energyCost: energyCost, category: category,
+            patternLearningEnabled: patternLearningEnabled,
+            isRecurring: isRecurring
+        )
+    }
+}
+
 // MARK: - FlexRecord (mirrors SchedulerService's private PlacementRecord for local decoding)
 
 // We decode the placements JSON directly here so HomeView doesn't need SchedulerService
@@ -421,53 +562,57 @@ private struct FlexRecord: Decodable {
 private struct EventCard: View {
     let event: Event
     var index: Int = 0
+    var onTap: (() -> Void)? = nil
 
     @AppStorage("useAltEnergyPalette") private var useAltPalette = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var visible = false
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Left accent bar — purple for fixed, teal for flexible
-            RoundedRectangle(cornerRadius: 2)
-                .fill(event.isFixed ? NimvaColors.purplePrimary : NimvaColors.teal)
-                .frame(width: 3)
+        Button { onTap?() } label: {
+            HStack(spacing: 0) {
+                // Left accent bar — purple for fixed, teal for flexible
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(event.isFixed ? NimvaColors.purplePrimary : NimvaColors.teal)
+                    .frame(width: 3)
 
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(event.name)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(NimvaColors.textPrimary)
-                    Text(subtitleText)
-                        .font(.system(size: 11))
-                        .foregroundStyle(NimvaColors.textSecondary)
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(event.name)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(NimvaColors.textPrimary)
+                        Text(subtitleText)
+                            .font(.system(size: 11))
+                            .foregroundStyle(NimvaColors.textSecondary)
+                    }
+
+                    Spacer()
+
+                    // Energy badge
+                    Text(energyLabel)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(energyColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(energyColor.opacity(0.12))
+                        .clipShape(Capsule())
+
+                    // Type tag
+                    Text(event.isFixed ? "Fixed" : "Flex")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(NimvaColors.textMuted)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(NimvaColors.purpleMuted.opacity(0.5))
+                        .clipShape(Capsule())
                 }
-
-                Spacer()
-
-                // Energy badge
-                Text(energyLabel)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(energyColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(energyColor.opacity(0.12))
-                    .clipShape(Capsule())
-
-                // Type tag
-                Text(event.isFixed ? "Fixed" : "Flex")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(NimvaColors.textMuted)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(NimvaColors.purpleMuted.opacity(0.5))
-                    .clipShape(Capsule())
+                .padding(14)
             }
-            .padding(14)
+            .background(NimvaColors.cardDark)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .contentShape(Rectangle())
         }
-        .background(NimvaColors.cardDark)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .contentShape(Rectangle())
+        .buttonStyle(EventCardStyle(reduceMotion: reduceMotion))
         .opacity(visible ? 1 : 0)
         .offset(y: visible ? 0 : 8)
         .onAppear {
@@ -512,6 +657,22 @@ private struct EventCard: View {
         case ..<0.6:  return NimvaColors.energyMixed(useAltPalette)
         default:      return NimvaColors.energyHeavy(useAltPalette)
         }
+    }
+}
+
+// MARK: - EventCardStyle
+
+// Replaces the external pressScale() modifier on EventCard.
+// ButtonStyle.isPressed is the ScrollView-safe way to animate press state —
+// DragGesture(minimumDistance: 0) inside simultaneousGesture can suppress
+// tap recognition when nested inside a ScrollView.
+private struct EventCardStyle: ButtonStyle {
+    let reduceMotion: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1.0)
+            .animation(NimvaAnimation.buttonPress, value: configuration.isPressed)
     }
 }
 

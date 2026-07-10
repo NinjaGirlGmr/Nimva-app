@@ -16,6 +16,7 @@ struct AddEventView: View {
     @State private var energyCost: Double = EnergyLabel.manageable.cost
     @AppStorage("globalPatternLearning") private var globalPatternLearning = true
     @State private var category: String = "General"
+    @FocusState private var nameFieldFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -35,6 +36,7 @@ struct AddEventView: View {
                 Section("Event name") {
                     TextField("What's the event?", text: $name)
                         .foregroundStyle(NimvaColors.textPrimary)
+                        .focused($nameFieldFocused)
                 }
                 .listRowBackground(NimvaColors.cardDark)
 
@@ -134,6 +136,13 @@ struct AddEventView: View {
             .navigationTitle("Add Event")
             .navigationBarTitleDisplayMode(.inline)
             .tint(NimvaColors.purplePrimary)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { nameFieldFocused = false }
+                        .foregroundStyle(NimvaColors.purplePrimary)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
