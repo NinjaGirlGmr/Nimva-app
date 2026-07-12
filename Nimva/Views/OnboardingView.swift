@@ -382,7 +382,7 @@ private struct EnergyTagScreen: View {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundStyle(NimvaColors.teal)
                                     .font(.system(size: 13))
-                                Text("Nimva will remember this for future study sessions")
+                                Text("Nimva learns from your weekly check-ins over time")
                                     .font(.system(size: 11))
                                     .foregroundStyle(NimvaColors.teal)
                             }

@@ -275,7 +275,11 @@ struct WeekGenerationView: View {
             switch userType {
             case .optimizer, .patternLearner:
                 guard let score = schedule?.balanceScore else { return "Your week is ready to approve" }
-                return "Balance score: \(Int(score * 100))%"
+                switch score {
+                case ..<0.4:  return "Heavily fixed week — most of this was locked in"
+                case ..<0.66: return "Mixed week — some room to work with"
+                default:      return "Good breathing room across the board"
+                }
             case .overloadedFixed:
                 let flexPlaced = schedule?.placedFlexibleEvents.count ?? 0
                 return flexPlaced > 0
@@ -499,7 +503,10 @@ struct WeekGenerationView: View {
     private var approvalMessage: String {
         switch schedule?.heavyDays.count ?? 0 {
         case 0:    return "Solid breathing room across the board — you've built yourself some space."
-        case 1, 2: return "Flex time is placed around your heavier days. You've got this."
+        case 1, 2:
+            let heavy = schedule?.heavyDays.sorted(by: { $0.rawValue < $1.rawValue }).first
+            let dayName = heavy.map { $0.displayName } ?? "your heavier day"
+            return "Flex time is in the lighter spots — keep an eye on \(dayName)."
         default:   return "It's a packed one — Nimva's placed flex tasks in the gaps. Protect them."
         }
     }
