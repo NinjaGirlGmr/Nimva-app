@@ -104,6 +104,13 @@ struct FlexibleEvent {
 struct PlacedEvent {
     let event: FlexibleEvent
     let day: DayOfWeek
+    let reason: String
+
+    init(event: FlexibleEvent, day: DayOfWeek, reason: String = "") {
+        self.event = event
+        self.day = day
+        self.reason = reason
+    }
 }
 
 struct WeekSchedule {
