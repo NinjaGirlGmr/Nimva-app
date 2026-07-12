@@ -198,6 +198,84 @@ struct CategoryBreakdownTests {
     }
 }
 
+// MARK: - Overloaded week note tests (#56)
+
+@Suite("Overloaded Week Note")
+struct OverloadedWeekNoteTests {
+
+    @Test func emptyLoadsReturnsEmpty() {
+        #expect(IntelligenceService.overloadedWeekNote(dailyLoads: [:]) == "")
+    }
+
+    @Test func allZeroLoadsReturnsEmpty() {
+        let loads: [DayOfWeek: Double] = [.monday: 0, .tuesday: 0]
+        #expect(IntelligenceService.overloadedWeekNote(dailyLoads: loads) == "")
+    }
+
+    @Test func noHeavyDaysMentionsFixed() {
+        // Load present but below threshold on all days
+        let loads: [DayOfWeek: Double] = [.monday: 0.5, .tuesday: 1.0, .wednesday: 0.75]
+        let note = IntelligenceService.overloadedWeekNote(dailyLoads: loads)
+        #expect(note.contains("fixed"))
+    }
+
+    @Test func oneHeavyDayNamesIt() {
+        let loads: [DayOfWeek: Double] = [.wednesday: 2.5, .thursday: 0.5]
+        let note = IntelligenceService.overloadedWeekNote(dailyLoads: loads)
+        #expect(note.contains("Wednesday"))
+    }
+
+    @Test func threeHeavyDaysIncludesCount() {
+        let loads: [DayOfWeek: Double] = [
+            .monday: 2.5, .wednesday: 2.1, .friday: 3.0,
+            .tuesday: 0.5, .thursday: 0.5
+        ]
+        let note = IntelligenceService.overloadedWeekNote(dailyLoads: loads)
+        #expect(note.contains("3"))
+    }
+
+    @Test func fivePlusHeavyDaysUsesMostDaysMessage() {
+        var loads: [DayOfWeek: Double] = [:]
+        for day in DayOfWeek.allCases.prefix(5) { loads[day] = 2.5 }
+        let note = IntelligenceService.overloadedWeekNote(dailyLoads: loads)
+        #expect(note.contains("Most"))
+    }
+}
+
+// MARK: - Forward warning tests (#57)
+
+@Suite("Forward Warning")
+struct ForwardWarningTests {
+
+    @Test func sundayReturnsEmpty() {
+        // Sunday has no next day in the week
+        #expect(IntelligenceService.forwardWarning(today: .sunday, tomorrowDrainingCount: 5) == "")
+    }
+
+    @Test func fewerThanThreeDrainingReturnsEmpty() {
+        #expect(IntelligenceService.forwardWarning(today: .monday, tomorrowDrainingCount: 2) == "")
+        #expect(IntelligenceService.forwardWarning(today: .monday, tomorrowDrainingCount: 0) == "")
+    }
+
+    @Test func exactlyThreeDrainingFiresWarning() {
+        let warning = IntelligenceService.forwardWarning(today: .monday, tomorrowDrainingCount: 3)
+        #expect(!warning.isEmpty)
+        #expect(warning.contains("Tuesday"))
+        #expect(warning.contains("3"))
+    }
+
+    @Test func warningNamesTomorrowCorrectly() {
+        let warning = IntelligenceService.forwardWarning(today: .thursday, tomorrowDrainingCount: 4)
+        #expect(warning.contains("Friday"))
+        #expect(warning.contains("4"))
+    }
+
+    @Test func saturdayWarnsAboutSunday() {
+        let warning = IntelligenceService.forwardWarning(today: .saturday, tomorrowDrainingCount: 3)
+        #expect(warning.contains("Sunday"))
+    }
+}
+
 // MARK: - Lightest upcoming day tests (#59)
 
 @Suite("Lightest Upcoming Day")

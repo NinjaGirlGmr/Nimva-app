@@ -93,12 +93,25 @@ struct HomeView: View {
                                 Text("Your week")
                                     .font(.system(size: 22, weight: .semibold))
                                     .foregroundStyle(NimvaColors.textPrimary)
-                                let summary = IntelligenceService.weekLoadSummary(dailyLoads: dailyLoads)
-                                if cache != nil && !summary.isEmpty {
-                                    Text(summary)
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(NimvaColors.textMuted)
-                                        .transition(.opacity)
+                                // #56: overloaded users get honest framing; others get the standard summary
+                                if cache != nil {
+                                    let subtitle = weekSubtitle
+                                    if !subtitle.isEmpty {
+                                        Text(subtitle)
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(NimvaColors.textMuted)
+                                            .transition(.opacity)
+                                    }
+                                }
+                                // #59: lightest upcoming day — only when viewing today
+                                if cache != nil {
+                                    let lightestText = lightestDaySubtitle
+                                    if !lightestText.isEmpty {
+                                        Text(lightestText)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(NimvaColors.textMuted.opacity(0.75))
+                                            .transition(.opacity)
+                                    }
                                 }
                             }
                             Spacer()
@@ -147,6 +160,36 @@ struct HomeView: View {
                                 .id(selectedDay)
                                 .transition(.opacity.combined(with: .offset(y: 4)))
                                 .nimvaAnimation(NimvaAnimation.cardAppear, value: selectedDay)
+                            }
+                        }
+
+                        // ── Forward warning card (#57) ──
+                        // Count-specific warning about tomorrow — only shown when viewing today
+                        // and tomorrow has ≥3 draining events. EnergyZoneCard's dayNote
+                        // already covers the generic "tomorrow looks heavy" framing.
+                        if let cache {
+                            let warning = forwardWarningText(cache: cache)
+                            if !warning.isEmpty {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "exclamationmark.triangle")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(NimvaColors.amber)
+                                        .frame(width: 28, height: 28)
+                                    Text(warning)
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(NimvaColors.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Spacer()
+                                }
+                                .padding(14)
+                                .background(NimvaColors.cardDark)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(NimvaColors.amber.opacity(0.25), lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .padding(.horizontal, 20)
+                                .transition(.opacity.combined(with: .offset(y: 4)))
                             }
                         }
 
@@ -422,6 +465,33 @@ struct HomeView: View {
         guard days.indices.contains(newIdx) else { return }
         NimvaHaptics.selection()
         withAnimation(NimvaAnimation.stateChange) { selectedDay = days[newIdx] }
+    }
+
+    // #56: overloaded users get honest fixed-week framing; everyone else gets load summary
+    private var weekSubtitle: String {
+        if userType == .overloadedFixed {
+            return IntelligenceService.overloadedWeekNote(dailyLoads: dailyLoads)
+        }
+        return IntelligenceService.weekLoadSummary(dailyLoads: dailyLoads)
+    }
+
+    // #59: lightest upcoming day — only surfaced when viewing today and a lighter day exists ahead
+    private var lightestDaySubtitle: String {
+        let today = Self.todayDayOfWeek()
+        guard selectedDay == today,
+              let lightest = IntelligenceService.lightestUpcomingDay(dailyLoads: dailyLoads, from: today),
+              lightest != today
+        else { return "" }
+        return "\(lightest.displayName) looks like your lightest day."
+    }
+
+    // #57: count-specific forward warning — only when viewing today and tomorrow is heavily draining
+    private func forwardWarningText(cache: WeekCache) -> String {
+        let today = Self.todayDayOfWeek()
+        guard selectedDay == today, let tomorrow = today.next else { return "" }
+        let tomorrowEvents = SchedulerService.events(for: tomorrow, cache: cache, from: events)
+        let drainingCount = tomorrowEvents.filter { $0.energyCost > 0.5 }.count
+        return IntelligenceService.forwardWarning(today: today, tomorrowDrainingCount: drainingCount)
     }
 
     private var emptyDayMessage: (headline: String, sub: String) {
