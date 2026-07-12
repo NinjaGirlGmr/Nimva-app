@@ -28,16 +28,24 @@ struct NimvaApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
-            // Persistent store failed (e.g. schema migration error on simulator).
-            // In DEBUG, fall back to an in-memory store so the app stays runnable
-            // while we diagnose. In release this is a hard crash — a corrupt store
-            // that can't be recovered should be surfaced, not silently discarded.
+            // Persistent store failed — usually a schema migration error after a model change.
+            // In DEBUG: fall back to in-memory so the app stays runnable while we diagnose.
+            // In release: wipe the incompatible store and recreate rather than crashing.
+            //   → TestFlight testers lose local data on this update, but the app stays open.
+            //   → Before App Store release, replace with a proper VersionedSchema migration plan.
             #if DEBUG
             print("⚠️ SwiftData: persistent store failed (\(error)). Falling back to in-memory store.")
             let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
             return try! ModelContainer(for: schema, configurations: [fallback])
             #else
-            fatalError("Could not create ModelContainer: \(error)")
+            let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            if let dir {
+                let store = dir.appendingPathComponent("default.store")
+                for suffix in ["", "-wal", "-shm"] {
+                    try? FileManager.default.removeItem(at: URL(fileURLWithPath: store.path + suffix))
+                }
+            }
+            return try! ModelContainer(for: schema, configurations: [modelConfiguration])
             #endif
         }
     }()
