@@ -92,12 +92,14 @@ struct FlexibleEvent {
     let name: String
     let preferredWindow: TimePreference
     let energyCost: Double
+    let isPriority: Bool
 
-    init(id: UUID = UUID(), name: String, preferredWindow: TimePreference = .any, energyCost: Double) {
+    init(id: UUID = UUID(), name: String, preferredWindow: TimePreference = .any, energyCost: Double, isPriority: Bool = false) {
         self.id = id
         self.name = name
         self.preferredWindow = preferredWindow
         self.energyCost = min(max(energyCost, 0.0), 1.0)
+        self.isPriority = isPriority
     }
 }
 

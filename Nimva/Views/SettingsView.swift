@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("checkInReminderEnabled") private var checkInReminderEnabled = true
     @AppStorage("soundsHapticsEnabled") private var soundsHapticsEnabled = true
     @AppStorage("globalPatternLearning") private var globalPatternLearning = true
+    @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
     @AppStorage("useAltEnergyPalette") private var useAltEnergyPalette = false
     @AppStorage("selectedCalendarIDsCSV") private var selectedCalendarIDsCSV: String = ""
 
@@ -31,6 +32,8 @@ struct SettingsView: View {
     @State private var showingCalendarImport = false
     @State private var showingCalendarDenied = false
     @State private var calendarCandidates: [CalendarImportService.ImportCandidate] = []
+    @State private var showingAnchorEditor = false
+    @State private var anchorEditDraft = ""
     @State private var showingResetPatternsConfirm = false
     @State private var showingClearDataConfirm = false
     @State private var showingExportInfo = false
@@ -64,6 +67,16 @@ struct SettingsView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 48)
             }
+        }
+        // Energy anchor editor
+        .alert("Pretty draining anchor", isPresented: $showingAnchorEditor) {
+            TextField("e.g. back-to-back classes", text: $anchorEditDraft)
+            Button("Save") {
+                energyAnchorLabel = anchorEditDraft.trimmingCharacters(in: .whitespaces)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Shown as a hint under \"Pretty Draining\" when you add events.")
         }
         // Name editor
         .alert("Edit your name", isPresented: $showingNameEditor) {
@@ -253,6 +266,30 @@ struct SettingsView: View {
     private var energyLearningSection: some View {
         SettingsSection(title: "Energy & Learning") {
             ToggleRow(label: "Pattern learning", subtitle: "Learn from your weekly check-ins", isOn: $globalPatternLearning)
+            SettingsDivider()
+            Button {
+                anchorEditDraft = energyAnchorLabel
+                showingAnchorEditor = true
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Pretty draining anchor")
+                            .font(.system(size: 14))
+                            .foregroundStyle(NimvaColors.textPrimary)
+                        Text(energyAnchorLabel.isEmpty ? "Not set — tap to add" : "\"\(energyAnchorLabel)\"")
+                            .font(.system(size: 11))
+                            .foregroundStyle(NimvaColors.textMuted)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(NimvaColors.textMuted)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
             SettingsDivider()
             ActionRow(label: "Reset learned patterns", style: .destructive) {
                 showingResetPatternsConfirm = true
