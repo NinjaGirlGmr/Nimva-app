@@ -93,6 +93,13 @@ struct HomeView: View {
                                 Text("Your week")
                                     .font(.system(size: 22, weight: .semibold))
                                     .foregroundStyle(NimvaColors.textPrimary)
+                                let summary = IntelligenceService.weekLoadSummary(dailyLoads: dailyLoads)
+                                if cache != nil && !summary.isEmpty {
+                                    Text(summary)
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(NimvaColors.textMuted)
+                                        .transition(.opacity)
+                                }
                             }
                             Spacer()
                         }
@@ -116,6 +123,31 @@ struct HomeView: View {
                                 userType: userType
                             )
                             .padding(.horizontal, 20)
+                        }
+
+                        // ── Ember daily note ──
+                        // Only appears when IntelligenceService has something timing-specific
+                        // to say that EnergyZoneCard's generic load narrative doesn't cover.
+                        if cache != nil {
+                            let note = IntelligenceService.dailyNote(events: eventsForSelectedDay)
+                            if !note.isEmpty {
+                                HStack(spacing: 12) {
+                                    EmberView(expression: .calm, size: .mini)
+                                        .frame(width: 28, height: 28)
+                                    Text(note)
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(NimvaColors.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Spacer()
+                                }
+                                .padding(14)
+                                .background(NimvaColors.cardDark)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .padding(.horizontal, 20)
+                                .id(selectedDay)
+                                .transition(.opacity.combined(with: .offset(y: 4)))
+                                .nimvaAnimation(NimvaAnimation.cardAppear, value: selectedDay)
+                            }
                         }
 
                         // ── Nudge card ──
