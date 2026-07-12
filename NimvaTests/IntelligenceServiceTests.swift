@@ -197,3 +197,97 @@ struct CategoryBreakdownTests {
         #expect(IntelligenceService.dominantDrainCategory(events: events) == nil)
     }
 }
+
+// MARK: - Lightest upcoming day tests (#59)
+
+@Suite("Lightest Upcoming Day")
+struct LightestUpcomingDayTests {
+
+    @Test func emptyLoadsReturnsNil() {
+        #expect(IntelligenceService.lightestUpcomingDay(dailyLoads: [:], from: .monday) == nil)
+    }
+
+    @Test func allZeroLoadsReturnsNil() {
+        let loads: [DayOfWeek: Double] = [.tuesday: 0, .wednesday: 0, .thursday: 0]
+        #expect(IntelligenceService.lightestUpcomingDay(dailyLoads: loads, from: .monday) == nil)
+    }
+
+    @Test func singleDayWithLoadReturnsThatDay() {
+        let loads: [DayOfWeek: Double] = [.wednesday: 1.5]
+        #expect(IntelligenceService.lightestUpcomingDay(dailyLoads: loads, from: .monday) == .wednesday)
+    }
+
+    @Test func returnsLightestNotFirstDay() {
+        let loads: [DayOfWeek: Double] = [.tuesday: 2.0, .wednesday: 0.5, .thursday: 1.5]
+        #expect(IntelligenceService.lightestUpcomingDay(dailyLoads: loads, from: .monday) == .wednesday)
+    }
+
+    @Test func dayBeforeTodayIsExcluded() {
+        // Monday has the lightest load, but from: .wednesday excludes it
+        let loads: [DayOfWeek: Double] = [.monday: 0.1, .wednesday: 1.0, .thursday: 2.0]
+        let result = IntelligenceService.lightestUpcomingDay(dailyLoads: loads, from: .wednesday)
+        #expect(result != .monday)
+        #expect(result == .wednesday)
+    }
+
+    @Test func todayIsIncluded() {
+        let loads: [DayOfWeek: Double] = [.friday: 0.5, .saturday: 1.0]
+        #expect(IntelligenceService.lightestUpcomingDay(dailyLoads: loads, from: .friday) == .friday)
+    }
+
+    @Test func sundayFromSundayOnlyReturnsSunday() {
+        let loads: [DayOfWeek: Double] = [.monday: 0.1, .friday: 0.5, .sunday: 1.5]
+        #expect(IntelligenceService.lightestUpcomingDay(dailyLoads: loads, from: .sunday) == .sunday)
+    }
+}
+
+// MARK: - Daily note integration tests (#53)
+
+@Suite("Daily Note")
+struct DailyNoteTests {
+
+    @Test func emptyEventsReturnsEmpty() {
+        #expect(IntelligenceService.dailyNote(events: []) == "")
+    }
+
+    @Test func singleLightEventReturnsEmpty() {
+        let event = makeEvent(energyCost: 0.25, startHour: 9, endHour: 10)
+        #expect(IntelligenceService.dailyNote(events: [event]) == "")
+    }
+
+    @Test func threeDrainingBackToBackMentionsStreak() {
+        let a = makeEvent(energyCost: 0.75, startHour: 9,  endHour: 10)
+        let b = makeEvent(energyCost: 1.0,  startHour: 10, startMinute: 5, endHour: 11, endMinute: 5)
+        let c = makeEvent(energyCost: 0.75, startHour: 11, startMinute: 10, endHour: 12, endMinute: 10)
+        let note = IntelligenceService.dailyNote(events: [a, b, c])
+        #expect(note.contains("3"))
+        #expect(note.contains("back to back"))
+    }
+
+    @Test func recoveryWindowWithDrainingMentionsGap() {
+        // Draining event 9–10, then light break, then 10:30–11:30 (30 min gap)
+        let draining = makeEvent(energyCost: 0.75, startHour: 9, endHour: 10)
+        let later    = makeEvent(energyCost: 0.25, startHour: 10, startMinute: 30, endHour: 11, endMinute: 30)
+        let note = IntelligenceService.dailyNote(events: [draining, later])
+        #expect(note.contains("recovery window"))
+        #expect(note.contains("30m"))
+    }
+
+    @Test func threeDrainingFlexEventsNoTimesGivesCount() {
+        // Flexible events have no start/end — no streak, no recovery windows, but drainingCount >= 3
+        let events = (0..<3).map { _ in Event(name: "Task", isFixed: false, energyCost: 0.75) }
+        let note = IntelligenceService.dailyNote(events: events)
+        #expect(note.contains("3"))
+        #expect(note.contains("draining"))
+    }
+
+    @Test func twoDrainingNoRecoveryReturnsEmpty() {
+        // 2 draining events with a gap — recovery window fires, but only 2 draining
+        // Actually: recoveryWindows fires first (window + drainingCount>=1). Let's test 2 draining no windows.
+        let a = makeEvent(energyCost: 0.75, startHour: 9,  endHour: 10)
+        let b = makeEvent(energyCost: 0.75, startHour: 10, startMinute: 5, endHour: 11)
+        // Gap is 5 min — no recovery window. Streak is 2, not >= 3. drainingCount is 2, not >= 3.
+        let note = IntelligenceService.dailyNote(events: [a, b])
+        #expect(note == "")
+    }
+}
