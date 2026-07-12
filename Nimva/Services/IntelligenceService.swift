@@ -144,6 +144,42 @@ enum IntelligenceService {
         return upcoming.min(by: { $0.value < $1.value })?.key
     }
 
+    // MARK: - Overloaded week note (#56)
+
+    /// Honest observation for users whose week is heavily fixed — shifts from "optimizer"
+    /// framing to naming the reality. Only called when userType == .overloadedFixed.
+    static func overloadedWeekNote(dailyLoads: [DayOfWeek: Double]) -> String {
+        guard dailyLoads.values.contains(where: { $0 > 0 }) else { return "" }
+
+        let heavy = dailyLoads
+            .filter { $0.value >= Scheduler.heavyDayThreshold }
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+
+        switch heavy.count {
+        case 5...:
+            return "Most days are heavy — this week is genuinely packed."
+        case 3...4:
+            let names = heavy.map { $0.key.shortName }.joined(separator: ", ")
+            return "\(heavy.count) heavy days (\(names)) — most of this was already set."
+        case 1...2:
+            let day = heavy.first?.key.displayName ?? "one day"
+            return "Heavily fixed week — \(day) carries most of the load."
+        default:
+            return "Most of your week is fixed — limited room to shift things around."
+        }
+    }
+
+    // MARK: - Forward-looking warning (#57)
+
+    /// Count-specific warning shown the day before a notably draining day.
+    /// Fires only when tomorrow has ≥3 draining events — EnergyZoneCard already
+    /// handles the generic "tomorrow looks heavy" framing for lighter load levels.
+    /// Returns "" on Sunday (no next day in the week).
+    static func forwardWarning(today: DayOfWeek, tomorrowDrainingCount: Int) -> String {
+        guard let tomorrow = today.next, tomorrowDrainingCount >= 3 else { return "" }
+        return "\(tomorrow.displayName) has \(tomorrowDrainingCount) draining events. How you spend tonight matters."
+    }
+
     // MARK: - Category breakdown (#61)
 
     /// Returns the category responsible for the most energy drain this week, and its share.

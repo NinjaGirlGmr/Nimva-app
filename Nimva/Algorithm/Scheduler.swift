@@ -33,11 +33,14 @@ enum Scheduler {
         var overflow: [FlexibleEvent] = []
 
         for event in sorted {
-            // Place on the lowest-load eligible day.
-            // Time preference is stored on PlacedEvent for the UI but does not
-            // constrain day selection in v1 — to be added once we validate the
-            // base algorithm with real schedules.
-            guard let bestDay = eligibleDays.min(by: {
+            // Recovery gap protection (#60): prefer non-heavy days so flexible events
+            // don't pile onto days that are already at the heavy threshold. If every
+            // eligible day is already heavy, fall back to the least-loaded option
+            // rather than overflowing — the user's schedule is just packed.
+            let nonHeavy = eligibleDays.filter { dailyLoads[$0, default: 0.0] < heavyDayThreshold }
+            let candidates = nonHeavy.isEmpty ? eligibleDays : nonHeavy
+
+            guard let bestDay = candidates.min(by: {
                 dailyLoads[$0, default: 0.0] < dailyLoads[$1, default: 0.0]
             }) else {
                 overflow.append(event)

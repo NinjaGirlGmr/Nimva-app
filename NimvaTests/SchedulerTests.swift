@@ -447,6 +447,45 @@ struct SchedulerTypesTests {
     }
 }
 
+// MARK: - Recovery gap protection (#60)
+
+@Suite("Scheduler — Recovery Gap Protection")
+struct RecoveryGapProtectionTests {
+
+    @Test func flexibleEventAvoidsHeavyDayWhenLighterOptionExists() {
+        // Monday is at the heavy threshold; all other days are empty.
+        // The flexible event should land somewhere other than Monday.
+        let fixed = [
+            FixedEvent(name: "A", day: .monday, energyCost: 1.0),
+            FixedEvent(name: "B", day: .monday, energyCost: 1.0),
+        ]
+        let flexible = [FlexibleEvent(name: "Study", energyCost: 0.5)]
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible)
+        #expect(schedule.placedFlexibleEvents.first?.day != .monday)
+    }
+
+    @Test func multipleFlexibleEventsDoNotPileOntoHeavyDay() {
+        // Monday is heavy. Six flex events should fill Tue–Sun, not Monday.
+        let fixed = [
+            FixedEvent(name: "A", day: .monday, energyCost: 1.0),
+            FixedEvent(name: "B", day: .monday, energyCost: 1.0),
+        ]
+        let flexible = (0..<6).map { FlexibleEvent(name: "Task \($0)", energyCost: 0.5) }
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible)
+        #expect(schedule.placedFlexibleEvents.allSatisfy { $0.day != .monday })
+    }
+
+    @Test func flexibleEventsStillPlacedWhenAllEligibleDaysAreHeavy() {
+        // Sunday is the only eligible day (startingFrom: .sunday) and it's already heavy.
+        // The flex event should be placed (not overflowed) as a fallback.
+        let fixed = [FixedEvent(name: "Full day", day: .sunday, energyCost: 2.5)]
+        let flexible = [FlexibleEvent(name: "Task", energyCost: 0.25)]
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible, startingFrom: .sunday)
+        #expect(schedule.placedFlexibleEvents.count == 1)
+        #expect(schedule.overflowEvents.isEmpty)
+    }
+}
+
 // MARK: - startingFrom constraint (#45)
 
 @Suite("Scheduler — Today-Forward Constraint")
