@@ -447,6 +447,64 @@ struct SchedulerTypesTests {
     }
 }
 
+// MARK: - Placement reason (#62)
+
+@Suite("Scheduler — Placement Reasons")
+struct PlacementReasonTests {
+
+    @Test func standardPickIncludesLowestLoadLabel() {
+        // All days empty — flex event lands on any day with "lowest load" reason
+        let flexible = [FlexibleEvent(name: "Task", energyCost: 0.5)]
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible)
+        let reason = schedule.placedFlexibleEvents.first?.reason ?? ""
+        #expect(reason.contains("lowest load"))
+    }
+
+    @Test func onlyOneCandidateDayGivesLightestAvailableLabel() {
+        // startingFrom .sunday — only Sunday is eligible
+        let flexible = [FlexibleEvent(name: "Task", energyCost: 0.5)]
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: .sunday)
+        let reason = schedule.placedFlexibleEvents.first?.reason ?? ""
+        #expect(reason.contains("lightest available"))
+    }
+
+    @Test func allHeavyFallbackGivesNoLighterDaysLabel() {
+        // Sunday is the only eligible day and it's heavy (2×1.0 = 2.0, at threshold) — fallback
+        // Note: FixedEvent.energyCost is clamped to 1.0, so two events are needed to reach 2.0
+        let fixed = [
+            FixedEvent(name: "A", day: .sunday, energyCost: 1.0),
+            FixedEvent(name: "B", day: .sunday, energyCost: 1.0),
+        ]
+        let flexible = [FlexibleEvent(name: "Task", energyCost: 0.5)]
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible, startingFrom: .sunday)
+        let reason = schedule.placedFlexibleEvents.first?.reason ?? ""
+        #expect(reason.contains("no lighter days"))
+    }
+
+    @Test func reasonIncludesDayName() {
+        let flexible = [FlexibleEvent(name: "Task", energyCost: 0.5)]
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: .friday)
+        let reason = schedule.placedFlexibleEvents.first?.reason ?? ""
+        // Placed on Friday or later — the day name must appear in the reason
+        let placed = schedule.placedFlexibleEvents.first?.day.displayName ?? ""
+        #expect(reason.hasPrefix(placed))
+    }
+
+    @Test func noticeablyLighterLabelWithClearGap() {
+        // Tuesday = 0.0, all others = 0.6 (including via startingFrom: .tuesday, eligible: Tue–Sun)
+        // Place fixed events on Wed-Sun (0.6 each), leave Tuesday empty.
+        // Gap: Tuesday (0.0) vs Wed-Sun (0.6) → 0.6 - 0.0 = 0.6 >= 0.5 → "noticeably lighter"
+        let fixed: [FixedEvent] = [.wednesday, .thursday, .friday, .saturday, .sunday].map {
+            FixedEvent(name: "Event", day: $0, energyCost: 0.6)
+        }
+        let flexible = [FlexibleEvent(name: "Task", energyCost: 0.25)]
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible, startingFrom: .tuesday)
+        let placed = schedule.placedFlexibleEvents.first
+        #expect(placed?.day == .tuesday)
+        #expect(placed?.reason.contains("noticeably lighter") == true)
+    }
+}
+
 // MARK: - Recovery gap protection (#60)
 
 @Suite("Scheduler — Recovery Gap Protection")
@@ -476,9 +534,13 @@ struct RecoveryGapProtectionTests {
     }
 
     @Test func flexibleEventsStillPlacedWhenAllEligibleDaysAreHeavy() {
-        // Sunday is the only eligible day (startingFrom: .sunday) and it's already heavy.
+        // Sunday is the only eligible day (startingFrom: .sunday) and it's heavy (2×1.0 = 2.0).
         // The flex event should be placed (not overflowed) as a fallback.
-        let fixed = [FixedEvent(name: "Full day", day: .sunday, energyCost: 2.5)]
+        // Note: FixedEvent.energyCost is clamped to 1.0, so two events needed to reach threshold.
+        let fixed = [
+            FixedEvent(name: "A", day: .sunday, energyCost: 1.0),
+            FixedEvent(name: "B", day: .sunday, energyCost: 1.0),
+        ]
         let flexible = [FlexibleEvent(name: "Task", energyCost: 0.25)]
         let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible, startingFrom: .sunday)
         #expect(schedule.placedFlexibleEvents.count == 1)

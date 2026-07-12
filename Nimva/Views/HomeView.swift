@@ -321,7 +321,7 @@ struct HomeView: View {
                                 } else {
                                     VStack(spacing: 8) {
                                         ForEach(Array(eventsForSelectedDay.enumerated()), id: \.element.id) { index, event in
-                                            EventCard(event: event, index: index, onTap: { eventToEdit = event })
+                                            EventCard(event: event, index: index, placementReason: placementReasons[event.id], onTap: { eventToEdit = event })
                                                 .id("\(selectedDay.rawValue)-\(event.id)")
                                                 .padding(.horizontal, 20)
                                                 .contextMenu {
@@ -465,6 +465,12 @@ struct HomeView: View {
         guard days.indices.contains(newIdx) else { return }
         NimvaHaptics.selection()
         withAnimation(NimvaAnimation.stateChange) { selectedDay = days[newIdx] }
+    }
+
+    // Map of flexible event UUID → placement reason, decoded once per cache (#62)
+    private var placementReasons: [UUID: String] {
+        guard let cache else { return [:] }
+        return SchedulerService.placementReasons(in: cache)
     }
 
     // #56: overloaded users get honest fixed-week framing; everyone else gets load summary
@@ -664,6 +670,7 @@ private struct FlexRecord: Decodable {
 private struct EventCard: View {
     let event: Event
     var index: Int = 0
+    var placementReason: String? = nil
     var onTap: (() -> Void)? = nil
 
     @AppStorage("useAltEnergyPalette") private var useAltPalette = false
@@ -686,6 +693,11 @@ private struct EventCard: View {
                         Text(subtitleText)
                             .font(.system(size: 11))
                             .foregroundStyle(NimvaColors.textSecondary)
+                        if let reason = placementReason, !event.isFixed {
+                            Text(reason)
+                                .font(.system(size: 10))
+                                .foregroundStyle(NimvaColors.textMuted)
+                        }
                     }
 
                     Spacer()

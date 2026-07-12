@@ -38,7 +38,8 @@ enum Scheduler {
             // eligible day is already heavy, fall back to the least-loaded option
             // rather than overflowing — the user's schedule is just packed.
             let nonHeavy = eligibleDays.filter { dailyLoads[$0, default: 0.0] < heavyDayThreshold }
-            let candidates = nonHeavy.isEmpty ? eligibleDays : nonHeavy
+            let allEligibleWereHeavy = nonHeavy.isEmpty
+            let candidates = allEligibleWereHeavy ? eligibleDays : nonHeavy
 
             guard let bestDay = candidates.min(by: {
                 dailyLoads[$0, default: 0.0] < dailyLoads[$1, default: 0.0]
@@ -47,7 +48,13 @@ enum Scheduler {
                 continue
             }
 
-            placed.append(PlacedEvent(event: event, day: bestDay))
+            let reason = placementReason(
+                day: bestDay,
+                candidates: candidates,
+                dailyLoads: dailyLoads,
+                allEligibleWereHeavy: allEligibleWereHeavy
+            )
+            placed.append(PlacedEvent(event: event, day: bestDay, reason: reason))
             dailyLoads[bestDay, default: 0.0] += event.energyCost
         }
 
@@ -66,5 +73,39 @@ enum Scheduler {
             balanceScore: variance,
             heavyDays: heavyDays
         )
+    }
+
+    // MARK: - Placement reason (#62)
+
+    /// Produces a one-line factual explanation of why this day was chosen.
+    /// Four outcomes, in priority order:
+    ///   1. All eligible days were heavy — honest fallback message.
+    ///   2. Only one candidate — lightest available day.
+    ///   3. Clear load gap (≥ 0.5) vs the next lightest option — "noticeably lighter."
+    ///   4. Standard lowest-load pick.
+    private static func placementReason(
+        day: DayOfWeek,
+        candidates: [DayOfWeek],
+        dailyLoads: [DayOfWeek: Double],
+        allEligibleWereHeavy: Bool
+    ) -> String {
+        if allEligibleWereHeavy {
+            return "\(day.displayName) — no lighter days available this week."
+        }
+
+        let others = candidates.filter { $0 != day }.map { dailyLoads[$0, default: 0.0] }
+
+        if others.isEmpty {
+            return "\(day.displayName) — lightest available day this week."
+        }
+
+        let chosenLoad  = dailyLoads[day, default: 0.0]
+        let nextLightest = others.min() ?? chosenLoad
+
+        if nextLightest - chosenLoad >= 0.5 {
+            return "\(day.displayName) — noticeably lighter than other available days."
+        }
+
+        return "\(day.displayName) — lowest load day this week."
     }
 }

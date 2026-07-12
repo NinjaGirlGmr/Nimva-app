@@ -122,14 +122,18 @@ enum SchedulerService {
 
     // MARK: - JSON encode/decode for placements
 
-    // Lightweight struct just for persistence — only the IDs and day values, not the full event data
+    // Lightweight struct just for persistence — IDs, day values, and the placement reason.
+    // reason is optional for backwards compatibility with caches written before #62.
     private struct PlacementRecord: Codable {
         let eventId: UUID
         let dayRawValue: Int
+        let reason: String?
     }
 
     private static func encodePlacements(_ placed: [PlacedEvent]) throws -> String {
-        let records = placed.map { PlacementRecord(eventId: $0.event.id, dayRawValue: $0.day.rawValue) }
+        let records = placed.map {
+            PlacementRecord(eventId: $0.event.id, dayRawValue: $0.day.rawValue, reason: $0.reason)
+        }
         let data = try JSONEncoder().encode(records)
         return String(data: data, encoding: .utf8) ?? "[]"
     }
@@ -145,8 +149,23 @@ enum SchedulerService {
                 let day = DayOfWeek(rawValue: record.dayRawValue),
                 let flex = toFlexibleEvent(event)
             else { return nil }
-            return PlacedEvent(event: flex, day: day)
+            return PlacedEvent(event: flex, day: day, reason: record.reason ?? "")
         }
+    }
+
+    /// Returns a map of flexible event UUID → placement reason for display in the UI.
+    /// Returns an empty dict if the cache can't be decoded.
+    static func placementReasons(in cache: WeekCache) -> [UUID: String] {
+        guard let data = cache.placementsJSON.data(using: .utf8),
+              let records = try? JSONDecoder().decode([PlacementRecord].self, from: data)
+        else { return [:] }
+        var result: [UUID: String] = [:]
+        for record in records {
+            if let reason = record.reason, !reason.isEmpty {
+                result[record.eventId] = reason
+            }
+        }
+        return result
     }
 
     // MARK: - Helpers
