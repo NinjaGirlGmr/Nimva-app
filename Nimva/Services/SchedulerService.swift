@@ -117,7 +117,7 @@ enum SchedulerService {
     private static func toFlexibleEvent(_ event: Event) -> FlexibleEvent? {
         guard !event.isFixed else { return nil }
         let window = event.preferredWindow ?? .any
-        return FlexibleEvent(id: event.id, name: event.name, preferredWindow: window, energyCost: event.energyCost)
+        return FlexibleEvent(id: event.id, name: event.name, preferredWindow: window, energyCost: event.energyCost, isPriority: event.isPriority)
     }
 
     // MARK: - JSON encode/decode for placements

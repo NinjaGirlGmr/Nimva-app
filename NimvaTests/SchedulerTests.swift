@@ -630,3 +630,60 @@ struct DayOfWeekNavigationTests {
         #expect(count == 7)
     }
 }
+
+// MARK: - Priority scheduling
+
+@Suite("Priority scheduling")
+struct PrioritySchedulingTests {
+
+    @Test func priorityEventProcessedBeforeNonPriority() {
+        // Non-priority event has higher energy cost but priority event should still go first.
+        let priorityEvent = FlexibleEvent(name: "Priority", energyCost: 0.25, isPriority: true)
+        let regularEvent  = FlexibleEvent(name: "Regular",  energyCost: 0.75, isPriority: false)
+
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: [regularEvent, priorityEvent], startingFrom: nil)
+
+        #expect(schedule.placedFlexibleEvents.count == 2)
+        #expect(schedule.placedFlexibleEvents[0].event.id == priorityEvent.id)
+    }
+
+    @Test func nonPriorityFallsBackToEnergyCostSort() {
+        // With no priority flags, highest energy cost is placed first (LPT order).
+        let highCost = FlexibleEvent(name: "High", energyCost: 1.0, isPriority: false)
+        let lowCost  = FlexibleEvent(name: "Low",  energyCost: 0.25, isPriority: false)
+
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: [lowCost, highCost], startingFrom: nil)
+
+        #expect(schedule.placedFlexibleEvents.count == 2)
+        #expect(schedule.placedFlexibleEvents[0].event.id == highCost.id)
+    }
+
+    @Test func priorityGroupSortedByEnergyCostWithin() {
+        // Within the priority group, the highest energy cost event is placed first.
+        let pHigh = FlexibleEvent(name: "P-High", energyCost: 1.0, isPriority: true)
+        let pLow  = FlexibleEvent(name: "P-Low",  energyCost: 0.25, isPriority: true)
+
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: [pLow, pHigh], startingFrom: nil)
+
+        #expect(schedule.placedFlexibleEvents.count == 2)
+        #expect(schedule.placedFlexibleEvents[0].event.id == pHigh.id)
+    }
+
+    @Test func priorityEventsAllPlacedBeforeAnyNonPriority() {
+        let p1 = FlexibleEvent(name: "P1", energyCost: 0.5, isPriority: true)
+        let p2 = FlexibleEvent(name: "P2", energyCost: 0.25, isPriority: true)
+        let r1 = FlexibleEvent(name: "R1", energyCost: 1.0, isPriority: false)
+        let r2 = FlexibleEvent(name: "R2", energyCost: 0.75, isPriority: false)
+
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: [r1, r2, p1, p2], startingFrom: nil)
+
+        #expect(schedule.placedFlexibleEvents.count == 4)
+        let placed = schedule.placedFlexibleEvents
+        // First two placed should both be priority events
+        #expect(placed[0].event.isPriority)
+        #expect(placed[1].event.isPriority)
+        // Last two placed should be non-priority
+        #expect(!placed[2].event.isPriority)
+        #expect(!placed[3].event.isPriority)
+    }
+}

@@ -14,7 +14,9 @@ struct AddEventView: View {
     @State private var durationMinutes: Int = 60
     @State private var selectedLabel: EnergyLabel = .manageable
     @State private var energyCost: Double = EnergyLabel.manageable.cost
+    @State private var isPriority: Bool = false
     @AppStorage("globalPatternLearning") private var globalPatternLearning = true
+    @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
     @State private var category: String = "General"
     @FocusState private var nameFieldFocused: Bool
 
@@ -101,30 +103,54 @@ struct AddEventView: View {
                         .foregroundStyle(NimvaColors.textMuted)
                     }
                     .listRowBackground(NimvaColors.cardDark)
+
+                    Section("Priority") {
+                        Toggle(isOn: $isPriority) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Must do this week")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(NimvaColors.textPrimary)
+                                Text("Scheduled before nice-to-do events")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(NimvaColors.textMuted)
+                            }
+                        }
+                        .tint(NimvaColors.amber)
+                    }
+                    .listRowBackground(NimvaColors.cardDark)
                 }
 
                 // MARK: Energy
                 Section("Energy") {
                     VStack(spacing: 8) {
                         ForEach(EnergyLabel.allCases, id: \.self) { label in
-                            Button {
-                                selectedLabel = label
-                                energyCost = label.cost
-                            } label: {
-                                Text(label.displayName)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(selectedLabel == label ? .white : NimvaColors.textSecondary)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-                                    .background(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.surfaceDeep)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .stroke(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.border, lineWidth: 1)
-                                    )
+                            VStack(alignment: .leading, spacing: 4) {
+                                Button {
+                                    selectedLabel = label
+                                    energyCost = label.cost
+                                } label: {
+                                    Text(label.displayName)
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundStyle(selectedLabel == label ? .white : NimvaColors.textSecondary)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 10)
+                                        .background(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.surfaceDeep)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .stroke(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.border, lineWidth: 1)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                                .frame(minHeight: 44)
+
+                                if label == .prettyDraining && !energyAnchorLabel.isEmpty {
+                                    Text("Like: \(energyAnchorLabel)")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(NimvaColors.textMuted)
+                                        .padding(.horizontal, 4)
+                                }
                             }
-                            .buttonStyle(.plain)
-                            .frame(minHeight: 44)
                         }
                     }
                     .padding(.vertical, 4)
@@ -190,7 +216,8 @@ struct AddEventView: View {
                 duration: TimeInterval(durationMinutes * 60),
                 energyCost: energyCost,
                 category: category,
-                patternLearningEnabled: globalPatternLearning
+                patternLearningEnabled: globalPatternLearning,
+                isPriority: isPriority
             ))
         }
         dismiss()

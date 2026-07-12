@@ -32,6 +32,10 @@ final class Event {
     var totalDuration: TimeInterval?
     var deadline: Date?
 
+    // Only meaningful for flexible events — ignored for fixed.
+    // Priority flex events are scheduled before nice-to-do ones.
+    var isPriority: Bool
+
     var createdAt: Date
     var updatedAt: Date
 
@@ -50,7 +54,8 @@ final class Event {
         isRecurring: Bool = false,
         recurrenceFrequency: String? = nil,
         totalDuration: TimeInterval? = nil,
-        deadline: Date? = nil
+        deadline: Date? = nil,
+        isPriority: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -67,6 +72,7 @@ final class Event {
         self.recurrenceFrequency = recurrenceFrequency
         self.totalDuration = totalDuration
         self.deadline = deadline
+        self.isPriority = isPriority
         self.createdAt = Date()
         self.updatedAt = Date()
     }

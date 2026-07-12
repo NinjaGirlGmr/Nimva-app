@@ -26,8 +26,12 @@ enum Scheduler {
             eligibleDays = DayOfWeek.allCases
         }
 
-        // LPT order: highest energy cost first so heavy events get the lightest days
-        let sorted = flexible.sorted { $0.energyCost > $1.energyCost }
+        // Priority-first, then LPT within each group: must-do events claim the lightest
+        // available days before nice-to-do events can fill them.
+        let sorted = flexible.sorted { lhs, rhs in
+            if lhs.isPriority != rhs.isPriority { return lhs.isPriority }
+            return lhs.energyCost > rhs.energyCost
+        }
 
         var placed: [PlacedEvent] = []
         var overflow: [FlexibleEvent] = []

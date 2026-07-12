@@ -629,6 +629,7 @@ private struct DeletedEventSnapshot {
     let category: String
     let patternLearningEnabled: Bool
     let isRecurring: Bool
+    let isPriority: Bool
 
     init(from event: Event) {
         name = event.name
@@ -642,6 +643,7 @@ private struct DeletedEventSnapshot {
         category = event.category
         patternLearningEnabled = event.patternLearningEnabled
         isRecurring = event.isRecurring
+        isPriority = event.isPriority
     }
 
     func recreate() -> Event {
@@ -651,7 +653,7 @@ private struct DeletedEventSnapshot {
             preferredWindow: preferredWindow, duration: duration,
             energyCost: energyCost, category: category,
             patternLearningEnabled: patternLearningEnabled,
-            isRecurring: isRecurring
+            isRecurring: isRecurring, isPriority: isPriority
         )
     }
 }
@@ -711,13 +713,13 @@ private struct EventCard: View {
                         .background(energyColor.opacity(0.12))
                         .clipShape(Capsule())
 
-                    // Type tag
-                    Text(event.isFixed ? "Fixed" : "Flex")
+                    // Type tag — "Must do" with amber tint for priority flex events
+                    Text(typeTagLabel)
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(NimvaColors.textMuted)
+                        .foregroundStyle(typeTagColor)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
-                        .background(NimvaColors.purpleMuted.opacity(0.5))
+                        .background(typeTagBackground)
                         .clipShape(Capsule())
                 }
                 .padding(14)
@@ -738,6 +740,19 @@ private struct EventCard: View {
                 }
             }
         }
+    }
+
+    private var typeTagLabel: String {
+        if event.isFixed { return "Fixed" }
+        return event.isPriority ? "Must do" : "Flex"
+    }
+
+    private var typeTagColor: Color {
+        !event.isFixed && event.isPriority ? NimvaColors.amber : NimvaColors.textMuted
+    }
+
+    private var typeTagBackground: Color {
+        !event.isFixed && event.isPriority ? NimvaColors.amber.opacity(0.12) : NimvaColors.purpleMuted.opacity(0.5)
     }
 
     private var subtitleText: String {

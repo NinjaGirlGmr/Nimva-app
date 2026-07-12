@@ -23,6 +23,7 @@ struct WeekGenerationView: View {
     // Which days have had their flexible events "dropped in" during the building animation
     @State private var revealedDays: Set<DayOfWeek> = []
     @State private var showingScheduleError = false
+    @State private var showCutSuggestion = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -47,6 +48,8 @@ struct WeekGenerationView: View {
                         dayGrid
                         if genState == .ready    { unscheduledSection }
                         if genState == .done     { insightChips }
+                        if genState == .done     { cutSuggestionCard }
+                        if genState == .done && isFirstFewWeeks { firstWeekNote }
                         emberCard
                         energyProgressBar
                         actionArea
@@ -176,6 +179,84 @@ struct WeekGenerationView: View {
                 )
             }
         }
+    }
+
+    // True when the user has less than 2 weeks of event history — shown on first builds
+    // so new users understand results improve over time.
+    private var isFirstFewWeeks: Bool {
+        guard !events.isEmpty else { return true }
+        let earliest = events.map(\.createdAt).min() ?? Date()
+        return Calendar.current.dateComponents([.day], from: earliest, to: Date()).day ?? 0 < 14
+    }
+
+    // MARK: - Cut suggestion card (#64)
+
+    @ViewBuilder
+    private var cutSuggestionCard: some View {
+        if let schedule, !schedule.heavyDays.isEmpty, showCutSuggestion {
+            let deferrable = schedule.placedFlexibleEvents.filter { !$0.event.isPriority }
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("What can I cut?")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(NimvaColors.textPrimary)
+                    Spacer()
+                    Button { withAnimation { showCutSuggestion = false } } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11))
+                            .foregroundStyle(NimvaColors.textMuted)
+                            .frame(width: 28, height: 28)
+                            .background(NimvaColors.surfaceDeep)
+                            .clipShape(Circle())
+                    }
+                }
+
+                if deferrable.isEmpty {
+                    Text("All your flexible events are marked must-do — nothing obvious to cut.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(NimvaColors.textSecondary)
+                } else {
+                    Text("These could wait if you're already stretched:")
+                        .font(.system(size: 12))
+                        .foregroundStyle(NimvaColors.textSecondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(deferrable, id: \.event.id) { placed in
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(NimvaColors.textMuted.opacity(0.4))
+                                    .frame(width: 5, height: 5)
+                                Text(placed.event.name)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(NimvaColors.textSecondary)
+                                Spacer()
+                                Text(placed.day.shortName)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(NimvaColors.textMuted)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .background(NimvaColors.cardDark)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    // MARK: - First-week note (#65)
+
+    private var firstWeekNote: some View {
+        HStack(spacing: 12) {
+            EmberView(expression: .calm, size: .mini)
+                .frame(width: 28, height: 28)
+            Text("First week with Nimva — results get sharper as your patterns build up.")
+                .font(.system(size: 12))
+                .foregroundStyle(NimvaColors.textSecondary)
+            Spacer()
+        }
+        .padding(14)
+        .background(NimvaColors.cardDark)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     // Plain functions, not @ViewBuilder — switch statements here behave normally.
@@ -418,6 +499,7 @@ struct WeekGenerationView: View {
 
         withAnimation { genState = .building }
         revealedDays = []
+        showCutSuggestion = true
 
         // Animate each day's events dropping in, left to right, ~0.3s apart
         let days = DayOfWeek.allCases

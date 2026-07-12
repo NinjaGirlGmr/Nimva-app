@@ -26,8 +26,10 @@ struct OnboardingView: View {
                     .tag(1)
                 EnergyTagScreen { advance() }
                     .tag(2)
-                ReadyScreen(onAddEvent: { finish(addEvent: true) }, onSkip: { finish(addEvent: false) })
+                EnergyAnchorScreen(onNext: { advance() }, onSkip: { advance() })
                     .tag(3)
+                ReadyScreen(onAddEvent: { finish(addEvent: true) }, onSkip: { finish(addEvent: false) })
+                    .tag(4)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .ignoresSafeArea()
@@ -35,7 +37,7 @@ struct OnboardingView: View {
             // Progress dots — current step is a pill, completed steps are teal,
             // upcoming steps are muted purple
             HStack(spacing: 8) {
-                ForEach(0..<4, id: \.self) { i in
+                ForEach(0..<5, id: \.self) { i in
                     if i == step {
                         Capsule()
                             .fill(NimvaColors.purplePrimary)
@@ -61,7 +63,7 @@ struct OnboardingView: View {
     }
 
     private func advance() {
-        withAnimation(.easeInOut(duration: 0.35)) { step = min(step + 1, 3) }
+        withAnimation(.easeInOut(duration: 0.35)) { step = min(step + 1, 4) }
     }
 
     private func finish(addEvent: Bool) {
@@ -423,7 +425,92 @@ private struct EnergyTagScreen: View {
     }
 }
 
-// MARK: - Screen 4: Ready
+// MARK: - Screen 4: Energy anchor
+// Asks the user for a personal example of a "Pretty Draining" event.
+// Stored in AppStorage and surfaced as a hint in AddEventView/EditEventView.
+
+private struct EnergyAnchorScreen: View {
+    let onNext: () -> Void
+    let onSkip: () -> Void
+
+    @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
+    @State private var draft = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 28) {
+                    VStack(spacing: 10) {
+                        EmberView(expression: .calm, size: .big)
+                            .frame(width: 88, height: 88)
+                            .padding(.top, 100)
+
+                        Text("What drains you most?")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(NimvaColors.textPrimary)
+
+                        Text("Nimva uses your answer to make \"Pretty Draining\" feel personal — not just abstract.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(NimvaColors.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Think of one thing that leaves you spent. What is it?")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(NimvaColors.textSecondary)
+
+                        TextField("e.g. back-to-back classes, a tough workout…", text: $draft)
+                            .font(.system(size: 15))
+                            .foregroundStyle(NimvaColors.textPrimary)
+                            .padding(14)
+                            .background(NimvaColors.cardDark)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .focused($isFocused)
+                            .onSubmit { saveAndContinue() }
+                    }
+
+                    Text("It'll appear as a hint under \"Pretty Draining\" when you add events. You can change it in Settings anytime.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(NimvaColors.textMuted)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 28)
+                .padding(.bottom, 40)
+            }
+
+            VStack(spacing: 12) {
+                Button(action: saveAndContinue) {
+                    Text("Save and continue")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(NimvaColors.purplePrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+
+                Button(action: onSkip) {
+                    Text("Skip for now")
+                        .font(.system(size: 14))
+                        .foregroundStyle(NimvaColors.textMuted)
+                }
+                .frame(minHeight: 44)
+            }
+            .padding(.horizontal, 28)
+            .padding(.bottom, 48)
+        }
+    }
+
+    private func saveAndContinue() {
+        let trimmed = draft.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty { energyAnchorLabel = trimmed }
+        onNext()
+    }
+}
+
+// MARK: - Screen 5: Ready
 
 private struct ReadyScreen: View {
     let onAddEvent: () -> Void
