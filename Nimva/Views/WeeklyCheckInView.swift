@@ -25,9 +25,27 @@ struct WeeklyCheckInView: View {
             NimvaColors.background.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                progressDots
-                    .padding(.top, 56)
-                    .padding(.horizontal, 28)
+                HStack {
+                    if step > 0 && step < 5 {
+                        Button {
+                            NimvaHaptics.selection()
+                            withAnimation(reduceMotion ? .none : NimvaAnimation.stateChange) { step -= 1 }
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(NimvaColors.textMuted)
+                                .frame(width: 44, height: 44)
+                        }
+                    } else {
+                        Color.clear.frame(width: 44, height: 44)
+                    }
+                    Spacer()
+                    progressDots
+                    Spacer()
+                    Color.clear.frame(width: 44, height: 44)
+                }
+                .padding(.top, 56)
+                .padding(.horizontal, 16)
 
                 Spacer()
 
@@ -62,7 +80,6 @@ struct WeeklyCheckInView: View {
                         .frame(width: 6, height: 6)
                 }
             }
-            Spacer()
         }
         .nimvaAnimation(.spring(response: 0.35, dampingFraction: 0.7), value: step)
     }
@@ -95,7 +112,7 @@ struct WeeklyCheckInView: View {
             )
 
             VStack(spacing: 10) {
-                energyChip("Crushing it",    rating: 0.0,  color: NimvaColors.teal)
+                energyChip("Felt great",      rating: 0.0,  color: NimvaColors.teal)
                 energyChip("Pretty good",    rating: 0.33, color: Color(hex: "5b9e6a"))
                 energyChip("Surviving",      rating: 0.67, color: NimvaColors.amber)
                 energyChip("Pretty rough",   rating: 1.0,  color: NimvaColors.coral)
@@ -107,7 +124,7 @@ struct WeeklyCheckInView: View {
         Button {
             overallRating = rating
             // Brief delay so the selection highlight is visible before advancing
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { advance() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { advance() }
         } label: {
             Text(label)
                 .font(NimvaFont.cardTitle)
@@ -146,7 +163,7 @@ struct WeeklyCheckInView: View {
                 Button {
                     hardestDay = nil
                     noStandoutDay = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { advance() }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { advance() }
                 } label: {
                     Text("No single standout")
                         .font(NimvaFont.cardTitle)
@@ -167,7 +184,7 @@ struct WeeklyCheckInView: View {
         return Button {
             hardestDay = day
             noStandoutDay = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { advance() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { advance() }
         } label: {
             Text(day.shortName)
                 .font(NimvaFont.cardTitle)
@@ -202,7 +219,7 @@ struct WeeklyCheckInView: View {
         let selected = scheduleMatch == match
         return Button {
             scheduleMatch = match
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { advance() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { advance() }
         } label: {
             Text(label)
                 .font(NimvaFont.cardTitle)
@@ -241,7 +258,7 @@ struct WeeklyCheckInView: View {
         let selected = gotRest == level
         return Button {
             gotRest = level
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { advance() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { advance() }
         } label: {
             Text(label)
                 .font(NimvaFont.cardTitle)
@@ -320,7 +337,7 @@ struct WeeklyCheckInView: View {
         case ..<0.2: return "Strong week."
         case ..<0.5: return "Solid week."
         case ..<0.8: return "You got through it."
-        default:     return "You made it through."
+        default:     return "That was a tough one."
         }
     }
 

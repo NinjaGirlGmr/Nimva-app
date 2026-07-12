@@ -296,6 +296,7 @@ private struct EnergyTagScreen: View {
     @State private var selectedChip: ChipOption? = nil
 
     enum ChipOption: String, CaseIterable {
+        case noEnergy = "No energy"
         case alright = "Alright"
         case manageable = "Manageable"
         case takesEffort = "Takes Effort"
@@ -303,9 +304,10 @@ private struct EnergyTagScreen: View {
 
         var color: Color {
             switch self {
-            case .alright:       return NimvaColors.teal
-            case .manageable:    return Color(hex: "5b9e6a")
-            case .takesEffort:   return NimvaColors.amber
+            case .noEnergy:       return NimvaColors.textMuted
+            case .alright:        return NimvaColors.teal
+            case .manageable:     return Color(hex: "5b9e6a")
+            case .takesEffort:    return NimvaColors.amber
             case .prettyDraining: return NimvaColors.coral
             }
         }
@@ -356,7 +358,7 @@ private struct EnergyTagScreen: View {
                             .font(.system(size: 11))
                             .foregroundStyle(NimvaColors.textMuted)
 
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                        VStack(spacing: 8) {
                             ForEach(ChipOption.allCases, id: \.self) { chip in
                                 Button {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -372,10 +374,14 @@ private struct EnergyTagScreen: View {
                                         .clipShape(Capsule())
                                         .overlay(Capsule().stroke(chip.color.opacity(selectedChip == chip ? 0 : 0.4), lineWidth: 1))
                                 }
-                                // Minimum 44pt touch target
                                 .frame(minHeight: 44)
                             }
                         }
+
+                        Text("Use \"No energy\" for holidays, rest days, or reminders that don't actually cost you anything.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(NimvaColors.textMuted.opacity(0.7))
+                            .multilineTextAlignment(.leading)
 
                         if selectedChip != nil {
                             HStack(spacing: 6) {
