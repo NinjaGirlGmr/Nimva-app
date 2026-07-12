@@ -133,7 +133,7 @@ struct HomeView: View {
                                         Text("Keep going")
                                             .font(NimvaFont.cardTitle)
                                             .foregroundStyle(NimvaColors.textPrimary)
-                                        Text("Add \(remaining) more event\(remaining == 1 ? "" : "s") to unlock week building")
+                                        Text("Add \(remaining) more event\(remaining == 1 ? "" : "s") and Nimva will be ready to build your week")
                                             .font(NimvaFont.micro)
                                             .foregroundStyle(NimvaColors.textMuted)
                                     }
@@ -365,7 +365,7 @@ struct HomeView: View {
         undoTask?.cancel()
         withAnimation(NimvaAnimation.cardAppear) { showUndoBanner = true }
         undoTask = Task {
-            try? await Task.sleep(for: .seconds(4))
+            try? await Task.sleep(for: .seconds(7))
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 withAnimation(NimvaAnimation.stateChange) { showUndoBanner = false }
