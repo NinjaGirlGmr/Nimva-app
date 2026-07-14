@@ -53,7 +53,8 @@ struct AddEventView: View {
                                 ForEach(DayOfWeek.orderedForLocale, id: \.self) { day in
                                     DayChip(
                                         label: String(day.shortName.prefix(2)),
-                                        isSelected: selectedDays.contains(day)
+                                        isSelected: selectedDays.contains(day),
+                                        fullLabel: day.displayName
                                     ) {
                                         if selectedDays.contains(day) {
                                             if selectedDays.count > 1 { selectedDays.remove(day) }
@@ -143,6 +144,7 @@ struct AddEventView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .frame(minHeight: 44)
+                                .accessibilityAddTraits(selectedLabel == label ? .isSelected : [])
 
                                 if label == .prettyDraining && !energyAnchorLabel.isEmpty {
                                     Text("Like: \(energyAnchorLabel)")
@@ -229,6 +231,7 @@ struct AddEventView: View {
 private struct DayChip: View {
     let label: String
     let isSelected: Bool
+    var fullLabel: String? = nil
     let onTap: () -> Void
 
     var body: some View {
@@ -243,6 +246,9 @@ private struct DayChip: View {
         }
         .buttonStyle(.plain)
         .frame(minHeight: 44)
+        .accessibilityLabel(fullLabel ?? label)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityHint(isSelected ? "Selected" : "Tap to select")
     }
 }
 

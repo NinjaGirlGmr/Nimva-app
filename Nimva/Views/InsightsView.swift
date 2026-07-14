@@ -464,6 +464,7 @@ private struct InsightsLockedContent: View {
         }
         .blur(radius: 14)
         .allowsHitTesting(false) // purely decorative — never intercepts taps
+        .accessibilityHidden(true)
     }
 
     private var upgradeCard: some View {

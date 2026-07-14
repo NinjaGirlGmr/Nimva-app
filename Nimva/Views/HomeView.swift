@@ -376,6 +376,7 @@ struct HomeView: View {
                         .background(NimvaColors.purplePrimary)
                         .clipShape(Circle())
                 }
+                .accessibilityLabel("Add event")
                 .pressScale()
                 .padding(24)
             }
@@ -729,6 +730,8 @@ private struct EventCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(EventCardStyle(reduceMotion: reduceMotion))
+        .accessibilityLabel(cardAccessibilityLabel)
+        .accessibilityHint("Tap to edit")
         .opacity(visible ? 1 : 0)
         .offset(y: visible ? 0 : 8)
         .onAppear {
@@ -740,6 +743,10 @@ private struct EventCard: View {
                 }
             }
         }
+    }
+
+    private var cardAccessibilityLabel: String {
+        "\(event.name), \(typeTagLabel), \(energyLabel) energy, \(subtitleText)"
     }
 
     private var typeTagLabel: String {

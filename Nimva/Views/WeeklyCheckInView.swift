@@ -36,11 +36,13 @@ struct WeeklyCheckInView: View {
                                 .foregroundStyle(NimvaColors.textMuted)
                                 .frame(width: 44, height: 44)
                         }
+                        .accessibilityLabel("Go back")
                     } else {
                         Color.clear.frame(width: 44, height: 44)
                     }
                     Spacer()
                     progressDots
+                        .accessibilityHidden(true)
                     Spacer()
                     Color.clear.frame(width: 44, height: 44)
                 }
@@ -140,6 +142,7 @@ struct WeeklyCheckInView: View {
         }
         .buttonStyle(.plain)
         .frame(minHeight: 44)
+        .accessibilityAddTraits(overallRating == rating ? .isSelected : [])
     }
 
     // MARK: Step 2 — Hardest day
@@ -175,6 +178,7 @@ struct WeeklyCheckInView: View {
                 }
                 .buttonStyle(.plain)
                 .frame(minHeight: 44)
+                .accessibilityAddTraits(noStandoutDay ? .isSelected : [])
             }
         }
     }
@@ -196,6 +200,8 @@ struct WeeklyCheckInView: View {
         }
         .buttonStyle(.plain)
         .frame(minHeight: 44)
+        .accessibilityLabel(day.displayName)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     // MARK: Step 3 — Schedule fit
@@ -235,6 +241,7 @@ struct WeeklyCheckInView: View {
         }
         .buttonStyle(.plain)
         .frame(minHeight: 44)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     // MARK: Step 4 — Recovery
@@ -274,6 +281,7 @@ struct WeeklyCheckInView: View {
         }
         .buttonStyle(.plain)
         .frame(minHeight: 44)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     // MARK: Step 5 — Done
