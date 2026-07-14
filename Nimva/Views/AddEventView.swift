@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 
 struct AddEventView: View {
+    var defaultDay: DayOfWeek? = nil
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -180,6 +182,11 @@ struct AddEventView: View {
                     Button("Add to week") { saveEvent() }
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty ||
                                   (isFixed && endTime <= startTime))
+                }
+            }
+            .onAppear {
+                if let day = defaultDay {
+                    selectedDays = [day]
                 }
             }
         }
