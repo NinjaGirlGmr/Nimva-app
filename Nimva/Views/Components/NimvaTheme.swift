@@ -43,11 +43,12 @@ enum NimvaColors {
     // so it's exempt from the coral replacement rule
     static let heavyBlue     = Color(hex: "378add")
 
-    // Alt energy palette — icon ring colours, lightened for AA contrast on dark bg
-    // Classic:  teal (#1d9e75) / amber (#ef9f27) / coral (#e0825a)
-    // Alt:      cyan (#3dcfb6, 10:1) / indigo (#7c52d4, 3.78:1) / rose (#c45a9e, 4.95:1)
+    // Alt energy palette — icon ring colours, all verified AA against background (#100c28)
+    // Classic:  teal (#1d9e75, 5.61:1) / amber (#ef9f27, 8.74:1) / coral (#e0825a, 6.79:1)
+    // Alt:      cyan (#3dcfb6, 9.66:1) / indigo (#9472e0, 5.20:1) / rose (#c45a9e, 4.95:1)
+    // Note: #7c52d4 was the previous indigo at 3.63:1 — failed AA for badge text, replaced.
     static let altEnergyLight = Color(hex: "3dcfb6")
-    static let altEnergyMixed = Color(hex: "7c52d4")
+    static let altEnergyMixed = Color(hex: "9472e0")
     static let altEnergyHeavy = Color(hex: "c45a9e")
 
     static func energyLight(_ alt: Bool) -> Color { alt ? altEnergyLight : teal }

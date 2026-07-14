@@ -119,7 +119,7 @@ struct WeekGenerationView: View {
                 .accessibilityHidden(true)
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isCompact)
+        .nimvaAnimation(.spring(response: 0.35, dampingFraction: 0.75), value: isCompact)
     }
 
     private func placedFlexibleOn(_ day: DayOfWeek) -> [Event] {
@@ -322,7 +322,7 @@ struct WeekGenerationView: View {
         .padding(16)
         .background(NimvaColors.cardDark)
         .clipShape(RoundedRectangle(cornerRadius: 14))
-        .animation(.easeInOut(duration: 0.3), value: genState)
+        .nimvaAnimation(NimvaAnimation.stateChange, value: genState)
     }
 
     private var emberExpression: EmberExpression {
@@ -393,7 +393,7 @@ struct WeekGenerationView: View {
                             )
                         )
                         .frame(width: geo.size.width * progress, height: 6)
-                        .animation(.easeInOut(duration: 0.25), value: progress)
+                        .nimvaAnimation(NimvaAnimation.valueUpdate, value: progress)
                 }
             }
             .frame(height: 6)
@@ -501,9 +501,19 @@ struct WeekGenerationView: View {
             return
         }
 
-        withAnimation { genState = .building }
+        withAnimation(reduceMotion ? .none : NimvaAnimation.stateChange) { genState = .building }
         revealedDays = []
         showCutSuggestion = true
+
+        if reduceMotion {
+            // Skip the staggered reveal — reveal all days instantly and jump to done.
+            // 7 sequential move transitions are the most motion-intensive moment in the
+            // whole app; for users who need Reduce Motion, instant is strongly preferable.
+            revealedDays = Set(DayOfWeek.allCases)
+            progress = schedule?.balanceScore ?? 1.0
+            genState = .done
+            return
+        }
 
         // Animate each day's events dropping in, left to right, ~0.3s apart
         let days = DayOfWeek.allCases
@@ -521,7 +531,6 @@ struct WeekGenerationView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + finishDelay) {
             withAnimation(.easeInOut(duration: 0.4)) {
                 genState = .done
-                // Show balance score on the progress bar
                 progress = schedule?.balanceScore ?? progress
             }
         }
