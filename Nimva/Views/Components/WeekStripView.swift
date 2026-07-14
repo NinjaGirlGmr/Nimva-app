@@ -51,6 +51,7 @@ private struct DayColumn: View {
                     .opacity(load == 0 ? 0 : 1)
             }
             .frame(width: 9, height: 9)
+            .accessibilityHidden(true)
 
             // Spark — warm glowing dot marking the selected day.
             // Hidden (opacity 0) for non-selected days so layout stays stable.
@@ -66,12 +67,31 @@ private struct DayColumn: View {
                 .frame(width: 8, height: 8)
                 .shadow(color: NimvaColors.amberWarm.opacity(0.9), radius: 6, x: 0, y: 0)
                 .opacity(isSelected ? 1 : 0)
+                .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity)
         .scaleEffect(isSelected ? 1.15 : 1.0)
         .frame(minHeight: 44)
         .contentShape(Rectangle())
         .nimvaAnimation(NimvaAnimation.buttonPress, value: isSelected)
+        .accessibilityLabel(columnAccessibilityLabel)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityHint(isSelected ? "" : "Switch to \(day.displayName)")
+    }
+
+    private var columnAccessibilityLabel: String {
+        var parts: [String] = [day.displayName]
+        if isToday { parts.append("today") }
+        if load == 0 {
+            parts.append("no events")
+        } else if load < 1.0 {
+            parts.append("light load")
+        } else if load < 2.0 {
+            parts.append("moderate load")
+        } else {
+            parts.append("heavy load")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private var dotSize: CGFloat {

@@ -78,6 +78,15 @@ struct EnergyZoneCard: View {
         }
         .background(NimvaColors.cardDark)
         .clipShape(RoundedRectangle(cornerRadius: 14))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(cardAccessibilityLabel)
+    }
+
+    private var cardAccessibilityLabel: String {
+        let loadPct = Int(dailyPercent * 100)
+        let eventsText = "\(eventsOnSelectedDay) event\(eventsOnSelectedDay == 1 ? "" : "s") today"
+        let overflowText = overflowCount > 0 ? ". \(overflowCount) flex event\(overflowCount == 1 ? "" : "s") unplaced" : ""
+        return "\(selectedDay.displayName): \(moodLabel). \(dayNote). Day load \(loadPct) percent. \(eventsText)\(overflowText)."
     }
 
     private var emberExpression: EmberExpression {
@@ -288,6 +297,8 @@ struct StatChip: View {
         .padding(.vertical, 10)
         .background(NimvaColors.background)
         .clipShape(RoundedRectangle(cornerRadius: 10))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label): \(value)")
     }
 }
 

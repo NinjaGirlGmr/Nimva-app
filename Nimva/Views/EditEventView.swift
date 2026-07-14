@@ -130,6 +130,7 @@ struct EditEventView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .frame(minHeight: 44)
+                                .accessibilityAddTraits(selectedLabel == label ? .isSelected : [])
 
                                 if label == .prettyDraining && !energyAnchorLabel.isEmpty {
                                     Text("Like: \(energyAnchorLabel)")

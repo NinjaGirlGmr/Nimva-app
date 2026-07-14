@@ -113,6 +113,8 @@ struct EmberView: View {
     @State private var emoteFloat = false      // drives float/sink offset + opacity
     @State private var emoteRotation: Double = 0  // drives spin
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         ZStack {
             if size != .mini {
@@ -150,22 +152,28 @@ struct EmberView: View {
         }
         .onAppear {
             displayed = expression
-            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
-                breathing = true
+            if !reduceMotion {
+                withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                    breathing = true
+                }
+                withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
+                    frillWave = true
+                }
+                startEmoteAnimation(for: expression)
             }
-            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
-                frillWave = true
-            }
-            startEmoteAnimation(for: expression)
         }
         .onChange(of: expression) { _, newExpression in
-            withAnimation(.easeInOut(duration: 0.35)) {
+            withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.35)) {
                 displayed = newExpression
             }
-            emoteFloat = false
-            emoteRotation = 0
-            startEmoteAnimation(for: newExpression)
+            if !reduceMotion {
+                emoteFloat = false
+                emoteRotation = 0
+                startEmoteAnimation(for: newExpression)
+            }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Ember, \(expression.rawValue) expression")
     }
 
     private func startEmoteAnimation(for exp: EmberExpression) {
@@ -189,13 +197,13 @@ struct EmberView: View {
                 .resizable()
                 .scaledToFit()
                 .rotationEffect(
-                    .degrees(frillWave ? config.amplitude : -config.amplitude),
+                    .degrees(reduceMotion ? 0 : (frillWave ? config.amplitude : -config.amplitude)),
                     anchor: config.anchor
                 )
                 .animation(
-                    .easeInOut(duration: 2.4)
-                    .repeatForever(autoreverses: true)
-                    .delay(config.phase),
+                    reduceMotion ? .none : .easeInOut(duration: 2.4)
+                        .repeatForever(autoreverses: true)
+                        .delay(config.phase),
                     value: frillWave
                 )
         }

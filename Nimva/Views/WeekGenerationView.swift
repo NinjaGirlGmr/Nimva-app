@@ -93,6 +93,7 @@ struct WeekGenerationView: View {
                     .background(NimvaColors.purplePrimary.opacity(0.12))
                     .clipShape(Circle())
             }
+            .accessibilityLabel("Add event")
         }
     }
 
@@ -115,6 +116,7 @@ struct WeekGenerationView: View {
                     showFlexible: genState == .ready ? false : revealedDays.contains(day),
                     isCompact: isCompact
                 )
+                .accessibilityHidden(true)
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isCompact)
@@ -208,7 +210,9 @@ struct WeekGenerationView: View {
                             .frame(width: 28, height: 28)
                             .background(NimvaColors.surfaceDeep)
                             .clipShape(Circle())
+                            .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
                     }
+                    .accessibilityLabel("Dismiss")
                 }
 
                 if deferrable.isEmpty {
