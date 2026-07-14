@@ -8,6 +8,7 @@ struct EditEventView: View {
 
     @State private var selectedLabel: EnergyLabel = .manageable
     @State private var showingDeleteConfirm = false
+    @State private var pendingTypeSwitch: Bool? = nil
     @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
     @FocusState private var nameFieldFocused: Bool
 
@@ -17,7 +18,12 @@ struct EditEventView: View {
 
                 // MARK: Event type
                 Section {
-                    Picker("Event type", selection: $event.isFixed) {
+                    Picker("Event type", selection: Binding(
+                        get: { event.isFixed },
+                        set: { newValue in
+                            if newValue != event.isFixed { pendingTypeSwitch = newValue }
+                        }
+                    )) {
                         Text("Fixed").tag(true)
                         Text("Flexible").tag(false)
                     }
@@ -171,6 +177,32 @@ struct EditEventView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("This can't be undone.")
+            }
+            .confirmationDialog(
+                "Switch event type?",
+                isPresented: Binding(
+                    get: { pendingTypeSwitch != nil },
+                    set: { if !$0 { pendingTypeSwitch = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Switch type") {
+                    guard let pending = pendingTypeSwitch else { return }
+                    event.isFixed = pending
+                    if pending {
+                        event.preferredWindow = nil
+                        event.duration = nil
+                        event.isPriority = false
+                    } else {
+                        event.fixedDay = nil
+                        event.startTime = nil
+                        event.endTime = nil
+                    }
+                    pendingTypeSwitch = nil
+                }
+                Button("Cancel", role: .cancel) { pendingTypeSwitch = nil }
+            } message: {
+                Text("Switching will clear your timing settings.")
             }
             .onAppear {
                 selectedLabel = EnergyLabel.allCases.min(by: {

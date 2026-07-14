@@ -235,6 +235,14 @@ private struct WeeklyEnergyBar: View {
     let percent: Double  // 0.0–1.0
 
     @AppStorage("useAltEnergyPalette") private var useAltPalette = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    // Shimmer sweeps left → right once on first appear, then stops.
+    // Animating UnitPoint gives a clean horizontal sweep without needing GeometryReader.
+    @State private var shimmerStart: UnitPoint = UnitPoint(x: -0.5, y: 0.5)
+    @State private var shimmerEnd:   UnitPoint = UnitPoint(x:  0.5, y: 0.5)
+    @State private var shimmerOpacity: Double = 0
+    @State private var hasShimmered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -265,10 +273,40 @@ private struct WeeklyEnergyBar: View {
                             )
                         )
                         .frame(width: geo.size.width * percent, height: 6)
+                        .overlay(
+                            // One-shot shimmer — sweeps left to right, then disappears.
+                            // UnitPoint values outside 0–1 let the highlight start/end
+                            // off-screen so the sweep always enters and exits cleanly.
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .clear,                  location: 0.0),
+                                    .init(color: .white.opacity(0.55),    location: 0.5),
+                                    .init(color: .clear,                  location: 1.0),
+                                ],
+                                startPoint: shimmerStart,
+                                endPoint: shimmerEnd
+                            )
+                            .opacity(shimmerOpacity)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .allowsHitTesting(false)
+                        )
                         .nimvaAnimation(NimvaAnimation.valueUpdate, value: percent)
                 }
             }
             .frame(height: 6)
+            .onAppear {
+                guard !reduceMotion, !hasShimmered, percent > 0 else { return }
+                hasShimmered = true
+                shimmerOpacity = 1
+                // Wait for the fill bar to finish its valueUpdate animation, then sweep
+                withAnimation(.easeInOut(duration: 0.75).delay(0.55)) {
+                    shimmerStart = UnitPoint(x: 0.5,  y: 0.5)
+                    shimmerEnd   = UnitPoint(x: 1.5,  y: 0.5)
+                }
+                withAnimation(.easeIn(duration: 0.2).delay(1.1)) {
+                    shimmerOpacity = 0
+                }
+            }
         }
     }
 }

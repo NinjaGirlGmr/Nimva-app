@@ -68,6 +68,14 @@ private struct DayColumn: View {
                 .shadow(color: NimvaColors.amberWarm.opacity(0.9), radius: 6, x: 0, y: 0)
                 .opacity(isSelected ? 1 : 0)
                 .accessibilityHidden(true)
+
+            // Today anchor — persistent teal pip visible regardless of which day is selected,
+            // so the user always knows where "now" is even when browsing other days.
+            Circle()
+                .fill(NimvaColors.teal)
+                .frame(width: 4, height: 4)
+                .opacity(isToday ? 1 : 0)
+                .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity)
         .scaleEffect(isSelected ? 1.15 : 1.0)

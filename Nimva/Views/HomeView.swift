@@ -391,7 +391,7 @@ struct HomeView: View {
         .animation(reduceMotion ? .none : NimvaAnimation.cardAppear, value: showUndoBanner)
         .animation(reduceMotion ? .none : NimvaAnimation.cardAppear, value: events.isEmpty)
         .sheet(isPresented: $showingAddEvent, onDismiss: recomputeSchedule) {
-            AddEventView()
+            AddEventView(defaultDay: selectedDay)
         }
         .sheet(item: $eventToEdit, onDismiss: recomputeSchedule) { event in
             EditEventView(event: event)
@@ -808,6 +808,7 @@ private struct EventCardStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1.0)
+            .opacity(configuration.isPressed && !reduceMotion ? 0.85 : 1.0)
             .animation(NimvaAnimation.buttonPress, value: configuration.isPressed)
     }
 }
