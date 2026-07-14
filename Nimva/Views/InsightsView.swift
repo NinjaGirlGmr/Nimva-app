@@ -45,6 +45,7 @@ private struct InsightsProContent: View {
 
                 if hasEnoughForPatterns {
                     PatternCalloutCard(caches: recentCaches)
+                    PatternCoachingCard(caches: recentCaches)
                 } else {
                     BuildingDataCard()
                 }
@@ -371,6 +372,7 @@ private struct PatternCallout: Identifiable {
     let id = UUID()
     let headline: String
     let detail: String
+    let coaching: String
 }
 
 // A day is a "pattern" when it appears as heavy in ≥50% of available weeks,
@@ -396,9 +398,64 @@ private func detectPatterns(from caches: [WeekCache]) -> [PatternCallout] {
         .map { day, count in
             PatternCallout(
                 headline: "\(day.displayName)s have been consistently heavy",
-                detail: "That's \(count) of your last \(caches.count) weeks. If something is anchored there, this might be worth a conversation — with a coach, advisor, or just yourself."
+                detail: "That's \(count) of your last \(caches.count) weeks. If something is anchored there, this might be worth a conversation — with a coach, advisor, or just yourself.",
+                coaching: coachingSentence(for: day, count: count, totalWeeks: caches.count)
             )
         }
+}
+
+private func coachingSentence(for day: DayOfWeek, count: Int, totalWeeks: Int) -> String {
+    switch count {
+    case 2...3:
+        return "\(day.displayName) is starting to look like a pattern. If there's a fixed commitment anchored there, it might be worth thinking about whether anything around it can shift — even small things."
+    case 4...5:
+        return "\(day.displayName) has been heavy \(count) weeks in a row. Something is likely anchored there. That kind of sustained load is worth a real conversation — with a coach, advisor, or even just yourself. You're not imagining it."
+    default:
+        return "\(count) heavy \(day.displayName)s in a row is a significant signal. This isn't just a rough stretch — it's a structural pattern. If the load can't move, naming that clearly is still useful. It's data you can bring to someone."
+    }
+}
+
+// MARK: - Pattern Coaching Card
+
+// One coaching sentence per detected pattern, in Ember's calm observer voice.
+// Shown below PatternCalloutCard so the headline + detail land first, coaching follows.
+private struct PatternCoachingCard: View {
+    let caches: [WeekCache]
+
+    private var patterns: [PatternCallout] { detectPatterns(from: caches) }
+
+    var body: some View {
+        if !patterns.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                Label("What this might mean", systemImage: "bubble.left")
+                    .font(NimvaFont.sectionLabel)
+                    .foregroundStyle(NimvaColors.textMuted)
+                    .tracking(1.0)
+                    .accessibilityAddTraits(.isHeader)
+
+                ForEach(patterns) { pattern in
+                    HStack(alignment: .top, spacing: 12) {
+                        EmberView(expression: .calm, size: .mini)
+                            .frame(width: 28, height: 28)
+                            .accessibilityHidden(true)
+
+                        Text(pattern.coaching)
+                            .font(NimvaFont.body)
+                            .foregroundStyle(NimvaColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14)
+                    .background(NimvaColors.surfaceDeep)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Ember says: \(pattern.coaching)")
+                }
+            }
+            .padding(NimvaLayout.cardPadding)
+            .background(NimvaColors.cardDark)
+            .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.cardRadius))
+        }
+    }
 }
 
 // MARK: - Building Data Card
