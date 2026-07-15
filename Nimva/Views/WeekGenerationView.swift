@@ -494,8 +494,10 @@ struct WeekGenerationView: View {
 
     private func startBuilding() {
         do {
-            try SchedulerService.regenerate(context: modelContext, events: events)
-            schedule = try SchedulerService.loadCachedSchedule(context: modelContext, events: events)
+            // preservePastPlacements: false — explicit Plan-tab build always starts fresh from today.
+            // Using the returned schedule directly avoids a cache round-trip (and the unsorted-fetch
+            // bug that could return a historical week's cache and leave schedule == nil).
+            schedule = try SchedulerService.regenerate(context: modelContext, events: events, preservePastPlacements: false)
         } catch {
             showingScheduleError = true
             return

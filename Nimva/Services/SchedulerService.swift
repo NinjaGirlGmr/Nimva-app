@@ -10,10 +10,15 @@ enum SchedulerService {
     // MARK: - Public API
 
     /// Runs the scheduling algorithm and persists the result as a WeekCache.
-    /// Preserves past-day placements across mid-week rebuilds so editing an event
-    /// on Wednesday doesn't wipe Monday/Tuesday placements. Also carries forward
-    /// completed-event IDs and check-in answers so they survive edits.
-    static func regenerate(context: ModelContext, events: [Event]) throws {
+    ///
+    /// - Parameter preservePastPlacements: When true (mid-week background rebuilds), flex events
+    ///   already placed on past days are frozen and carried forward. When false (explicit Plan-tab
+    ///   builds), the schedule is regenerated fresh from today onwards with no past placements.
+    ///
+    /// Returns the WeekSchedule that was just computed (today-onwards only, not including
+    /// any preserved past placements). The persisted cache always contains the full merged picture.
+    @discardableResult
+    static func regenerate(context: ModelContext, events: [Event], preservePastPlacements: Bool = true) throws -> WeekSchedule {
         let fixed = events.compactMap { toFixedEvent($0) }
         let flexible = events.compactMap { toFlexibleEvent($0) }
 
@@ -25,10 +30,11 @@ enum SchedulerService {
         }
 
         // Extract placements from days that have already passed so they survive the rebuild.
-        // Events on past days are excluded from re-scheduling — their placement is frozen.
+        // Only applies when called from background rebuilds (event edits), not explicit Plan-tab builds.
         var pastRecords: [PlacementRecord] = []
         var idsInPast: Set<UUID> = []
-        if let prior = priorCache,
+        if preservePastPlacements,
+           let prior = priorCache,
            let data = prior.placementsJSON.data(using: .utf8),
            let decoded = try? JSONDecoder().decode([PlacementRecord].self, from: data) {
             for record in decoded where (DayOfWeek(rawValue: record.dayRawValue)?.rawValue ?? 8) < today.rawValue {
@@ -39,16 +45,16 @@ enum SchedulerService {
 
         // Only re-schedule events not already locked into a past day
         let flexToSchedule = flexible.filter { !idsInPast.contains($0.id) }
-        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexToSchedule, startingFrom: today)
+        let result = Scheduler.generateWeek(fixed: fixed, flexible: flexToSchedule, startingFrom: today)
 
-        // Merge past-day records with newly placed events
-        let newRecords = schedule.placedFlexibleEvents.map {
+        // Merge past-day records with newly placed events for the persisted cache
+        let newRecords = result.placedFlexibleEvents.map {
             PlacementRecord(eventId: $0.event.id, dayRawValue: $0.day.rawValue, reason: $0.reason)
         }
         let mergedData = try JSONEncoder().encode(pastRecords + newRecords)
         let json = String(data: mergedData, encoding: .utf8) ?? "[]"
 
-        let heavyDayValues = schedule.heavyDays.map { $0.rawValue }
+        let heavyDayValues = result.heavyDays.map { $0.rawValue }
 
         // Replace only this week's cache — older weeks are kept for Insights history
         existing
@@ -58,7 +64,7 @@ enum SchedulerService {
         let cache = WeekCache(
             weekStartDate: currentStart,
             placementsJSON: json,
-            balanceScore: schedule.balanceScore,
+            balanceScore: result.balanceScore,
             heavyDayValues: heavyDayValues
         )
         cache.wasRecoveryWeek = isLightWeek(events: events)
@@ -76,12 +82,15 @@ enum SchedulerService {
         if all.count > 8 {
             all.dropFirst(8).forEach { context.delete($0) }
         }
+
+        return result
     }
 
     /// Reads the current cache and decodes it back into a WeekSchedule.
     /// Returns nil if the cache is empty or stale (caller should trigger regenerate).
     static func loadCachedSchedule(context: ModelContext, events: [Event]) throws -> WeekSchedule? {
-        let caches = try context.fetch(FetchDescriptor<WeekCache>())
+        let descriptor = FetchDescriptor<WeekCache>(sortBy: [SortDescriptor(\.weekStartDate, order: .reverse)])
+        let caches = try context.fetch(descriptor)
         guard let cache = caches.first else { return nil }
 
         // Stale if the cache is from a previous week
