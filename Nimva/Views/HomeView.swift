@@ -7,6 +7,7 @@ struct HomeView: View {
     // @Query keeps events and the cache live — any mutation elsewhere auto-updates these
     @Query(sort: \Event.createdAt) private var events: [Event]
     @Query private var caches: [WeekCache]
+    @Query(sort: \Intention.createdAt) private var allIntentions: [Intention]
 
     // Set to true by OnboardingView when the user taps "Add my first event"
     @AppStorage("openAddEventOnLaunch") private var openAddEventOnLaunch = false
@@ -23,6 +24,7 @@ struct HomeView: View {
     @State private var undoSnapshot: DeletedEventSnapshot? = nil
     @State private var showUndoBanner = false
     @State private var undoTask: Task<Void, Never>? = nil
+    @State private var showingAddIntention = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -58,8 +60,44 @@ struct HomeView: View {
     }
 
     private var eventsForSelectedDay: [Event] {
-        guard let cache else { return events.filter { $0.isFixed && $0.fixedDay == selectedDay } }
-        return SchedulerService.events(for: selectedDay, cache: cache, from: events)
+        let raw: [Event]
+        if let cache {
+            raw = SchedulerService.events(for: selectedDay, cache: cache, from: events)
+        } else {
+            raw = events.filter { $0.isFixed && $0.fixedDay == selectedDay }
+        }
+        // Fixed events sort by start time; flex events (no startTime) fall to the end.
+        return raw.sorted { a, b in
+            switch (a.startTime, b.startTime) {
+            case (.some(let at), .some(let bt)): return at < bt
+            case (.some, .none):                 return true
+            case (.none, .some):                 return false
+            case (.none, .none):                 return false
+            }
+        }
+    }
+
+    private var completedEventIds: Set<UUID> {
+        guard let cache,
+              let data = cache.completedEventIdsJSON.data(using: .utf8),
+              let strings = try? JSONDecoder().decode([String].self, from: data)
+        else { return [] }
+        return Set(strings.compactMap { UUID(uuidString: $0) })
+    }
+
+    // The first non-completed event on today's list — nil when viewing a different day.
+    private var nextUpEventId: UUID? {
+        guard selectedDay == Self.todayDayOfWeek() else { return nil }
+        return eventsForSelectedDay.first { !completedEventIds.contains($0.id) }?.id
+    }
+
+    private func nextUpLabel(for event: Event) -> String? {
+        guard event.id == nextUpEventId else { return nil }
+        let now = Date()
+        if let start = event.startTime, let end = event.endTime, start <= now, now <= end {
+            return "Now"
+        }
+        return "Next"
     }
 
     private var overflowCount: Int {
@@ -287,6 +325,16 @@ struct HomeView: View {
                             }
                         }
 
+                        // ── Intentions (light week mode) ──
+                        // When the week is open, shift from optimizer to intention anchor.
+                        if cache != nil && isLightWeek {
+                            if currentWeekIntentions.isEmpty {
+                                intentionsPromptCard
+                            } else {
+                                intentionsListCard
+                            }
+                        }
+
                         // ── Day event list ──
                         VStack(spacing: 0) {
                             HStack {
@@ -321,7 +369,15 @@ struct HomeView: View {
                                 } else {
                                     VStack(spacing: 8) {
                                         ForEach(Array(eventsForSelectedDay.enumerated()), id: \.element.id) { index, event in
-                                            EventCard(event: event, index: index, placementReason: placementReasons[event.id], onTap: { eventToEdit = event })
+                                            EventCard(
+                                                event: event,
+                                                index: index,
+                                                placementReason: placementReasons[event.id],
+                                                isCompleted: completedEventIds.contains(event.id),
+                                                nextUpLabel: nextUpLabel(for: event),
+                                                onTap: { eventToEdit = event },
+                                                onCheckmark: { toggleCompletion(event) }
+                                            )
                                                 .id("\(selectedDay.rawValue)-\(event.id)")
                                                 .padding(.horizontal, 20)
                                                 .contextMenu {
@@ -396,6 +452,9 @@ struct HomeView: View {
         .sheet(item: $eventToEdit, onDismiss: recomputeSchedule) { event in
             EditEventView(event: event)
         }
+        .sheet(isPresented: $showingAddIntention) {
+            AddIntentionView()
+        }
         .onAppear {
             // Snap to today on initial load only — preserves intentional day selection
             // when the user switches tabs and returns, but corrects stale state on relaunch.
@@ -424,6 +483,103 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - Intentions
+
+    private var isLightWeek: Bool {
+        SchedulerService.isLightWeek(events: events)
+    }
+
+    private var currentWeekIntentions: [Intention] {
+        let weekStart = SchedulerService.weekStart()
+        return allIntentions.filter {
+            Calendar.current.isDate($0.weekOf, equalTo: weekStart, toGranularity: .weekOfYear)
+        }
+    }
+
+    private var intentionsPromptCard: some View {
+        Button { showingAddIntention = true } label: {
+            HStack(spacing: 12) {
+                EmberView(expression: .happy, size: .mini)
+                    .frame(width: 28, height: 28)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your week looks open")
+                        .font(NimvaFont.cardTitle)
+                        .foregroundStyle(NimvaColors.textPrimary)
+                    Text("Anything you'd like to do with this time?")
+                        .font(NimvaFont.micro)
+                        .foregroundStyle(NimvaColors.textMuted)
+                }
+                Spacer()
+                Image(systemName: "plus")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(NimvaColors.teal)
+            }
+            .padding(14)
+            .background(NimvaColors.cardDark)
+            .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.cardRadius))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 20)
+        .accessibilityLabel("Your week looks open. Tap to add an intention.")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private var intentionsListCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("This week's intentions")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(NimvaColors.textMuted)
+                    .textCase(.uppercase)
+                    .kerning(0.7)
+                Spacer()
+                Button { showingAddIntention = true } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(NimvaColors.teal)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add another intention")
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 8)
+
+            VStack(spacing: 8) {
+                ForEach(currentWeekIntentions) { intention in
+                    HStack(alignment: .top, spacing: 10) {
+                        Circle()
+                            .fill(NimvaColors.teal.opacity(0.5))
+                            .frame(width: 6, height: 6)
+                            .padding(.top, 5)
+                            .accessibilityHidden(true)
+                        Text(intention.text)
+                            .font(NimvaFont.body)
+                            .foregroundStyle(NimvaColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(NimvaColors.cardDark)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal, 20)
+                    .accessibilityLabel("Intention: \(intention.text)")
+                    .accessibilityHint("Hold to delete")
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            deleteIntention(intention)
+                        } label: {
+                            Label("Delete intention", systemImage: "trash")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     func recomputeSchedule() {
@@ -448,6 +604,28 @@ struct HomeView: View {
                 undoSnapshot = nil
             }
         }
+    }
+
+    private func toggleCompletion(_ event: Event) {
+        guard let cache else { return }
+        var ids = completedEventIds
+        if ids.contains(event.id) {
+            ids.remove(event.id)
+            NimvaHaptics.light()
+        } else {
+            ids.insert(event.id)
+            NimvaHaptics.success()
+        }
+        if let data = try? JSONEncoder().encode(ids.map { $0.uuidString }),
+           let json = String(data: data, encoding: .utf8) {
+            cache.completedEventIdsJSON = json
+            try? modelContext.save()
+        }
+    }
+
+    private func deleteIntention(_ intention: Intention) {
+        modelContext.delete(intention)
+        try? modelContext.save()
     }
 
     private func undoDelete() {
@@ -674,7 +852,10 @@ private struct EventCard: View {
     let event: Event
     var index: Int = 0
     var placementReason: String? = nil
+    var isCompleted: Bool = false
+    var nextUpLabel: String? = nil
     var onTap: (() -> Void)? = nil
+    var onCheckmark: (() -> Void)? = nil
 
     @AppStorage("useAltEnergyPalette") private var useAltPalette = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -688,11 +869,12 @@ private struct EventCard: View {
                     .fill(event.isFixed ? NimvaColors.purplePrimary : NimvaColors.teal)
                     .frame(width: 3)
 
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(event.name)
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(NimvaColors.textPrimary)
+                            .foregroundStyle(isCompleted ? NimvaColors.textMuted : NimvaColors.textPrimary)
+                            .strikethrough(isCompleted, color: NimvaColors.textMuted)
                         Text(subtitleText)
                             .font(.system(size: 11))
                             .foregroundStyle(NimvaColors.textSecondary)
@@ -704,6 +886,17 @@ private struct EventCard: View {
                     }
 
                     Spacer()
+
+                    // "Now" / "Next" pill — only on today's first uncompleted event
+                    if let label = nextUpLabel {
+                        Text(label)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(NimvaColors.teal)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(NimvaColors.teal.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
 
                     // Energy badge
                     Text(energyLabel)
@@ -722,14 +915,30 @@ private struct EventCard: View {
                         .padding(.vertical, 4)
                         .background(typeTagBackground)
                         .clipShape(Capsule())
+
+                    // Checkmark — nested Button intercepts its own tap, outer Button handles edit
+                    Button {
+                        onCheckmark?()
+                    } label: {
+                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 18))
+                            .foregroundStyle(isCompleted ? NimvaColors.teal : NimvaColors.border)
+                            .frame(width: 36, height: 36)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isCompleted ? "Completed. Tap to undo." : "Mark complete")
                 }
-                .padding(14)
+                .padding(.leading, 14)
+                .padding(.vertical, 14)
+                .padding(.trailing, 6)
             }
             .background(NimvaColors.cardDark)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .contentShape(Rectangle())
         }
         .buttonStyle(EventCardStyle(reduceMotion: reduceMotion))
+        .opacity(isCompleted ? 0.6 : 1.0)
         .accessibilityLabel(cardAccessibilityLabel)
         .accessibilityHint("Tap to edit")
         .opacity(visible ? 1 : 0)
@@ -746,7 +955,8 @@ private struct EventCard: View {
     }
 
     private var cardAccessibilityLabel: String {
-        "\(event.name), \(typeTagLabel), \(energyLabel) energy, \(subtitleText)"
+        let base = "\(event.name), \(typeTagLabel), \(energyLabel) energy, \(subtitleText)"
+        return isCompleted ? "Completed: \(base)" : base
     }
 
     private var typeTagLabel: String {

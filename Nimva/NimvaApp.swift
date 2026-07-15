@@ -9,7 +9,7 @@ struct NimvaApp: App {
     @State private var proService = ProService()
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([Event.self, WeekCache.self])
+        let schema = Schema([Event.self, WeekCache.self, Intention.self])
 
         // CloudKit sync: once your Apple Developer account is enrolled and the
         // CloudKit capability is added in project settings, replace the

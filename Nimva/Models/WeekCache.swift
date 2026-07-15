@@ -17,6 +17,10 @@ final class WeekCache {
     var checkInHardestDayRawValue: Int?     // DayOfWeek.rawValue, nil if no standout day
     var checkInCompletedAt: Date?
 
+    // JSON-encoded [String] of UUIDs marked complete during this week.
+    // Cleared implicitly when the week is rebuilt (new WeekCache replaces old one).
+    var completedEventIdsJSON: String = "[]"
+
     init(weekStartDate: Date, placementsJSON: String, balanceScore: Double, heavyDayValues: [Int]) {
         self.weekStartDate = weekStartDate
         self.placementsJSON = placementsJSON

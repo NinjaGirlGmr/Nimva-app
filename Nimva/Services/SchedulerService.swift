@@ -15,10 +15,10 @@ enum SchedulerService {
         let fixed = events.compactMap { toFixedEvent($0) }
         let flexible = events.compactMap { toFlexibleEvent($0) }
 
-        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible, startingFrom: todayAsDayOfWeek())
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible)
 
         // Replace only this week's cache — older weeks are kept for Insights history
-        let currentStart = currentWeekStart()
+        let currentStart = weekStart()
         let existing = try context.fetch(FetchDescriptor<WeekCache>())
         existing
             .filter { Calendar.current.isDate($0.weekStartDate, equalTo: currentStart, toGranularity: .weekOfYear) }
@@ -28,7 +28,7 @@ enum SchedulerService {
         let heavyDayValues = schedule.heavyDays.map { $0.rawValue }
 
         let cache = WeekCache(
-            weekStartDate: currentWeekStart(),
+            weekStartDate: weekStart(),
             placementsJSON: json,
             balanceScore: schedule.balanceScore,
             heavyDayValues: heavyDayValues
@@ -50,7 +50,7 @@ enum SchedulerService {
         guard let cache = caches.first else { return nil }
 
         // Stale if the cache is from a previous week
-        guard Calendar.current.isDate(cache.weekStartDate, equalTo: currentWeekStart(), toGranularity: .weekOfYear) else {
+        guard Calendar.current.isDate(cache.weekStartDate, equalTo: weekStart(), toGranularity: .weekOfYear) else {
             return nil
         }
 
@@ -178,10 +178,18 @@ enum SchedulerService {
     }
 
     /// Returns the most recent Monday at midnight — used as the canonical week identifier.
-    private static func currentWeekStart() -> Date {
+    static func weekStart(for date: Date = Date()) -> Date {
         var cal = Calendar.current
         cal.firstWeekday = 2  // Monday
-        return cal.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        return cal.dateInterval(of: .weekOfYear, for: date)?.start ?? date
+    }
+
+    /// True when the total energy load is low enough that the week feels "open."
+    /// Below a single heavy-day's worth of energy across all events.
+    static func isLightWeek(events: [Event]) -> Bool {
+        guard !events.isEmpty else { return false }
+        let totalCost = events.reduce(0.0) { $0 + $1.energyCost }
+        return totalCost < Scheduler.heavyDayThreshold
     }
 
     // Calendar.weekday: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
