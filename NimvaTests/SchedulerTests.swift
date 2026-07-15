@@ -461,22 +461,24 @@ struct PlacementReasonTests {
     }
 
     @Test func onlyOneCandidateDayGivesLightestAvailableLabel() {
-        // startingFrom .sunday — only Sunday is eligible
+        // startingFrom the locale's last weekday — only that day is eligible
+        let lastDay = DayOfWeek.orderedForLocale.last!
         let flexible = [FlexibleEvent(name: "Task", energyCost: 0.5)]
-        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: .sunday)
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: lastDay)
         let reason = schedule.placedFlexibleEvents.first?.reason ?? ""
         #expect(reason.contains("lightest available"))
     }
 
     @Test func allHeavyFallbackGivesNoLighterDaysLabel() {
-        // Sunday is the only eligible day and it's heavy (2×1.0 = 2.0, at threshold) — fallback
-        // Note: FixedEvent.energyCost is clamped to 1.0, so two events are needed to reach 2.0
+        // The locale's last weekday is the only eligible day and it's heavy (2×1.0 = 2.0) — fallback.
+        // Note: FixedEvent.energyCost is clamped to 1.0, so two events are needed to reach 2.0.
+        let lastDay = DayOfWeek.orderedForLocale.last!
         let fixed = [
-            FixedEvent(name: "A", day: .sunday, energyCost: 1.0),
-            FixedEvent(name: "B", day: .sunday, energyCost: 1.0),
+            FixedEvent(name: "A", day: lastDay, energyCost: 1.0),
+            FixedEvent(name: "B", day: lastDay, energyCost: 1.0),
         ]
         let flexible = [FlexibleEvent(name: "Task", energyCost: 0.5)]
-        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible, startingFrom: .sunday)
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible, startingFrom: lastDay)
         let reason = schedule.placedFlexibleEvents.first?.reason ?? ""
         #expect(reason.contains("no lighter days"))
     }
@@ -534,15 +536,16 @@ struct RecoveryGapProtectionTests {
     }
 
     @Test func flexibleEventsStillPlacedWhenAllEligibleDaysAreHeavy() {
-        // Sunday is the only eligible day (startingFrom: .sunday) and it's heavy (2×1.0 = 2.0).
+        // The locale's last weekday is the only eligible day and it's heavy (2×1.0 = 2.0).
         // The flex event should be placed (not overflowed) as a fallback.
         // Note: FixedEvent.energyCost is clamped to 1.0, so two events needed to reach threshold.
+        let lastDay = DayOfWeek.orderedForLocale.last!
         let fixed = [
-            FixedEvent(name: "A", day: .sunday, energyCost: 1.0),
-            FixedEvent(name: "B", day: .sunday, energyCost: 1.0),
+            FixedEvent(name: "A", day: lastDay, energyCost: 1.0),
+            FixedEvent(name: "B", day: lastDay, energyCost: 1.0),
         ]
         let flexible = [FlexibleEvent(name: "Task", energyCost: 0.25)]
-        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible, startingFrom: .sunday)
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible, startingFrom: lastDay)
         #expect(schedule.placedFlexibleEvents.count == 1)
         #expect(schedule.overflowEvents.isEmpty)
     }
@@ -572,12 +575,15 @@ struct SchedulerStartingFromTests {
         #expect((placed?.day.rawValue ?? 0) >= DayOfWeek.friday.rawValue)
     }
 
-    @Test func sundayStartAllowsOnlySunday() {
+    @Test func lastDayOfWeekStartAllowsOnlyThatDay() {
+        // When startingFrom is the locale's last weekday, only that day is eligible.
+        // In US locale (Sun-Sat) this is Saturday; in ISO locale (Mon-Sun) this is Sunday.
+        let lastDay = DayOfWeek.orderedForLocale.last!
         let flexible = (0..<3).map { FlexibleEvent(name: "E\($0)", energyCost: 0.25) }
-        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: .sunday)
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: lastDay)
 
         for event in schedule.placedFlexibleEvents {
-            #expect(event.day == .sunday)
+            #expect(event.day == lastDay)
         }
     }
 
