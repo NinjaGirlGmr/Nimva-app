@@ -10,30 +10,64 @@ enum SchedulerService {
     // MARK: - Public API
 
     /// Runs the scheduling algorithm and persists the result as a WeekCache.
-    /// Deletes any existing cache entry first so there is always exactly one.
+    /// Preserves past-day placements across mid-week rebuilds so editing an event
+    /// on Wednesday doesn't wipe Monday/Tuesday placements. Also carries forward
+    /// completed-event IDs and check-in answers so they survive edits.
     static func regenerate(context: ModelContext, events: [Event]) throws {
         let fixed = events.compactMap { toFixedEvent($0) }
         let flexible = events.compactMap { toFlexibleEvent($0) }
 
-        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible)
-
-        // Replace only this week's cache — older weeks are kept for Insights history
+        let today = todayAsDayOfWeek()
         let currentStart = weekStart()
         let existing = try context.fetch(FetchDescriptor<WeekCache>())
+        let priorCache = existing.first {
+            Calendar.current.isDate($0.weekStartDate, equalTo: currentStart, toGranularity: .weekOfYear)
+        }
+
+        // Extract placements from days that have already passed so they survive the rebuild.
+        // Events on past days are excluded from re-scheduling — their placement is frozen.
+        var pastRecords: [PlacementRecord] = []
+        var idsInPast: Set<UUID> = []
+        if let prior = priorCache,
+           let data = prior.placementsJSON.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([PlacementRecord].self, from: data) {
+            for record in decoded where (DayOfWeek(rawValue: record.dayRawValue)?.rawValue ?? 8) < today.rawValue {
+                pastRecords.append(record)
+                idsInPast.insert(record.eventId)
+            }
+        }
+
+        // Only re-schedule events not already locked into a past day
+        let flexToSchedule = flexible.filter { !idsInPast.contains($0.id) }
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexToSchedule, startingFrom: today)
+
+        // Merge past-day records with newly placed events
+        let newRecords = schedule.placedFlexibleEvents.map {
+            PlacementRecord(eventId: $0.event.id, dayRawValue: $0.day.rawValue, reason: $0.reason)
+        }
+        let mergedData = try JSONEncoder().encode(pastRecords + newRecords)
+        let json = String(data: mergedData, encoding: .utf8) ?? "[]"
+
+        let heavyDayValues = schedule.heavyDays.map { $0.rawValue }
+
+        // Replace only this week's cache — older weeks are kept for Insights history
         existing
             .filter { Calendar.current.isDate($0.weekStartDate, equalTo: currentStart, toGranularity: .weekOfYear) }
             .forEach { context.delete($0) }
 
-        let json = try encodePlacements(schedule.placedFlexibleEvents)
-        let heavyDayValues = schedule.heavyDays.map { $0.rawValue }
-
         let cache = WeekCache(
-            weekStartDate: weekStart(),
+            weekStartDate: currentStart,
             placementsJSON: json,
             balanceScore: schedule.balanceScore,
             heavyDayValues: heavyDayValues
         )
         cache.wasRecoveryWeek = isLightWeek(events: events)
+        // Carry forward user data that must survive event edits
+        cache.completedEventIdsJSON = priorCache?.completedEventIdsJSON ?? "[]"
+        cache.checkInRating = priorCache?.checkInRating
+        cache.checkInHardestDayRawValue = priorCache?.checkInHardestDayRawValue
+        cache.checkInCompletedAt = priorCache?.checkInCompletedAt
+        cache.recoveryCheckInRaw = priorCache?.recoveryCheckInRaw
         context.insert(cache)
 
         // Trim history to 8 weeks so SwiftData doesn't accumulate unbounded records.

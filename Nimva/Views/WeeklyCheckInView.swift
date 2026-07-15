@@ -360,6 +360,11 @@ struct WeeklyCheckInView: View {
         let noRest = gotRest == .no
         let badFit = scheduleMatch == .no
 
+        // Recovery-week framing is specific — "heavy week" copy is wrong when the schedule was light.
+        if cache.wasRecoveryWeek && noRest {
+            return "The week was lighter, but it still didn't feel like rest. Sometimes what fills the gaps matters as much as the gaps themselves."
+        }
+
         if rough && noRest {
             return "A heavy week without much rest — that compounds. Let's make next week a bit lighter."
         } else if rough {
