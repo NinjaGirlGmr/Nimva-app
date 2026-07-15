@@ -59,6 +59,11 @@ struct EditEventView: View {
                             get: { event.endTime ?? Date() },
                             set: { event.endTime = $0 }
                         ))
+                        if hasTimeError {
+                            Text("End time must be after start time")
+                                .font(.system(size: 12))
+                                .foregroundStyle(NimvaColors.coral)
+                        }
                     }
                     .listRowBackground(NimvaColors.cardDark)
                 } else {
@@ -215,9 +220,15 @@ struct EditEventView: View {
                         try? modelContext.save()
                         dismiss()
                     }
+                    .disabled(hasTimeError)
                 }
             }
         }
+    }
+
+    private var hasTimeError: Bool {
+        guard event.isFixed, let start = event.startTime, let end = event.endTime else { return false }
+        return end <= start
     }
 
     private var formattedDuration: String {

@@ -26,7 +26,7 @@ enum SchedulerService {
         let currentStart = weekStart()
         let existing = try context.fetch(FetchDescriptor<WeekCache>())
         let priorCache = existing.first {
-            Calendar.current.isDate($0.weekStartDate, equalTo: currentStart, toGranularity: .weekOfYear)
+            mondayCal.isDate($0.weekStartDate, equalTo: currentStart, toGranularity: .weekOfYear)
         }
 
         // Extract placements from days that have already passed so they survive the rebuild.
@@ -58,7 +58,7 @@ enum SchedulerService {
 
         // Replace only this week's cache — older weeks are kept for Insights history
         existing
-            .filter { Calendar.current.isDate($0.weekStartDate, equalTo: currentStart, toGranularity: .weekOfYear) }
+            .filter { mondayCal.isDate($0.weekStartDate, equalTo: currentStart, toGranularity: .weekOfYear) }
             .forEach { context.delete($0) }
 
         let cache = WeekCache(
@@ -94,7 +94,7 @@ enum SchedulerService {
         guard let cache = caches.first else { return nil }
 
         // Stale if the cache is from a previous week
-        guard Calendar.current.isDate(cache.weekStartDate, equalTo: weekStart(), toGranularity: .weekOfYear) else {
+        guard mondayCal.isDate(cache.weekStartDate, equalTo: weekStart(), toGranularity: .weekOfYear) else {
             return nil
         }
 
@@ -223,9 +223,15 @@ enum SchedulerService {
 
     /// Returns the most recent Monday at midnight — used as the canonical week identifier.
     static func weekStart(for date: Date = Date()) -> Date {
+        return mondayCal.dateInterval(of: .weekOfYear, for: date)?.start ?? date
+    }
+
+    /// A Monday-start calendar used for all week boundary comparisons so they're
+    /// consistent with weekStart() regardless of the device's locale/firstWeekday.
+    static var mondayCal: Calendar {
         var cal = Calendar.current
-        cal.firstWeekday = 2  // Monday
-        return cal.dateInterval(of: .weekOfYear, for: date)?.start ?? date
+        cal.firstWeekday = 2
+        return cal
     }
 
     /// True when the total energy load is low enough that the week feels "open."

@@ -360,10 +360,11 @@ struct WeekGenerationView: View {
             switch userType {
             case .optimizer, .patternLearner:
                 guard let score = schedule?.balanceScore else { return "Your week is ready to approve" }
+                // balanceScore is variance: lower = more balanced. Thresholds reflect spread.
                 switch score {
-                case ..<0.4:  return "Heavily fixed week — most of this was locked in"
-                case ..<0.66: return "Mixed week — some room to work with"
-                default:      return "Good breathing room across the board"
+                case ..<0.4:  return "Good spread across the week"
+                case ..<0.66: return "Some days are heavier than others"
+                default:      return "Load is concentrated — watch the heavy days"
                 }
             case .overloadedFixed:
                 let flexPlaced = schedule?.placedFlexibleEvents.count ?? 0
@@ -512,7 +513,7 @@ struct WeekGenerationView: View {
             // 7 sequential move transitions are the most motion-intensive moment in the
             // whole app; for users who need Reduce Motion, instant is strongly preferable.
             revealedDays = Set(DayOfWeek.allCases)
-            progress = schedule?.balanceScore ?? 1.0
+            progress = 1.0
             genState = .done
             return
         }
@@ -533,7 +534,7 @@ struct WeekGenerationView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + finishDelay) {
             withAnimation(.easeInOut(duration: 0.4)) {
                 genState = .done
-                progress = schedule?.balanceScore ?? progress
+                progress = 1.0  // Bar stays full — week is 100% built; quality shown by chips below
             }
         }
     }
