@@ -6,7 +6,7 @@ struct HomeView: View {
 
     // @Query keeps events and the cache live — any mutation elsewhere auto-updates these
     @Query(sort: \Event.createdAt) private var events: [Event]
-    @Query private var caches: [WeekCache]
+    @Query(sort: \WeekCache.weekStartDate, order: .reverse) private var caches: [WeekCache]
     @Query(sort: \Intention.createdAt) private var allIntentions: [Intention]
 
     // Set to true by OnboardingView when the user taps "Add my first event"
