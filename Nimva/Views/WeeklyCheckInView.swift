@@ -247,10 +247,13 @@ struct WeeklyCheckInView: View {
     // MARK: Step 4 — Recovery
 
     private var step4: some View {
-        VStack(spacing: 28) {
+        let question = cache.wasRecoveryWeek
+            ? "Your week was lighter than usual. Did it actually feel like a recovery?"
+            : "Did you get any real rest this week?"
+        return VStack(spacing: 28) {
             emberSpeech(
                 expression: .calm,
-                text: "Did you get any real rest this week?"
+                text: question
             )
 
             VStack(spacing: 10) {
@@ -378,6 +381,14 @@ struct WeeklyCheckInView: View {
         cache.checkInRating = overallRating
         cache.checkInHardestDayRawValue = hardestDay?.rawValue
         cache.checkInCompletedAt = Date()
+        if cache.wasRecoveryWeek {
+            switch gotRest {
+            case .yes:    cache.recoveryCheckInRaw = 1
+            case .little: cache.recoveryCheckInRaw = 2
+            case .no:     cache.recoveryCheckInRaw = 3
+            case nil:     break
+            }
+        }
         onDismiss()
     }
 

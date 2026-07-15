@@ -33,6 +33,7 @@ enum SchedulerService {
             balanceScore: schedule.balanceScore,
             heavyDayValues: heavyDayValues
         )
+        cache.wasRecoveryWeek = isLightWeek(events: events)
         context.insert(cache)
 
         // Trim history to 8 weeks so SwiftData doesn't accumulate unbounded records.

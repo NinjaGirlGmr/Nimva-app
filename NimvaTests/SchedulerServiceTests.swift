@@ -186,3 +186,51 @@ struct LightWeekTests {
     }
 }
 
+// MARK: - Recovery week (WeekCache fields)
+
+@Suite("WeekCache — Recovery week fields")
+struct RecoveryWeekCacheTests {
+
+    private func makeRecoveryCache(wasRecovery: Bool, checkInRaw: Int?) -> WeekCache {
+        let cache = WeekCache(weekStartDate: Date(), placementsJSON: "[]", balanceScore: 0.5, heavyDayValues: [])
+        cache.wasRecoveryWeek = wasRecovery
+        cache.recoveryCheckInRaw = checkInRaw
+        return cache
+    }
+
+    @Test func defaultWeekCacheIsNotRecovery() {
+        let cache = WeekCache(weekStartDate: Date(), placementsJSON: "[]", balanceScore: 0.5, heavyDayValues: [])
+        #expect(cache.wasRecoveryWeek == false)
+        #expect(cache.recoveryCheckInRaw == nil)
+    }
+
+    @Test func flaggedRecoveryCacheReflectsTrue() {
+        let cache = makeRecoveryCache(wasRecovery: true, checkInRaw: nil)
+        #expect(cache.wasRecoveryWeek == true)
+        #expect(cache.recoveryCheckInRaw == nil)
+    }
+
+    @Test func recoveryCheckInRawStoredCorrectly() {
+        let yes = makeRecoveryCache(wasRecovery: true, checkInRaw: 1)
+        let somewhat = makeRecoveryCache(wasRecovery: true, checkInRaw: 2)
+        let no = makeRecoveryCache(wasRecovery: true, checkInRaw: 3)
+        #expect(yes.recoveryCheckInRaw == 1)
+        #expect(somewhat.recoveryCheckInRaw == 2)
+        #expect(no.recoveryCheckInRaw == 3)
+    }
+
+    @Test func nonRecoveryWeekNeverGetsCheckInRaw() {
+        // wasRecoveryWeek false → recoveryCheckInRaw should stay nil (not persisted by check-in flow)
+        let cache = makeRecoveryCache(wasRecovery: false, checkInRaw: nil)
+        #expect(cache.recoveryCheckInRaw == nil)
+    }
+
+    @Test func recoveryWeekDetectedFromIsLightWeek() {
+        // Mirrors what SchedulerService.regenerate() does when building the cache
+        let lightEvents = [Event(name: "Easy", isFixed: false, energyCost: 0.3)]
+        let heavyEvents = (0..<4).map { _ in Event(name: "Hard", isFixed: false, energyCost: 0.8) }
+        #expect(SchedulerService.isLightWeek(events: lightEvents) == true)
+        #expect(SchedulerService.isLightWeek(events: heavyEvents) == false)
+    }
+}
+
