@@ -497,16 +497,17 @@ struct HomeView: View {
     }
 
     private var intentionsPromptCard: some View {
-        Button { showingAddIntention = true } label: {
+        let isRecovery = cache?.wasRecoveryWeek == true
+        return Button { showingAddIntention = true } label: {
             HStack(spacing: 12) {
-                EmberView(expression: .happy, size: .mini)
+                EmberView(expression: isRecovery ? .calm : .happy, size: .mini)
                     .frame(width: 28, height: 28)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Your week looks open")
+                    Text(isRecovery ? "A lighter week" : "Your week looks open")
                         .font(NimvaFont.cardTitle)
                         .foregroundStyle(NimvaColors.textPrimary)
-                    Text("Anything you'd like to do with this time?")
+                    Text(isRecovery ? "A good window to actually rest — or do something low-stakes." : "Anything you'd like to do with this time?")
                         .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted)
                 }
@@ -521,7 +522,7 @@ struct HomeView: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 20)
-        .accessibilityLabel("Your week looks open. Tap to add an intention.")
+        .accessibilityLabel(isRecovery ? "A lighter week. Tap to add an intention." : "Your week looks open. Tap to add an intention.")
         .accessibilityAddTraits(.isButton)
     }
 

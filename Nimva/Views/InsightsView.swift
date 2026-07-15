@@ -391,7 +391,7 @@ private func detectPatterns(from caches: [WeekCache]) -> [PatternCallout] {
     }
 
     let threshold = max(2, Int((Double(caches.count) * 0.5).rounded(.up)))
-    return dayCounts
+    var patterns: [PatternCallout] = dayCounts
         .filter { $0.value >= threshold }
         .sorted { $0.value > $1.value }
         .prefix(2)
@@ -402,6 +402,28 @@ private func detectPatterns(from caches: [WeekCache]) -> [PatternCallout] {
                 coaching: coachingSentence(for: day, count: count, totalWeeks: caches.count)
             )
         }
+
+    // Recovery pattern: track whether lighter weeks are actually providing rest
+    let recoveryWeeks = caches.filter { $0.wasRecoveryWeek && $0.recoveryCheckInRaw != nil }
+    if recoveryWeeks.count >= 2 {
+        let notRecovered = recoveryWeeks.filter { $0.recoveryCheckInRaw == 3 }.count
+        let ratio = Double(notRecovered) / Double(recoveryWeeks.count)
+        if ratio >= 0.6 {
+            patterns.append(PatternCallout(
+                headline: "Your lighter weeks aren't feeling like rest",
+                detail: "\(notRecovered) of your last \(recoveryWeeks.count) lighter weeks still felt draining. A lighter schedule doesn't automatically mean recovery — what happens in that space matters.",
+                coaching: "A lighter week is only recovery if it's actually used that way. Worth thinking about what fills that time — and whether it's actually restoring you."
+            ))
+        } else if ratio <= 0.25 && recoveryWeeks.count >= 3 {
+            patterns.append(PatternCallout(
+                headline: "Your lighter weeks are actually recharging you",
+                detail: "\(recoveryWeeks.count - notRecovered) of your last \(recoveryWeeks.count) lighter weeks felt like real rest. That's a pattern worth protecting.",
+                coaching: "You're using your lighter weeks well. That kind of deliberate recovery is harder than it looks — keep it."
+            ))
+        }
+    }
+
+    return patterns
 }
 
 private func coachingSentence(for day: DayOfWeek, count: Int, totalWeeks: Int) -> String {

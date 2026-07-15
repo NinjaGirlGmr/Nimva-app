@@ -21,6 +21,14 @@ final class WeekCache {
     // Cleared implicitly when the week is rebuilt (new WeekCache replaces old one).
     var completedEventIdsJSON: String = "[]"
 
+    // True when the algorithm classified this as a light week at generation time.
+    // Drives the recovery check-in branch and Insights recovery pattern.
+    var wasRecoveryWeek: Bool = false
+
+    // Set by the check-in flow when wasRecoveryWeek is true.
+    // 1 = yes felt like rest, 2 = somewhat, 3 = no, still drained
+    var recoveryCheckInRaw: Int? = nil
+
     init(weekStartDate: Date, placementsJSON: String, balanceScore: Double, heavyDayValues: [Int]) {
         self.weekStartDate = weekStartDate
         self.placementsJSON = placementsJSON
