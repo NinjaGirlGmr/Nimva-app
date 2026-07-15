@@ -22,6 +22,7 @@ struct SettingsView: View {
 
     // modelContext lets us delete SwiftData records (used by Clear all data)
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
 
     @State private var showingNameEditor = false
     @State private var nameEditDraft = ""
@@ -435,6 +436,12 @@ struct SettingsView: View {
         SettingsSection(title: "Help") {
             ActionRow(label: "How Nimva works", style: .normal) {
                 showingOnboarding = true
+            }
+            SettingsDivider()
+            ActionRow(label: "Privacy Policy", style: .normal) {
+                if let url = URL(string: "https://ninjagirlgmr.github.io/Nimva-app/privacy.html") {
+                    openURL(url)
+                }
             }
         }
     }

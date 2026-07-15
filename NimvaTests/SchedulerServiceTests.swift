@@ -144,3 +144,45 @@ struct SchedulerServiceOverflowTests {
     }
 }
 
+// MARK: - isLightWeek
+
+@Suite("SchedulerService — isLightWeek")
+struct LightWeekTests {
+
+    @Test func emptyEventListIsNotLightWeek() {
+        // An empty list means onboarding/first-run, not a light week — handled separately.
+        #expect(SchedulerService.isLightWeek(events: []) == false)
+    }
+
+    @Test func singleLowCostEventIsLightWeek() {
+        let event = Event(name: "Coffee chat", isFixed: true, fixedDay: .tuesday, energyCost: 0.3)
+        #expect(SchedulerService.isLightWeek(events: [event]) == true)
+    }
+
+    @Test func totalCostBelowThresholdIsLight() {
+        // Three events at 0.5 cost each = 1.5 total, below Scheduler.heavyDayThreshold (2.0)
+        let events = (0..<3).map { _ in Event(name: "Event", isFixed: false, energyCost: 0.5) }
+        #expect(SchedulerService.isLightWeek(events: events) == true)
+    }
+
+    @Test func totalCostAtThresholdIsNotLight() {
+        // Exactly at threshold (2.0) — not a light week
+        let events = (0..<4).map { _ in Event(name: "Event", isFixed: false, energyCost: 0.5) }
+        #expect(SchedulerService.isLightWeek(events: events) == false)
+    }
+
+    @Test func totalCostAboveThresholdIsNotLight() {
+        // Four events at 0.8 each = 3.2, well above threshold
+        let events = (0..<4).map { _ in Event(name: "Event", isFixed: false, energyCost: 0.8) }
+        #expect(SchedulerService.isLightWeek(events: events) == false)
+    }
+
+    @Test func mixedCostsBelowThresholdIsLight() {
+        let e1 = Event(name: "Low", isFixed: true, fixedDay: .monday, energyCost: 0.2)
+        let e2 = Event(name: "Medium", isFixed: false, energyCost: 0.5)
+        let e3 = Event(name: "Low2", isFixed: true, fixedDay: .friday, energyCost: 0.3)
+        // Total: 1.0 < 2.0
+        #expect(SchedulerService.isLightWeek(events: [e1, e2, e3]) == true)
+    }
+}
+

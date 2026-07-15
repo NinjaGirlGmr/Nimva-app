@@ -106,7 +106,7 @@ struct WeekGenerationView: View {
 
     private var dayGrid: some View {
         HStack(spacing: 6) {
-            ForEach(DayOfWeek.allCases, id: \.self) { day in
+            ForEach(DayOfWeek.orderedForLocale, id: \.self) { day in
                 GenDayColumn(
                     day: day,
                     fixedEvents: fixedEvents.filter { $0.fixedDay == day },
@@ -516,7 +516,7 @@ struct WeekGenerationView: View {
         }
 
         // Animate each day's events dropping in, left to right, ~0.3s apart
-        let days = DayOfWeek.allCases
+        let days = DayOfWeek.orderedForLocale
         for (i, day) in days.enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.3) {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
