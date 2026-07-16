@@ -31,15 +31,25 @@ enum SchedulerService {
 
         // Extract placements from days that have already passed so they survive the rebuild.
         // Only applies when called from background rebuilds (event edits), not explicit Plan-tab builds.
+        //
+        // Use rawValue (Mon=1 … Sun=7) for the "is this day past?" check, NOT orderedForLocale.
+        // In US locale, orderedForLocale puts Sunday at index 0 (before Monday), which would
+        // cause Sunday (rawValue 7) to be treated as "past" on any Mon–Sat day — but Sunday is
+        // the LAST day of the internal Mon–Sun week and is always future until Sunday itself.
+        // rawValue comparison gives the correct temporal order for both US and ISO locales:
+        //   today = Wednesday (rawValue 3) → past = Mon(1), Tue(2); Sun(7) is NOT past.
         var pastRecords: [PlacementRecord] = []
         var idsInPast: Set<UUID> = []
         if preservePastPlacements,
            let prior = priorCache,
            let data = prior.placementsJSON.data(using: .utf8),
            let decoded = try? JSONDecoder().decode([PlacementRecord].self, from: data) {
-            for record in decoded where (DayOfWeek(rawValue: record.dayRawValue)?.rawValue ?? 8) < today.rawValue {
-                pastRecords.append(record)
-                idsInPast.insert(record.eventId)
+            for record in decoded {
+                if let day = DayOfWeek(rawValue: record.dayRawValue),
+                   day.rawValue < today.rawValue {
+                    pastRecords.append(record)
+                    idsInPast.insert(record.eventId)
+                }
             }
         }
 

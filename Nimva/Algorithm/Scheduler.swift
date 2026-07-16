@@ -19,9 +19,13 @@ enum Scheduler {
         }
 
         // Flexible events may only land on today or later — never on a day that has passed.
+        // Use orderedForLocale so Sunday (rawValue 7) is treated as the FIRST day in US-locale
+        // weeks (not the last), preventing placement on a day that already ended.
         let eligibleDays: [DayOfWeek]
         if let from = today {
-            eligibleDays = DayOfWeek.allCases.filter { $0.rawValue >= from.rawValue }
+            let ordered = DayOfWeek.orderedForLocale
+            let fromIdx = ordered.firstIndex(of: from) ?? 0
+            eligibleDays = Array(ordered[fromIdx...])
         } else {
             eligibleDays = DayOfWeek.allCases
         }
@@ -61,6 +65,12 @@ enum Scheduler {
             placed.append(PlacedEvent(event: event, day: bestDay, reason: reason))
             dailyLoads[bestDay, default: 0.0] += event.energyCost
         }
+
+        // Hard block: remove any placement that ended up outside eligibleDays.
+        // Candidates are always drawn from eligibleDays so this should be a no-op in practice,
+        // but it prevents any cached stale placement from surviving a fresh build.
+        let eligibleSet = Set(eligibleDays)
+        placed = placed.filter { eligibleSet.contains($0.day) }
 
         // Balance score = variance of daily loads across all 7 days (lower = more balanced)
         let loads = DayOfWeek.allCases.map { dailyLoads[$0, default: 0.0] }
