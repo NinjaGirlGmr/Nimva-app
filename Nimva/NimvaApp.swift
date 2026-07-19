@@ -11,18 +11,9 @@ struct NimvaApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([Event.self, WeekCache.self, Intention.self])
 
-        // CloudKit sync: once your Apple Developer account is enrolled and the
-        // CloudKit capability is added in project settings, replace the
-        // ModelConfiguration below with:
-        //
-        //   ModelConfiguration(
-        //       schema: schema,
-        //       isStoredInMemoryOnly: false,
-        //       cloudKitDatabase: .private("iCloud.com.yourname.nimva")
-        //   )
-        //
-        // Auth is handled automatically — CloudKit uses the device's iCloud account.
-        // No Sign in with Apple or custom auth layer needed.
+        // CloudKit sync: add the iCloud + CloudKit capability in Xcode's Signing & Capabilities
+        // tab first, then uncomment the cloudKitDatabase line below.
+        // Container ID: iCloud.dev.hailey.nimva.Nimva
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {

@@ -171,7 +171,8 @@ struct HomeView: View {
                                 heavyDays: heavyDays,
                                 eventsOnSelectedDay: eventsForSelectedDay.count,
                                 overflowCount: overflowCount,
-                                userType: userType
+                                userType: userType,
+                                isRecoveryWeek: cache?.wasRecoveryWeek == true
                             )
                             .padding(.horizontal, 20)
                         }
@@ -328,11 +329,22 @@ struct HomeView: View {
                         // ── Intentions (light week mode) ──
                         // When the week is open, shift from optimizer to intention anchor.
                         if cache != nil && isLightWeek {
-                            if currentWeekIntentions.isEmpty {
-                                intentionsPromptCard
-                            } else {
-                                intentionsListCard
+                            Group {
+                                if currentWeekIntentions.isEmpty {
+                                    intentionsPromptCard
+                                } else {
+                                    intentionsListCard
+                                }
                             }
+                            .transition(.opacity.combined(with: .offset(y: 6)))
+                            .animation(reduceMotion ? .none : NimvaAnimation.cardAppear, value: currentWeekIntentions.isEmpty)
+                        }
+
+                        // ── Energy experiment (light week mode) ──
+                        // One small behavioral nudge per light week, suggested by Nimva.
+                        if let experiment = cache?.experimentText, cache?.wasRecoveryWeek == true {
+                            experimentCard(text: experiment)
+                                .transition(.opacity.combined(with: .offset(y: 6)))
                         }
 
                         // ── Day event list ──
@@ -527,13 +539,19 @@ struct HomeView: View {
     }
 
     private var intentionsListCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let isRecovery = cache?.wasRecoveryWeek == true
+        return VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("This week's intentions")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(NimvaColors.textMuted)
-                    .textCase(.uppercase)
-                    .kerning(0.7)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("This week's intentions")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(NimvaColors.textMuted)
+                        .textCase(.uppercase)
+                        .kerning(0.7)
+                    Text(isRecovery ? "A lighter week — open time to use how you want." : "Your week looks open.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(NimvaColors.textMuted.opacity(0.7))
+                }
                 Spacer()
                 Button { showingAddIntention = true } label: {
                     Image(systemName: "plus")
@@ -579,6 +597,42 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    private func experimentCard(text: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "flask")
+                    .font(.system(size: 13))
+                    .foregroundStyle(NimvaColors.amber)
+                    .frame(width: 28, height: 28)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("This week's experiment")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(NimvaColors.textMuted)
+                        .textCase(.uppercase)
+                        .kerning(0.6)
+                    Text(text)
+                        .font(NimvaFont.body)
+                        .foregroundStyle(NimvaColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Text("A small thing to try. Notice if it changes anything.")
+                .font(.system(size: 11))
+                .foregroundStyle(NimvaColors.textMuted.opacity(0.75))
+        }
+        .padding(14)
+        .background(NimvaColors.cardDark)
+        .overlay(
+            RoundedRectangle(cornerRadius: NimvaLayout.cardRadius)
+                .stroke(NimvaColors.amber.opacity(0.2), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.cardRadius))
+        .padding(.horizontal, 20)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("This week's experiment: \(text)")
     }
 
     // MARK: - Helpers
