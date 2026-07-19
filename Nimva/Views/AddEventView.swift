@@ -111,10 +111,10 @@ struct AddEventView: View {
                         Toggle(isOn: $isPriority) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Must do this week")
-                                    .font(.system(size: 14))
+                                    .font(NimvaFont.callout)
                                     .foregroundStyle(NimvaColors.textPrimary)
                                 Text("Scheduled before nice-to-do events")
-                                    .font(.system(size: 11))
+                                    .font(NimvaFont.micro)
                                     .foregroundStyle(NimvaColors.textMuted)
                             }
                         }
@@ -133,7 +133,7 @@ struct AddEventView: View {
                                     energyCost = label.cost
                                 } label: {
                                     Text(label.displayName)
-                                        .font(.system(size: 14, weight: .medium))
+                                        .font(NimvaFont.calloutMed)
                                         .foregroundStyle(selectedLabel == label ? .white : NimvaColors.textSecondary)
                                         .frame(maxWidth: .infinity)
                                         .padding(.vertical, 10)
@@ -150,7 +150,7 @@ struct AddEventView: View {
 
                                 if label == .prettyDraining && !energyAnchorLabel.isEmpty {
                                     Text("Like: \(energyAnchorLabel)")
-                                        .font(.system(size: 11))
+                                        .font(NimvaFont.micro)
                                         .foregroundStyle(NimvaColors.textMuted)
                                         .padding(.horizontal, 4)
                                 }
@@ -244,7 +244,7 @@ private struct DayChip: View {
     var body: some View {
         Button(action: onTap) {
             Text(label)
-                .font(.system(size: 12, weight: .semibold))
+                .font(NimvaFont.captionSemi)
                 .foregroundStyle(isSelected ? .white : NimvaColors.textSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)

@@ -43,13 +43,13 @@ struct EnergyZoneCard: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(moodLabel)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(NimvaFont.bodyMedium)
                         .foregroundStyle(NimvaColors.textPrimary)
                         .id(selectedDay)
                         .transition(.squashStretch)
 
                     Text(dayNote)
-                        .font(.system(size: 11))
+                        .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .id(selectedDay)
@@ -256,7 +256,7 @@ private struct WeeklyEnergyBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Day load")
-                .font(.system(size: 9, weight: .medium))
+                .font(NimvaFont.chip)
                 .foregroundStyle(NimvaColors.textMuted)
                 .textCase(.uppercase)
                 .kerning(0.6)
@@ -329,12 +329,12 @@ struct StatChip: View {
     var body: some View {
         VStack(spacing: 2) {
             Text(value)
-                .font(.system(size: 15, weight: .semibold))
+                .font(NimvaFont.button)
                 .foregroundStyle(NimvaColors.textPrimary)
                 .contentTransition(.numericText())
 
             Text(label)
-                .font(.system(size: 9, weight: .medium))
+                .font(NimvaFont.chip)
                 .foregroundStyle(NimvaColors.textMuted)
                 .textCase(.uppercase)
                 .kerning(0.4)

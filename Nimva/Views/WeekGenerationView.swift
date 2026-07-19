@@ -76,18 +76,18 @@ struct WeekGenerationView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("This week")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(NimvaFont.chip)
                     .foregroundStyle(NimvaColors.textMuted)
                     .textCase(.uppercase)
                     .kerning(0.7)
                 Text("Plan")
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(NimvaFont.greeting)
                     .foregroundStyle(NimvaColors.textPrimary)
             }
             Spacer()
             Button { showingAddEvent = true } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(NimvaFont.calloutSemi)
                     .foregroundStyle(NimvaColors.purplePrimary)
                     .frame(width: 36, height: 36)
                     .background(NimvaColors.purplePrimary.opacity(0.12))
@@ -133,14 +133,14 @@ struct WeekGenerationView: View {
     private var unscheduledSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("To schedule")
-                .font(.system(size: 10, weight: .medium))
+                .font(NimvaFont.chip)
                 .foregroundStyle(NimvaColors.textMuted)
                 .textCase(.uppercase)
                 .kerning(0.7)
 
             if flexibleEvents.isEmpty {
                 Text("No flexible events yet — tap + above to add one")
-                    .font(.system(size: 13))
+                    .font(NimvaFont.body)
                     .foregroundStyle(NimvaColors.textMuted)
                     .padding(.vertical, 8)
             } else {
@@ -200,12 +200,12 @@ struct WeekGenerationView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("What can I cut?")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(NimvaFont.bodySemi)
                         .foregroundStyle(NimvaColors.textPrimary)
                     Spacer()
                     Button { withAnimation { showCutSuggestion = false } } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 11))
+                            .font(NimvaFont.micro)
                             .foregroundStyle(NimvaColors.textMuted)
                             .frame(width: 28, height: 28)
                             .background(NimvaColors.surfaceDeep)
@@ -217,11 +217,11 @@ struct WeekGenerationView: View {
 
                 if deferrable.isEmpty {
                     Text("All your flexible events are marked must-do — nothing obvious to cut.")
-                        .font(.system(size: 12))
+                        .font(.system(.caption))
                         .foregroundStyle(NimvaColors.textSecondary)
                 } else {
                     Text("These could wait if you're already stretched:")
-                        .font(.system(size: 12))
+                        .font(.system(.caption))
                         .foregroundStyle(NimvaColors.textSecondary)
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(deferrable, id: \.event.id) { placed in
@@ -230,11 +230,11 @@ struct WeekGenerationView: View {
                                     .fill(NimvaColors.textMuted.opacity(0.4))
                                     .frame(width: 5, height: 5)
                                 Text(placed.event.name)
-                                    .font(.system(size: 12))
+                                    .font(.system(.caption))
                                     .foregroundStyle(NimvaColors.textSecondary)
                                 Spacer()
                                 Text(placed.day.shortName)
-                                    .font(.system(size: 10))
+                                    .font(NimvaFont.micro)
                                     .foregroundStyle(NimvaColors.textMuted)
                             }
                         }
@@ -254,7 +254,7 @@ struct WeekGenerationView: View {
             EmberView(expression: .calm, size: .mini)
                 .frame(width: 28, height: 28)
             Text("First week with Nimva — results get sharper as your patterns build up.")
-                .font(.system(size: 12))
+                .font(.system(.caption))
                 .foregroundStyle(NimvaColors.textSecondary)
             Spacer()
         }
@@ -309,10 +309,10 @@ struct WeekGenerationView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(emberMoodLabel)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(NimvaFont.bodyMedium)
                     .foregroundStyle(NimvaColors.textPrimary)
                 Text(emberNote)
-                    .font(.system(size: 11))
+                    .font(NimvaFont.micro)
                     .foregroundStyle(NimvaColors.textSecondary)
                     .lineLimit(2)
             }
@@ -401,11 +401,11 @@ struct WeekGenerationView: View {
 
             HStack {
                 Text(genState == .done ? "Energy balance" : "Progress")
-                    .font(.system(size: 10))
+                    .font(NimvaFont.micro)
                     .foregroundStyle(NimvaColors.textMuted)
                 Spacer()
                 Text("\(Int(progress * 100))%")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(NimvaFont.chip)
                     .foregroundStyle(NimvaColors.textSecondary)
             }
         }
@@ -420,13 +420,13 @@ struct WeekGenerationView: View {
             if events.count < 3 {
                 VStack(spacing: 14) {
                     Text("Add at least 3 events and Nimva will arrange your week around them.")
-                        .font(.system(size: 13))
+                        .font(NimvaFont.body)
                         .foregroundStyle(NimvaColors.textMuted)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 8)
                     Button { showingAddEvent = true } label: {
                         Label("Add an event", systemImage: "plus")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(NimvaFont.button)
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
@@ -437,7 +437,7 @@ struct WeekGenerationView: View {
             } else {
                 Button(action: startBuilding) {
                     Label("Build my week", systemImage: "sparkles")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(NimvaFont.button)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
@@ -451,7 +451,7 @@ struct WeekGenerationView: View {
                 ProgressView()
                     .tint(.white)
                 Text("Building...")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(NimvaFont.button)
                     .foregroundStyle(.white)
             }
             .frame(maxWidth: .infinity)
@@ -463,7 +463,7 @@ struct WeekGenerationView: View {
             VStack(spacing: 12) {
                 Button(action: approveWeek) {
                     Text("Approve week")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(NimvaFont.button)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
@@ -473,7 +473,7 @@ struct WeekGenerationView: View {
 
                 Button(action: redo) {
                     Text("Redo")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(NimvaFont.cardTitle)
                         .foregroundStyle(NimvaColors.textSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
@@ -558,12 +558,12 @@ struct WeekGenerationView: View {
 
                 VStack(spacing: 8) {
                     Text(approvalTitle)
-                        .font(.system(size: 24, weight: .bold))
+                        .font(NimvaFont.closingTitle)
                         .foregroundStyle(NimvaColors.textPrimary)
                         .multilineTextAlignment(.center)
 
                     Text(approvalMessage)
-                        .font(.system(size: 14))
+                        .font(NimvaFont.callout)
                         .foregroundStyle(NimvaColors.textSecondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -578,7 +578,7 @@ struct WeekGenerationView: View {
                 selectedTab = 0
             } label: {
                 Text("Back to home")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(NimvaFont.button)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
@@ -633,7 +633,7 @@ private struct GenDayColumn: View {
     var body: some View {
         VStack(spacing: 4) {
             Text(day.shortName.uppercased())
-                .font(.system(size: isCompact ? 8 : 10, weight: .medium))
+                .font(NimvaFont.chip)
                 .foregroundStyle(NimvaColors.textMuted)
                 .lineLimit(1)
 
@@ -671,7 +671,7 @@ private struct GenDayColumn: View {
                 Group {
                     if !isCompact {
                         Text(name)
-                            .font(.system(size: 7, weight: .medium))
+                            .font(NimvaFont.chip)
                             .foregroundStyle(.white)
                             .lineLimit(1)
                             .padding(.horizontal, 3)
@@ -693,7 +693,7 @@ private struct EventChip: View {
                 .fill(NimvaColors.teal)
                 .frame(width: 6, height: 6)
             Text(event.name)
-                .font(.system(size: 11, weight: .medium))
+                .font(NimvaFont.chip)
                 .foregroundStyle(NimvaColors.textPrimary)
                 .lineLimit(1)
         }
@@ -716,10 +716,10 @@ private struct StatusChip: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 13))
+                .font(NimvaFont.body)
                 .foregroundStyle(color)
             Text(text)
-                .font(.system(size: 12))
+                .font(.system(.caption))
                 .foregroundStyle(NimvaColors.textSecondary)
             Spacer()
         }

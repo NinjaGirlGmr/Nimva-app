@@ -38,7 +38,7 @@ private struct DayColumn: View {
         VStack(spacing: 6) {
             // 3-letter day abbreviation — teal when today, bright when selected
             Text(day.shortName.uppercased())
-                .font(.system(size: 10, weight: isToday ? .semibold : .medium))
+                .font(NimvaFont.chip)
                 .foregroundStyle(isSelected ? NimvaColors.textPrimary : isToday ? NimvaColors.teal : NimvaColors.textMuted)
 
             // Load dot: hidden when empty, scales up and glows on heavy days

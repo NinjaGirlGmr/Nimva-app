@@ -56,23 +56,23 @@ struct CalendarImportView: View {
             HStack {
                 Spacer()
                 Button("Cancel", action: onCancel)
-                    .font(.system(size: 14))
+                    .font(NimvaFont.callout)
                     .foregroundStyle(NimvaColors.textMuted)
                     .padding(.trailing, 20)
             }
             .padding(.top, 16)
 
             Text("📅")
-                .font(.system(size: 42))
+                .font(NimvaFont.largeDisplay)
 
             Text(candidates.isEmpty ? "Nothing new this week" : "Found \(candidates.count) new \(candidates.count == 1 ? "event" : "events")")
-                .font(.system(size: 20, weight: .bold))
+                .font(NimvaFont.pageTitleBold)
                 .foregroundStyle(NimvaColors.textPrimary)
 
             Text(candidates.isEmpty
                 ? "No new timed events were found in your Apple Calendar for this week."
                 : "Select which events to add to this week.")
-                .font(.system(size: 13))
+                .font(NimvaFont.body)
                 .foregroundStyle(NimvaColors.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
@@ -86,7 +86,7 @@ struct CalendarImportView: View {
         VStack {
             Spacer()
             Button("Done", action: onCancel)
-                .font(.system(size: 15, weight: .semibold))
+                .font(NimvaFont.button)
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
@@ -116,18 +116,18 @@ struct CalendarImportView: View {
                         .frame(width: 22, height: 22)
                     if isOn {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(NimvaFont.chip)
                             .foregroundStyle(.white)
                     }
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(candidate.title)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(NimvaFont.calloutMed)
                         .foregroundStyle(NimvaColors.textPrimary)
                         .lineLimit(1)
                     Text(timeLabel(for: candidate))
-                        .font(.system(size: 11))
+                        .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted)
                 }
 
@@ -135,7 +135,7 @@ struct CalendarImportView: View {
 
                 // Day chip
                 Text(candidate.day.shortName)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(NimvaFont.chip)
                     .foregroundStyle(NimvaColors.purplePrimary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
@@ -173,7 +173,7 @@ struct CalendarImportView: View {
                 Text(count == 0
                     ? "Select events to import"
                     : "Import \(count) \(count == 1 ? "event" : "events")")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(NimvaFont.button)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
@@ -184,7 +184,7 @@ struct CalendarImportView: View {
             .padding(.horizontal, 20)
 
             Button("Cancel", action: onCancel)
-                .font(.system(size: 14))
+                .font(NimvaFont.callout)
                 .foregroundStyle(NimvaColors.textMuted)
                 .padding(.bottom, 8)
         }

@@ -156,12 +156,12 @@ struct SettingsView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Preferences")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(NimvaFont.chip)
                     .foregroundStyle(NimvaColors.textMuted)
                     .textCase(.uppercase)
                     .kerning(0.7)
                 Text("Settings")
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(NimvaFont.greeting)
                     .foregroundStyle(NimvaColors.textPrimary)
             }
             Spacer()
@@ -191,10 +191,10 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(displayName)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(NimvaFont.calloutSemi)
                     .foregroundStyle(NimvaColors.textPrimary)
                 Text("Stored on this device")
-                    .font(.system(size: 11))
+                    .font(NimvaFont.micro)
                     .foregroundStyle(NimvaColors.textMuted)
             }
 
@@ -205,7 +205,7 @@ struct SettingsView: View {
                 showingNameEditor = true
             } label: {
                 Text("Edit")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(NimvaFont.sectionLabel)
                     .foregroundStyle(NimvaColors.purplePrimary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
@@ -224,11 +224,11 @@ struct SettingsView: View {
         SettingsSection(title: "Appearance") {
             HStack {
                 Text("Theme")
-                    .font(.system(size: 14))
+                    .font(NimvaFont.callout)
                     .foregroundStyle(NimvaColors.textPrimary)
                 Spacer()
                 Text("Dark")
-                    .font(.system(size: 12))
+                    .font(.system(.caption))
                     .foregroundStyle(NimvaColors.textMuted)
             }
             .padding(.horizontal, 16)
@@ -243,7 +243,7 @@ struct SettingsView: View {
             )
 
             Text("Light mode coming in a future update.")
-                .font(.system(size: 11))
+                .font(NimvaFont.micro)
                 .foregroundStyle(NimvaColors.textMuted)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
@@ -275,15 +275,15 @@ struct SettingsView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Pretty draining anchor")
-                            .font(.system(size: 14))
+                            .font(NimvaFont.callout)
                             .foregroundStyle(NimvaColors.textPrimary)
                         Text(energyAnchorLabel.isEmpty ? "Not set — tap to add" : "\"\(energyAnchorLabel)\"")
-                            .font(.system(size: 11))
+                            .font(NimvaFont.micro)
                             .foregroundStyle(NimvaColors.textMuted)
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(NimvaFont.chip)
                         .foregroundStyle(NimvaColors.textMuted)
                 }
                 .padding(.horizontal, 16)
@@ -306,20 +306,20 @@ struct SettingsView: View {
                 Button { connectCalendar() } label: {
                     HStack(spacing: 14) {
                         Image(systemName: "calendar.badge.plus")
-                            .font(.system(size: 16))
+                            .font(NimvaFont.callout)
                             .foregroundStyle(NimvaColors.teal)
                             .frame(width: 22)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Connect Apple Calendar")
-                                .font(.system(size: 14))
+                                .font(NimvaFont.callout)
                                 .foregroundStyle(NimvaColors.textPrimary)
                             Text("Grant access to import your events")
-                                .font(.system(size: 11))
+                                .font(NimvaFont.micro)
                                 .foregroundStyle(NimvaColors.textMuted)
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(NimvaFont.chip)
                             .foregroundStyle(NimvaColors.textMuted)
                     }
                     .padding(.horizontal, 16)
@@ -332,20 +332,20 @@ struct SettingsView: View {
                 Button { openCalendarPicker() } label: {
                     HStack(spacing: 14) {
                         Image(systemName: "calendar")
-                            .font(.system(size: 16))
+                            .font(NimvaFont.callout)
                             .foregroundStyle(NimvaColors.purplePrimary)
                             .frame(width: 22)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Calendars")
-                                .font(.system(size: 14))
+                                .font(NimvaFont.callout)
                                 .foregroundStyle(NimvaColors.textPrimary)
                             Text(calendarSelectionSummary)
-                                .font(.system(size: 11))
+                                .font(NimvaFont.micro)
                                 .foregroundStyle(NimvaColors.textMuted)
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(NimvaFont.chip)
                             .foregroundStyle(NimvaColors.textMuted)
                     }
                     .padding(.horizontal, 16)
@@ -360,26 +360,26 @@ struct SettingsView: View {
                 Button { refreshCalendar() } label: {
                     HStack(spacing: 14) {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 16))
+                            .font(NimvaFont.callout)
                             .foregroundStyle(NimvaColors.teal)
                             .frame(width: 22)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Refresh from Calendar")
-                                .font(.system(size: 14))
+                                .font(NimvaFont.callout)
                                 .foregroundStyle(NimvaColors.textPrimary)
                             if lastCalendarImportDate > 0 {
                                 Text("Last imported \(Date(timeIntervalSince1970: lastCalendarImportDate), style: .relative) ago")
-                                    .font(.system(size: 11))
+                                    .font(NimvaFont.micro)
                                     .foregroundStyle(NimvaColors.textMuted)
                             } else {
                                 Text("Pull this week's events into Nimva")
-                                    .font(.system(size: 11))
+                                    .font(NimvaFont.micro)
                                     .foregroundStyle(NimvaColors.textMuted)
                             }
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(NimvaFont.chip)
                             .foregroundStyle(NimvaColors.textMuted)
                     }
                     .padding(.horizontal, 16)
@@ -410,15 +410,15 @@ struct SettingsView: View {
             // No separate sign-in flow needed.
             HStack(spacing: 14) {
                 Image(systemName: "icloud.fill")
-                    .font(.system(size: 15))
+                    .font(.system(.subheadline))
                     .foregroundStyle(NimvaColors.textMuted)
                     .frame(width: 22)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("iCloud sync")
-                        .font(.system(size: 14))
+                        .font(NimvaFont.callout)
                         .foregroundStyle(NimvaColors.textPrimary)
                     Text("Uses your iCloud account automatically")
-                        .font(.system(size: 11))
+                        .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted)
                 }
                 Spacer()
@@ -450,7 +450,7 @@ struct SettingsView: View {
 
     private var versionFooter: some View {
         Text("Nimva · v1.0 MVP")
-            .font(.system(size: 11))
+            .font(NimvaFont.micro)
             .foregroundStyle(NimvaColors.textMuted.opacity(0.5))
             .padding(.top, 4)
     }
@@ -536,7 +536,7 @@ struct SettingsView: View {
             }
             if let msg = seedMessage {
                 Text(msg)
-                    .font(.system(size: 11))
+                    .font(NimvaFont.micro)
                     .foregroundStyle(NimvaColors.textMuted)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 10)
@@ -565,7 +565,7 @@ private struct SettingsSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 10, weight: .medium))
+                .font(NimvaFont.chip)
                 .foregroundStyle(NimvaColors.textMuted)
                 .textCase(.uppercase)
                 .kerning(0.7)
@@ -599,11 +599,11 @@ private struct ToggleRow: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
-                    .font(.system(size: 14))
+                    .font(NimvaFont.callout)
                     .foregroundStyle(NimvaColors.textPrimary)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 11))
+                        .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted)
                 }
             }
@@ -629,12 +629,12 @@ private struct ActionRow: View {
         Button(action: action) {
             HStack {
                 Text(label)
-                    .font(.system(size: 14))
+                    .font(NimvaFont.callout)
                     .foregroundStyle(style == .destructive ? NimvaColors.coral : NimvaColors.textPrimary)
                 Spacer()
                 if style == .normal {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(NimvaFont.chip)
                         .foregroundStyle(NimvaColors.textMuted)
                 }
             }

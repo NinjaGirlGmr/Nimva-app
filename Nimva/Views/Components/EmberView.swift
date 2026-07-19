@@ -262,7 +262,7 @@ struct EmberView: View {
             ForEach([("88pt", 88.0), ("64pt", 64.0), ("24pt", 24.0)], id: \.0) { label, pts in
                 HStack(spacing: 16) {
                     Text(label)
-                        .font(.system(size: 11))
+                        .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted)
                         .frame(width: 40, alignment: .leading)
                     ForEach(EmberExpression.allCases, id: \.self) { exp in

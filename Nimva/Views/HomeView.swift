@@ -124,19 +124,19 @@ struct HomeView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(greetingText)
-                                    .font(.system(size: 11, weight: .medium))
+                                    .font(NimvaFont.chip)
                                     .foregroundStyle(NimvaColors.textMuted)
                                     .textCase(.uppercase)
                                     .kerning(0.6)
                                 Text("Your week")
-                                    .font(.system(size: 22, weight: .semibold))
+                                    .font(NimvaFont.greeting)
                                     .foregroundStyle(NimvaColors.textPrimary)
                                 // #56: overloaded users get honest framing; others get the standard summary
                                 if cache != nil {
                                     let subtitle = weekSubtitle
                                     if !subtitle.isEmpty {
                                         Text(subtitle)
-                                            .font(.system(size: 12))
+                                            .font(.system(.caption))
                                             .foregroundStyle(NimvaColors.textMuted)
                                             .transition(.opacity)
                                     }
@@ -146,7 +146,7 @@ struct HomeView: View {
                                     let lightestText = lightestDaySubtitle
                                     if !lightestText.isEmpty {
                                         Text(lightestText)
-                                            .font(.system(size: 11))
+                                            .font(NimvaFont.micro)
                                             .foregroundStyle(NimvaColors.textMuted.opacity(0.75))
                                             .transition(.opacity)
                                     }
@@ -187,7 +187,7 @@ struct HomeView: View {
                                     EmberView(expression: .calm, size: .mini)
                                         .frame(width: 28, height: 28)
                                     Text(note)
-                                        .font(.system(size: 12))
+                                        .font(.system(.caption))
                                         .foregroundStyle(NimvaColors.textSecondary)
                                         .fixedSize(horizontal: false, vertical: true)
                                     Spacer()
@@ -211,11 +211,11 @@ struct HomeView: View {
                             if !warning.isEmpty {
                                 HStack(spacing: 12) {
                                     Image(systemName: "exclamationmark.triangle")
-                                        .font(.system(size: 13))
+                                        .font(NimvaFont.body)
                                         .foregroundStyle(NimvaColors.amber)
                                         .frame(width: 28, height: 28)
                                     Text(warning)
-                                        .font(.system(size: 12))
+                                        .font(.system(.caption))
                                         .foregroundStyle(NimvaColors.textSecondary)
                                         .fixedSize(horizontal: false, vertical: true)
                                     Spacer()
@@ -240,7 +240,7 @@ struct HomeView: View {
                                 let remaining = 3 - events.count
                                 HStack(spacing: 12) {
                                     Image(systemName: "plus.circle")
-                                        .font(.system(size: 16))
+                                        .font(NimvaFont.callout)
                                         .foregroundStyle(NimvaColors.purplePrimary)
                                         .frame(width: 32)
                                     VStack(alignment: .leading, spacing: 2) {
@@ -261,7 +261,7 @@ struct HomeView: View {
                                 Button { selectedTab = 1 } label: {
                                     HStack(spacing: 12) {
                                         Image(systemName: "sparkles")
-                                            .font(.system(size: 16))
+                                            .font(NimvaFont.callout)
                                             .foregroundStyle(NimvaColors.teal)
                                             .frame(width: 32)
                                         VStack(alignment: .leading, spacing: 2) {
@@ -274,7 +274,7 @@ struct HomeView: View {
                                         }
                                         Spacer()
                                         Image(systemName: "chevron.right")
-                                            .font(.system(size: 12, weight: .medium))
+                                            .font(NimvaFont.sectionLabel)
                                             .foregroundStyle(NimvaColors.textMuted)
                                     }
                                     .padding(14)
@@ -311,7 +311,7 @@ struct HomeView: View {
                                         }
                                         Spacer()
                                         Image(systemName: "chevron.right")
-                                            .font(.system(size: 12, weight: .medium))
+                                            .font(NimvaFont.sectionLabel)
                                             .foregroundStyle(NimvaColors.textMuted)
                                     }
                                     .padding(14)
@@ -351,14 +351,14 @@ struct HomeView: View {
                         VStack(spacing: 0) {
                             HStack {
                                 Text(selectedDay.displayName)
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(NimvaFont.chip)
                                     .foregroundStyle(NimvaColors.textMuted)
                                     .textCase(.uppercase)
                                     .kerning(0.7)
                                     .contentTransition(.opacity)
                                 Spacer()
                                 Text("\(eventsForSelectedDay.count) event\(eventsForSelectedDay.count == 1 ? "" : "s")")
-                                    .font(.system(size: 10))
+                                    .font(NimvaFont.micro)
                                     .foregroundStyle(NimvaColors.textMuted)
                                     .contentTransition(.numericText())
                             }
@@ -370,10 +370,10 @@ struct HomeView: View {
                                 if eventsForSelectedDay.isEmpty {
                                     VStack(spacing: 6) {
                                         Text(emptyDayMessage.headline)
-                                            .font(.system(size: 14))
+                                            .font(NimvaFont.callout)
                                             .foregroundStyle(NimvaColors.textMuted)
                                         Text(emptyDayMessage.sub)
-                                            .font(.system(size: 12))
+                                            .font(.system(.caption))
                                             .foregroundStyle(NimvaColors.textMuted.opacity(0.6))
                                     }
                                     .frame(maxWidth: .infinity)
@@ -438,7 +438,7 @@ struct HomeView: View {
                     showingAddEvent = true
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(NimvaFont.pageTitle)
                         .foregroundStyle(.white)
                         .frame(width: 56, height: 56)
                         .background(NimvaColors.purplePrimary)
@@ -525,7 +525,7 @@ struct HomeView: View {
                 }
                 Spacer()
                 Image(systemName: "plus")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(NimvaFont.bodySemi)
                     .foregroundStyle(NimvaColors.teal)
             }
             .padding(14)
@@ -544,18 +544,18 @@ struct HomeView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("This week's intentions")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(NimvaFont.chip)
                         .foregroundStyle(NimvaColors.textMuted)
                         .textCase(.uppercase)
                         .kerning(0.7)
                     Text(isRecovery ? "A lighter week — open time to use how you want." : "Your week looks open.")
-                        .font(.system(size: 11))
+                        .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted.opacity(0.7))
                 }
                 Spacer()
                 Button { showingAddIntention = true } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(NimvaFont.bodySemi)
                         .foregroundStyle(NimvaColors.teal)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
@@ -603,13 +603,13 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Image(systemName: "flask")
-                    .font(.system(size: 13))
+                    .font(NimvaFont.body)
                     .foregroundStyle(NimvaColors.amber)
                     .frame(width: 28, height: 28)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("This week's experiment")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(NimvaFont.chip)
                         .foregroundStyle(NimvaColors.textMuted)
                         .textCase(.uppercase)
                         .kerning(0.6)
@@ -620,7 +620,7 @@ struct HomeView: View {
                 }
             }
             Text("A small thing to try. Notice if it changes anything.")
-                .font(.system(size: 11))
+                .font(NimvaFont.micro)
                 .foregroundStyle(NimvaColors.textMuted.opacity(0.75))
         }
         .padding(14)
@@ -758,11 +758,11 @@ struct HomeView: View {
     private var undoBannerView: some View {
         HStack {
             Text("Event deleted")
-                .font(.system(size: 13, weight: .medium))
+                .font(NimvaFont.bodyMedium)
                 .foregroundStyle(NimvaColors.textSecondary)
             Spacer()
             Button("Undo") { undoDelete() }
-                .font(.system(size: 13, weight: .semibold))
+                .font(NimvaFont.bodySemi)
                 .foregroundStyle(NimvaColors.teal)
         }
         .padding(.horizontal, 16)
@@ -797,10 +797,10 @@ struct HomeView: View {
                 .nimvaAnimation(NimvaAnimation.squashStretch, value: contentAppeared)
             VStack(spacing: 8) {
                 Text("Let's build your week")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(NimvaFont.pageTitle)
                     .foregroundStyle(NimvaColors.textPrimary)
                 Text("Tag your events by how much energy they take — Nimva schedules around that.")
-                    .font(.system(size: 14))
+                    .font(NimvaFont.callout)
                     .foregroundStyle(NimvaColors.textSecondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -813,7 +813,7 @@ struct HomeView: View {
                 showingAddEvent = true
             } label: {
                 Text("Add your first event")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(NimvaFont.button)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
@@ -927,15 +927,15 @@ private struct EventCard: View {
                 HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(event.name)
-                            .font(.system(size: 13, weight: .medium))
+                            .font(NimvaFont.bodyMedium)
                             .foregroundStyle(isCompleted ? NimvaColors.textMuted : NimvaColors.textPrimary)
                             .strikethrough(isCompleted, color: NimvaColors.textMuted)
                         Text(subtitleText)
-                            .font(.system(size: 11))
+                            .font(NimvaFont.micro)
                             .foregroundStyle(NimvaColors.textSecondary)
                         if let reason = placementReason, !event.isFixed {
                             Text(reason)
-                                .font(.system(size: 10))
+                                .font(NimvaFont.micro)
                                 .foregroundStyle(NimvaColors.textMuted)
                         }
                     }
@@ -945,7 +945,7 @@ private struct EventCard: View {
                     // "Now" / "Next" pill — only on today's first uncompleted event
                     if let label = nextUpLabel {
                         Text(label)
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(NimvaFont.chip)
                             .foregroundStyle(NimvaColors.teal)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 4)
@@ -955,7 +955,7 @@ private struct EventCard: View {
 
                     // Energy badge
                     Text(energyLabel)
-                        .font(.system(size: 9, weight: .medium))
+                        .font(NimvaFont.chip)
                         .foregroundStyle(energyColor)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -964,7 +964,7 @@ private struct EventCard: View {
 
                     // Type tag — "Must do" with amber tint for priority flex events
                     Text(typeTagLabel)
-                        .font(.system(size: 9, weight: .medium))
+                        .font(NimvaFont.chip)
                         .foregroundStyle(typeTagColor)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
@@ -976,7 +976,7 @@ private struct EventCard: View {
                         onCheckmark?()
                     } label: {
                         Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 18))
+                            .font(.system(.title3))
                             .foregroundStyle(isCompleted ? NimvaColors.teal : NimvaColors.border)
                             .frame(width: 36, height: 36)
                             .contentShape(Rectangle())

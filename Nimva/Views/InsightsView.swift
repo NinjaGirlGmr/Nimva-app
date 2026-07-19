@@ -58,14 +58,14 @@ private struct InsightsProContent: View {
     private var betaBanner: some View {
         HStack(spacing: 10) {
             Image(systemName: "flask.fill")
-                .font(.system(size: 13))
+                .font(NimvaFont.body)
                 .foregroundStyle(NimvaColors.amberWarm)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Beta build — PRO unlocked")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(NimvaFont.captionSemi)
                     .foregroundStyle(NimvaColors.amberWarm)
                 Text("Insights are free to use while you're testing. Thanks for being a beta tester!")
-                    .font(.system(size: 11))
+                    .font(NimvaFont.micro)
                     .foregroundStyle(NimvaColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -174,7 +174,7 @@ private struct WeeklyTrendCard: View {
             trendStyle = style
         } label: {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .medium))
+                .font(NimvaFont.bodyMedium)
                 .foregroundStyle(isSelected ? NimvaColors.textPrimary : NimvaColors.textMuted)
                 .frame(width: 32, height: 28)
                 .background(isSelected ? NimvaColors.purpleMuted : Color.clear)
@@ -486,7 +486,7 @@ private struct BuildingDataCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             Text("✨")
-                .font(.system(size: 28))
+                .font(.system(.title))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Building your picture")
@@ -553,7 +553,7 @@ private struct InsightsLockedContent: View {
                 EmberView(expression: .calm, size: .big)
                     .frame(width: 88, height: 88)
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(.callout, weight: .bold))
                     .foregroundStyle(NimvaColors.amber)
                     .padding(6)
                     .background(NimvaColors.cardDark)

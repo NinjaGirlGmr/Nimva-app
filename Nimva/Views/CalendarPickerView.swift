@@ -13,13 +13,13 @@ struct CalendarPickerView: View {
                 if calendars.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "calendar.badge.exclamationmark")
-                            .font(.system(size: 36))
+                            .font(NimvaFont.largeDisplay)
                             .foregroundStyle(NimvaColors.textMuted)
                         Text("No calendars found")
-                            .font(.system(size: 15, weight: .medium))
+                            .font(NimvaFont.cardTitle)
                             .foregroundStyle(NimvaColors.textPrimary)
                         Text("Make sure you have at least one calendar set up in Apple Calendar.")
-                            .font(.system(size: 13))
+                            .font(NimvaFont.body)
                             .foregroundStyle(NimvaColors.textMuted)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 32)
@@ -40,12 +40,12 @@ struct CalendarPickerView: View {
                                             .fill(calendar.color)
                                             .frame(width: 12, height: 12)
                                         Text(calendar.title)
-                                            .font(.system(size: 14))
+                                            .font(NimvaFont.callout)
                                             .foregroundStyle(NimvaColors.textPrimary)
                                         Spacer()
                                         if selectedIDs.contains(calendar.id) {
                                             Image(systemName: "checkmark")
-                                                .font(.system(size: 13, weight: .semibold))
+                                                .font(NimvaFont.bodySemi)
                                                 .foregroundStyle(NimvaColors.purplePrimary)
                                         }
                                     }
@@ -57,7 +57,7 @@ struct CalendarPickerView: View {
                             }
                         } header: {
                             Text("Nimva will only pull timed events from the calendars you select.")
-                                .font(.system(size: 12))
+                                .font(.system(.caption))
                                 .foregroundStyle(NimvaColors.textMuted)
                                 .textCase(nil)
                         }
@@ -75,11 +75,11 @@ struct CalendarPickerView: View {
                         selectedIDs = Set(calendars.map(\.id))
                     }
                     .foregroundStyle(NimvaColors.textMuted)
-                    .font(.system(size: 14))
+                    .font(NimvaFont.callout)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", action: onDone)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(.callout, weight: .semibold))
                 }
             }
         }
