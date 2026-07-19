@@ -84,6 +84,12 @@ enum SchedulerService {
         cache.checkInHardestDayRawValue = priorCache?.checkInHardestDayRawValue
         cache.checkInCompletedAt = priorCache?.checkInCompletedAt
         cache.recoveryCheckInRaw = priorCache?.recoveryCheckInRaw
+        // Experiment: keep the same suggestion if one was already set this week;
+        // pick a new one (deterministic by date) for fresh light weeks.
+        if cache.wasRecoveryWeek {
+            cache.experimentText = priorCache?.experimentText ?? pickExperiment(for: currentStart)
+        }
+        cache.experimentTriedRaw = priorCache?.experimentTriedRaw
         context.insert(cache)
 
         // Trim history to 8 weeks so SwiftData doesn't accumulate unbounded records.
@@ -250,6 +256,31 @@ enum SchedulerService {
         guard !events.isEmpty else { return false }
         let totalCost = events.reduce(0.0) { $0 + $1.energyCost }
         return totalCost < Scheduler.heavyDayThreshold
+    }
+
+    // MARK: - Energy experiments
+
+    // Curated list of small, low-stakes behavioral nudges for light weeks.
+    // Rotates deterministically by week so the same week always gets the same suggestion.
+    private static let experiments: [String] = [
+        "Try ending your last event of the day by 7pm — see if evenings feel different.",
+        "Take a 5-minute break between every back-to-back event.",
+        "Pick one evening this week with no agenda — nothing scheduled, nothing planned.",
+        "Start your lightest task first thing each morning, before anything else.",
+        "Keep the first 30 minutes of your morning screen-free.",
+        "Try eating lunch somewhere other than your desk or phone.",
+        "Set a consistent time to stop working — and actually stop at that time.",
+        "Spend at least 10 minutes outside each day, even just briefly.",
+        "Say no to one optional commitment you'd normally say yes to.",
+        "Write down one thing you're glad happened at the end of each day.",
+        "Turn notifications off for one 2-hour block each day.",
+        "Do your hardest task when your energy is highest — notice when that is.",
+    ]
+
+    private static func pickExperiment(for weekStart: Date) -> String {
+        // Use week index since epoch so the same week always returns the same suggestion.
+        let weekIndex = Int(weekStart.timeIntervalSince1970 / (7 * 24 * 3600))
+        return experiments[abs(weekIndex) % experiments.count]
     }
 
     // Calendar.weekday: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat

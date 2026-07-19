@@ -14,11 +14,18 @@ struct WeeklyCheckInView: View {
     @State private var noStandoutDay = false
     @State private var scheduleMatch: ScheduleMatch? = nil
     @State private var gotRest: RestLevel? = nil
+    @State private var experimentResult: ExperimentResult? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private enum ScheduleMatch { case yes, mixed, no }
-    private enum RestLevel    { case yes, little, no }
+    private enum ScheduleMatch    { case yes, mixed, no }
+    private enum RestLevel        { case yes, little, no }
+    private enum ExperimentResult { case yesHelped, triedUnsure, didntTry }
+
+    // True when the experiment step should appear (step 3, between schedule-fit and recovery).
+    private var hasExperiment: Bool { cache.experimentText != nil }
+    // Total steps: 5 normally, 6 when an experiment is active.
+    private var totalSteps: Int { hasExperiment ? 6 : 5 }
 
     var body: some View {
         ZStack {
@@ -71,7 +78,7 @@ struct WeeklyCheckInView: View {
 
     private var progressDots: some View {
         HStack(spacing: 8) {
-            ForEach(0..<5, id: \.self) { i in
+            ForEach(0..<totalSteps, id: \.self) { i in
                 if i == step {
                     Capsule()
                         .fill(NimvaColors.teal)
@@ -94,7 +101,8 @@ struct WeeklyCheckInView: View {
         case 0: step1
         case 1: step2
         case 2: step3
-        case 3: step4
+        case 3: hasExperiment ? AnyView(stepExperiment) : AnyView(step4)
+        case 4: hasExperiment ? AnyView(step4)          : AnyView(step5)
         default: step5
         }
     }
@@ -148,10 +156,16 @@ struct WeeklyCheckInView: View {
     // MARK: Step 2 — Hardest day
 
     private var step2: some View {
-        VStack(spacing: 28) {
+        let question = cache.wasRecoveryWeek
+            ? "Did any day feel heavier than expected?"
+            : "Which day hit hardest?"
+        let noStandoutLabel = cache.wasRecoveryWeek
+            ? "No, it all felt light"
+            : "No single standout"
+        return VStack(spacing: 28) {
             emberSpeech(
                 expression: .thinking,
-                text: "Which day hit hardest?"
+                text: question
             )
 
             VStack(spacing: 10) {
@@ -168,7 +182,7 @@ struct WeeklyCheckInView: View {
                     noStandoutDay = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { advance() }
                 } label: {
-                    Text("No single standout")
+                    Text(noStandoutLabel)
                         .font(NimvaFont.cardTitle)
                         .foregroundStyle(noStandoutDay ? .white : NimvaColors.textSecondary)
                         .frame(maxWidth: .infinity)
@@ -207,16 +221,20 @@ struct WeeklyCheckInView: View {
     // MARK: Step 3 — Schedule fit
 
     private var step3: some View {
-        VStack(spacing: 28) {
+        let isLight = cache.wasRecoveryWeek
+        let question = isLight
+            ? "Did this open week feel like what you needed?"
+            : "Did the schedule feel manageable?"
+        return VStack(spacing: 28) {
             emberSpeech(
                 expression: .calm,
-                text: "Did the schedule feel manageable?"
+                text: question
             )
 
             VStack(spacing: 10) {
-                matchChip("Yes, mostly",  match: .yes,   color: NimvaColors.teal)
-                matchChip("Hit and miss", match: .mixed, color: NimvaColors.amber)
-                matchChip("Not really",   match: .no,    color: NimvaColors.coral)
+                matchChip(isLight ? "Yes, exactly"  : "Yes, mostly",  match: .yes,   color: NimvaColors.teal)
+                matchChip(isLight ? "Mostly"        : "Hit and miss", match: .mixed, color: NimvaColors.amber)
+                matchChip(isLight ? "Not quite"     : "Not really",   match: .no,    color: NimvaColors.coral)
             }
         }
     }
@@ -237,6 +255,55 @@ struct WeeklyCheckInView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: NimvaLayout.inputRadius)
                         .stroke(color.opacity(selected ? 0 : 0.35), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .frame(minHeight: 44)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    // MARK: Step 3b — Experiment check-in (only when an experiment was set)
+
+    private var stepExperiment: some View {
+        VStack(spacing: 28) {
+            emberSpeech(
+                expression: .thinking,
+                text: "Did you try the experiment this week?"
+            )
+
+            if let text = cache.experimentText {
+                Text("\"\(text)\"")
+                    .font(.system(size: 12))
+                    .foregroundStyle(NimvaColors.textMuted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 8)
+            }
+
+            VStack(spacing: 10) {
+                experimentChip("Yes — and I noticed a difference", result: .yesHelped,   color: NimvaColors.teal)
+                experimentChip("Tried it, not sure yet",           result: .triedUnsure, color: NimvaColors.amber)
+                experimentChip("Didn't get to it this week",       result: .didntTry,    color: NimvaColors.textMuted)
+            }
+        }
+    }
+
+    private func experimentChip(_ label: String, result: ExperimentResult, color: Color) -> some View {
+        let selected = experimentResult == result
+        return Button {
+            experimentResult = result
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { advance() }
+        } label: {
+            Text(label)
+                .font(NimvaFont.cardTitle)
+                .foregroundStyle(selected ? .white : color)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(selected ? color : color.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.inputRadius))
+                .overlay(
+                    RoundedRectangle(cornerRadius: NimvaLayout.inputRadius)
+                        .stroke(color.opacity(selected ? 0 : 0.3), lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
@@ -307,7 +374,10 @@ struct WeeklyCheckInView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let day = hardestDay {
-                    Text("\(day.displayName) was the rough one — I'll keep that in mind when planning next week.")
+                    let dayNote = cache.wasRecoveryWeek
+                        ? "\(day.displayName) felt heavier than the rest — worth noting for next week."
+                        : "\(day.displayName) was the rough one — I'll keep that in mind when planning next week."
+                    Text(dayNote)
                         .font(.system(size: 12))
                         .foregroundStyle(NimvaColors.textMuted)
                         .multilineTextAlignment(.center)
@@ -360,9 +430,17 @@ struct WeeklyCheckInView: View {
         let noRest = gotRest == .no
         let badFit = scheduleMatch == .no
 
-        // Recovery-week framing is specific — "heavy week" copy is wrong when the schedule was light.
-        if cache.wasRecoveryWeek && noRest {
-            return "The week was lighter, but it still didn't feel like rest. Sometimes what fills the gaps matters as much as the gaps themselves."
+        // Light-week framing is specific — "heavy week" copy is wrong when the schedule was open.
+        if cache.wasRecoveryWeek {
+            if scheduleMatch == .yes && gotRest != .no {
+                return "A week that actually felt like space. Those matter."
+            }
+            if noRest {
+                return "The week was lighter, but it still didn't feel like rest. Sometimes what fills the gaps matters as much as the gaps themselves."
+            }
+            if scheduleMatch == .no {
+                return "An open week that didn't feel like what you needed. Worth noticing — sometimes the structure itself is what's missing."
+            }
         }
 
         if rough && noRest {
@@ -392,6 +470,14 @@ struct WeeklyCheckInView: View {
             case .little: cache.recoveryCheckInRaw = 2
             case .no:     cache.recoveryCheckInRaw = 3
             case nil:     break
+            }
+        }
+        if hasExperiment {
+            switch experimentResult {
+            case .yesHelped:   cache.experimentTriedRaw = 1
+            case .triedUnsure: cache.experimentTriedRaw = 2
+            case .didntTry:    cache.experimentTriedRaw = 3
+            case nil:          break
             }
         }
         onDismiss()

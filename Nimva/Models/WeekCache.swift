@@ -29,6 +29,14 @@ final class WeekCache {
     // 1 = yes felt like rest, 2 = somewhat, 3 = no, still drained
     var recoveryCheckInRaw: Int? = nil
 
+    // Set on light weeks — a small behavioral experiment suggested for the week.
+    // Deterministic per week start date; carried forward on rebuilds so it doesn't reshuffle.
+    var experimentText: String? = nil
+
+    // Check-in result for the experiment.
+    // 1 = tried it and it helped, 2 = tried it but unsure, 3 = didn't get to it
+    var experimentTriedRaw: Int? = nil
+
     init(weekStartDate: Date, placementsJSON: String, balanceScore: Double, heavyDayValues: [Int]) {
         self.weekStartDate = weekStartDate
         self.placementsJSON = placementsJSON

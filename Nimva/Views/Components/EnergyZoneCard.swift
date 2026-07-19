@@ -9,6 +9,7 @@ struct EnergyZoneCard: View {
     let eventsOnSelectedDay: Int
     let overflowCount: Int     // flexible events that couldn't be placed
     let userType: UserType
+    var isRecoveryWeek: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -90,6 +91,7 @@ struct EnergyZoneCard: View {
     }
 
     private var emberExpression: EmberExpression {
+        if isRecoveryWeek { return .calm }
         switch selectedLoad {
         case ..<0.5: return .happy
         case ..<1.5: return .calm
@@ -99,6 +101,8 @@ struct EnergyZoneCard: View {
     }
 
     private var moodLabel: String {
+        if isRecoveryWeek { return "A lighter week" }
+
         // Label reflects today's load level; the phrasing shifts based on user type.
         switch userType {
         case .optimizer:
@@ -126,6 +130,11 @@ struct EnergyZoneCard: View {
     }
 
     private var dayNote: String {
+        // Recovery week overrides everything — the whole week is light, not just today.
+        if isRecoveryWeek {
+            return "A good window to actually rest — no pressure to fill the space"
+        }
+
         // Forward warning takes priority when tomorrow is the heavy day.
         if tomorrowIsHeavy {
             switch userType {
