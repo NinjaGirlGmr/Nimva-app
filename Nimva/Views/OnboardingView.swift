@@ -90,15 +90,15 @@ private struct WelcomeScreen: View {
                     // Wordmark
                     VStack(spacing: 10) {
                         Text("✦")
-                            .font(.system(size: 36))
+                            .font(NimvaFont.largeDisplay)
                             .foregroundStyle(NimvaColors.purplePrimary)
 
                         Text("Nimva")
-                            .font(.system(size: 40, weight: .bold))
+                            .font(NimvaFont.largeDisplay)
                             .foregroundStyle(NimvaColors.textPrimary)
 
                         Text("Your week, balanced around you")
-                            .font(.system(size: 15))
+                            .font(.system(.subheadline))
                             .foregroundStyle(NimvaColors.textSecondary)
                             .multilineTextAlignment(.center)
                     }
@@ -132,7 +132,7 @@ private struct WelcomeScreen: View {
 
             Button(action: onNext) {
                 Text("Get started")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(NimvaFont.button)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
@@ -154,7 +154,7 @@ private struct FeatureCard: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 18))
+                .font(.system(.title3))
                 .foregroundStyle(iconColor)
                 .frame(width: 40, height: 40)
                 .background(iconColor.opacity(0.12))
@@ -162,10 +162,10 @@ private struct FeatureCard: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(NimvaFont.bodySemi)
                     .foregroundStyle(NimvaColors.textPrimary)
                 Text(detail)
-                    .font(.system(size: 12))
+                    .font(.system(.caption))
                     .foregroundStyle(NimvaColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -199,7 +199,7 @@ private struct ConceptScreen: View {
                             .frame(width: 88, height: 88)
 
                         Text("Most apps manage your time.\nNimva manages your **energy**.")
-                            .font(.system(size: 15))
+                            .font(.system(.subheadline))
                             .foregroundStyle(NimvaColors.textPrimary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 20)
@@ -217,7 +217,7 @@ private struct ConceptScreen: View {
                     }
 
                     Text("Same events — distributed around your energy, not just around the clock.")
-                        .font(.system(size: 13))
+                        .font(NimvaFont.body)
                         .foregroundStyle(NimvaColors.textSecondary)
                         .multilineTextAlignment(.center)
                 }
@@ -228,7 +228,7 @@ private struct ConceptScreen: View {
             VStack(spacing: 12) {
                 Button(action: onNext) {
                     Text("That makes sense")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(NimvaFont.button)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
@@ -238,7 +238,7 @@ private struct ConceptScreen: View {
 
                 Button(action: onSkip) {
                     Text("Skip intro")
-                        .font(.system(size: 14))
+                        .font(NimvaFont.callout)
                         .foregroundStyle(NimvaColors.textMuted)
                 }
                 .frame(minHeight: 44)
@@ -261,7 +261,7 @@ private struct MiniWeekGrid: View {
     var body: some View {
         VStack(spacing: 10) {
             Text(label)
-                .font(.system(size: 10, weight: .medium))
+                .font(NimvaFont.chip)
                 .foregroundStyle(NimvaColors.textMuted)
                 .textCase(.uppercase)
                 .kerning(0.5)
@@ -273,7 +273,7 @@ private struct MiniWeekGrid: View {
                             .fill(loads[i] < 0.01 ? NimvaColors.purpleMuted.opacity(0.3) : accentColor.opacity(0.7 + loads[i] * 0.3))
                             .frame(width: 16, height: max(4, maxHeight * CGFloat(loads[i])))
                         Text(days[i])
-                            .font(.system(size: 8))
+                            .font(NimvaFont.micro)
                             .foregroundStyle(NimvaColors.textMuted)
                     }
                 }
@@ -326,16 +326,16 @@ private struct EnergyTagScreen: View {
                             .animation(.easeInOut(duration: 0.2), value: selectedChip != nil)
 
                         Text("One quick thing")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(NimvaFont.greeting)
                             .foregroundStyle(NimvaColors.textPrimary)
 
                         Text("Nimva doesn't track your energy automatically")
-                            .font(.system(size: 15, weight: .medium))
+                            .font(NimvaFont.cardTitle)
                             .foregroundStyle(NimvaColors.textPrimary)
                             .multilineTextAlignment(.center)
 
                         Text("You tag each event once, and Nimva learns your patterns from there.")
-                            .font(.system(size: 13))
+                            .font(NimvaFont.body)
                             .foregroundStyle(NimvaColors.textSecondary)
                             .multilineTextAlignment(.center)
                     }
@@ -348,16 +348,16 @@ private struct EnergyTagScreen: View {
                                 .fill(NimvaColors.teal)
                                 .frame(width: 8, height: 8)
                             Text("Study session")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(NimvaFont.calloutMed)
                                 .foregroundStyle(NimvaColors.textPrimary)
                             Spacer()
                             Text("Flexible")
-                                .font(.system(size: 10))
+                                .font(NimvaFont.micro)
                                 .foregroundStyle(NimvaColors.textMuted)
                         }
 
                         Text("How draining does this feel? Tap one ↓")
-                            .font(.system(size: 11))
+                            .font(NimvaFont.micro)
                             .foregroundStyle(NimvaColors.textMuted)
 
                         VStack(spacing: 8) {
@@ -368,7 +368,7 @@ private struct EnergyTagScreen: View {
                                     }
                                 } label: {
                                     Text(chip.rawValue)
-                                        .font(.system(size: 12, weight: .medium))
+                                        .font(NimvaFont.sectionLabel)
                                         .foregroundStyle(selectedChip == chip ? .white : chip.color)
                                         .frame(maxWidth: .infinity)
                                         .padding(.vertical, 10)
@@ -381,7 +381,7 @@ private struct EnergyTagScreen: View {
                         }
 
                         Text("Use \"No energy\" for holidays, rest days, or reminders that don't actually cost you anything.")
-                            .font(.system(size: 10))
+                            .font(NimvaFont.micro)
                             .foregroundStyle(NimvaColors.textMuted.opacity(0.7))
                             .multilineTextAlignment(.leading)
 
@@ -389,9 +389,9 @@ private struct EnergyTagScreen: View {
                             HStack(spacing: 6) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundStyle(NimvaColors.teal)
-                                    .font(.system(size: 13))
+                                    .font(NimvaFont.body)
                                 Text("Nimva learns from your weekly check-ins over time")
-                                    .font(.system(size: 11))
+                                    .font(NimvaFont.micro)
                                     .foregroundStyle(NimvaColors.teal)
                             }
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -402,7 +402,7 @@ private struct EnergyTagScreen: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14))
 
                     Text("You can always update energy labels later — and Nimva gets better the more you use it.")
-                        .font(.system(size: 11))
+                        .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted)
                         .multilineTextAlignment(.center)
                 }
@@ -412,7 +412,7 @@ private struct EnergyTagScreen: View {
 
             Button(action: onNext) {
                 Text("Got it")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(NimvaFont.button)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
@@ -447,22 +447,22 @@ private struct EnergyAnchorScreen: View {
                             .padding(.top, 100)
 
                         Text("What drains you most?")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(NimvaFont.greeting)
                             .foregroundStyle(NimvaColors.textPrimary)
 
                         Text("Nimva uses your answer to make \"Pretty Draining\" feel personal — not just abstract.")
-                            .font(.system(size: 13))
+                            .font(NimvaFont.body)
                             .foregroundStyle(NimvaColors.textSecondary)
                             .multilineTextAlignment(.center)
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Think of one thing that leaves you spent. What is it?")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(NimvaFont.bodyMedium)
                             .foregroundStyle(NimvaColors.textSecondary)
 
                         TextField("e.g. back-to-back classes, a tough workout…", text: $draft)
-                            .font(.system(size: 15))
+                            .font(.system(.subheadline))
                             .foregroundStyle(NimvaColors.textPrimary)
                             .padding(14)
                             .background(NimvaColors.cardDark)
@@ -472,7 +472,7 @@ private struct EnergyAnchorScreen: View {
                     }
 
                     Text("It'll appear as a hint under \"Pretty Draining\" when you add events. You can change it in Settings anytime.")
-                        .font(.system(size: 11))
+                        .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted)
                         .multilineTextAlignment(.center)
                 }
@@ -483,7 +483,7 @@ private struct EnergyAnchorScreen: View {
             VStack(spacing: 12) {
                 Button(action: saveAndContinue) {
                     Text("Save and continue")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(NimvaFont.button)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
@@ -493,7 +493,7 @@ private struct EnergyAnchorScreen: View {
 
                 Button(action: onSkip) {
                     Text("Skip for now")
-                        .font(.system(size: 14))
+                        .font(NimvaFont.callout)
                         .foregroundStyle(NimvaColors.textMuted)
                 }
                 .frame(minHeight: 44)
@@ -538,21 +538,21 @@ private struct ReadyScreen: View {
                             .padding(.top, 100)
 
                         Text("You're all set")
-                            .font(.system(size: 26, weight: .bold))
+                            .font(NimvaFont.display)
                             .foregroundStyle(NimvaColors.textPrimary)
 
                         Text("Here's how to get your first week built:")
-                            .font(.system(size: 14))
+                            .font(NimvaFont.callout)
                             .foregroundStyle(NimvaColors.textSecondary)
                     }
 
                     // Name input — sets the AppStorage key HomeView uses for the greeting
                     VStack(alignment: .leading, spacing: 8) {
                         Text("What should Nimva call you?")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(NimvaFont.bodyMedium)
                             .foregroundStyle(NimvaColors.textSecondary)
                         TextField("Your name (optional)", text: $nameInput)
-                            .font(.system(size: 15))
+                            .font(.system(.subheadline))
                             .foregroundStyle(NimvaColors.textPrimary)
                             .padding(14)
                             .background(NimvaColors.cardDark)
@@ -566,7 +566,7 @@ private struct ReadyScreen: View {
                         ForEach(steps, id: \.0) { number, title, subtitle in
                             HStack(spacing: 14) {
                                 Text(number)
-                                    .font(.system(size: 13, weight: .bold))
+                                    .font(NimvaFont.bodyBold)
                                     .foregroundStyle(NimvaColors.purplePrimary)
                                     .frame(width: 28, height: 28)
                                     .background(NimvaColors.purplePrimary.opacity(0.15))
@@ -574,10 +574,10 @@ private struct ReadyScreen: View {
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(title)
-                                        .font(.system(size: 13, weight: .semibold))
+                                        .font(NimvaFont.bodySemi)
                                         .foregroundStyle(NimvaColors.textPrimary)
                                     Text(subtitle)
-                                        .font(.system(size: 11))
+                                        .font(NimvaFont.micro)
                                         .foregroundStyle(NimvaColors.textSecondary)
                                 }
                                 Spacer()
@@ -598,7 +598,7 @@ private struct ReadyScreen: View {
                     showAddEvent = true
                 } label: {
                     Text("Add my first event")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(NimvaFont.button)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
@@ -611,7 +611,7 @@ private struct ReadyScreen: View {
                     onSkip()
                 } label: {
                     Text("Maybe later")
-                        .font(.system(size: 14))
+                        .font(NimvaFont.callout)
                         .foregroundStyle(NimvaColors.textMuted)
                 }
                 .frame(minHeight: 44)

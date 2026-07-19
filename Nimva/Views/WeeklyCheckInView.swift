@@ -33,13 +33,13 @@ struct WeeklyCheckInView: View {
 
             VStack(spacing: 0) {
                 HStack {
-                    if step > 0 && step < 5 {
+                    if step > 0 && step < totalSteps {
                         Button {
                             NimvaHaptics.selection()
                             withAnimation(reduceMotion ? .none : NimvaAnimation.stateChange) { step -= 1 }
                         } label: {
                             Image(systemName: "chevron.left")
-                                .font(.system(size: 16, weight: .medium))
+                                .font(NimvaFont.calloutMed)
                                 .foregroundStyle(NimvaColors.textMuted)
                                 .frame(width: 44, height: 44)
                         }
@@ -273,7 +273,7 @@ struct WeeklyCheckInView: View {
 
             if let text = cache.experimentText {
                 Text("\"\(text)\"")
-                    .font(.system(size: 12))
+                    .font(.system(.caption))
                     .foregroundStyle(NimvaColors.textMuted)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -363,7 +363,7 @@ struct WeeklyCheckInView: View {
                     .frame(width: 88, height: 88)
 
                 Text(closingTitle)
-                    .font(.system(size: 24, weight: .bold))
+                    .font(NimvaFont.closingTitle)
                     .foregroundStyle(NimvaColors.textPrimary)
                     .multilineTextAlignment(.center)
 
@@ -378,7 +378,7 @@ struct WeeklyCheckInView: View {
                         ? "\(day.displayName) felt heavier than the rest — worth noting for next week."
                         : "\(day.displayName) was the rough one — I'll keep that in mind when planning next week."
                     Text(dayNote)
-                        .font(.system(size: 12))
+                        .font(.system(.caption))
                         .foregroundStyle(NimvaColors.textMuted)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -390,7 +390,7 @@ struct WeeklyCheckInView: View {
                 persistAndDismiss()
             } label: {
                 Text("Back to home")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(NimvaFont.button)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
@@ -491,7 +491,7 @@ struct WeeklyCheckInView: View {
                 .frame(width: 88, height: 88)
 
             Text(text)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(.title3, weight: .semibold))
                 .foregroundStyle(NimvaColors.textPrimary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)

@@ -96,7 +96,7 @@ struct ProTrialPromptView: View {
                         ProgressView().tint(.white)
                     } else {
                         Text("Start free trial")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(NimvaFont.button)
                             .foregroundStyle(.white)
                     }
                 }
@@ -110,7 +110,7 @@ struct ProTrialPromptView: View {
             // Secondary — clearly visible, no guilt, no smaller text or hidden placement
             Button(action: onComplete) {
                 Text("Maybe later — go to free version")
-                    .font(.system(size: 14))
+                    .font(NimvaFont.callout)
                     .foregroundStyle(NimvaColors.textSecondary)
                     .multilineTextAlignment(.center)
             }
@@ -123,7 +123,7 @@ struct ProTrialPromptView: View {
     private func bullet(icon: String, color: Color, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 16))
+                .font(NimvaFont.callout)
                 .foregroundStyle(color)
                 .frame(width: 36, height: 36)
                 .background(color.opacity(0.12))

@@ -62,13 +62,31 @@ enum NimvaColors {
 // Dynamic Type scaling is required for WCAG 1.4.4 (Resize Text, Level AA).
 // Use these instead of hardcoded .system(size:) values in new code.
 enum NimvaFont {
-    static let greeting     = Font.system(.title2,      weight: .semibold) // "Your week", "Me" — ~22pt
-    static let pageTitle    = Font.system(.title3,      weight: .semibold) // section titles — ~20pt
-    static let cardTitle    = Font.system(.subheadline, weight: .medium)   // card headers — ~15pt
+    // Display / headings
+    static let largeDisplay = Font.system(.largeTitle,   weight: .bold)    // onboarding hero numbers — ~34pt
+    static let display      = Font.system(.title,        weight: .bold)    // large emphasis text — ~28pt
+    static let greeting     = Font.system(.title2,       weight: .semibold)// "Your week" — ~22pt
+    static let closingTitle = Font.system(.title2,       weight: .bold)    // check-in done headline — ~22pt
+    static let pageTitle    = Font.system(.title3,       weight: .semibold)// section titles — ~20pt
+    static let pageTitleBold = Font.system(.title3,      weight: .bold)    // emphasis headings — ~20pt
+
+    // Body
+    static let headline     = Font.system(.headline)                       // prominent body text — ~17pt semibold
+    static let callout      = Font.system(.callout)                        // slightly-above-body — ~16pt
+    static let calloutMed   = Font.system(.callout,      weight: .medium)  // medium callout — ~16pt
+    static let calloutSemi  = Font.system(.callout,      weight: .semibold)// semibold callout — ~16pt
+    static let cardTitle    = Font.system(.subheadline,  weight: .medium)  // card headers — ~15pt
+    static let button       = Font.system(.subheadline,  weight: .semibold)// CTA button labels — ~15pt
     static let body         = Font.system(.footnote)                       // event names, descriptions — ~13pt
-    static let sectionLabel = Font.system(.caption,     weight: .medium)   // "NOTIFICATIONS" labels — ~12pt
-    static let chip         = Font.system(.caption2,    weight: .medium)   // energy badges, type tags — ~11pt
-    static let micro        = Font.system(.caption2)                       // timestamps, version text — ~11pt
+    static let bodyMedium   = Font.system(.footnote,     weight: .medium)  // medium-weight body — ~13pt
+    static let bodySemi     = Font.system(.footnote,     weight: .semibold)// semibold body — ~13pt
+    static let bodyBold     = Font.system(.footnote,     weight: .bold)    // bold body — ~13pt
+
+    // Supporting
+    static let sectionLabel = Font.system(.caption,      weight: .medium)  // "NOTIFICATIONS" — ~12pt
+    static let captionSemi  = Font.system(.caption,      weight: .semibold)// semibold caption — ~12pt
+    static let chip         = Font.system(.caption2,     weight: .medium)  // energy badges — ~11pt
+    static let micro        = Font.system(.caption2)                       // timestamps, meta — ~11pt
 }
 
 // MARK: - Layout
