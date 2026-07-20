@@ -228,20 +228,24 @@ struct EmberView: View {
            UIImage(named: name) != nil {
             switch anim {
             case .floatUp:
-                // Glitter stars: gentle rise and soft fade
-                Image(name)
-                    .resizable()
-                    .scaledToFit()
-                    .opacity(emoteFloat ? 0 : 0.85)
-                    .offset(y: emoteFloat ? -14 : 0)
+                // Glitter stars: suppressed at mini — too noisy at small sizes
+                if size != .mini {
+                    Image(name)
+                        .resizable()
+                        .scaledToFit()
+                        .opacity(emoteFloat ? 0 : 0.85)
+                        .offset(y: emoteFloat ? -14 : 0)
+                }
 
             case .sinkDown:
-                // Exhaustion lines: drift downward and fade
-                Image(name)
-                    .resizable()
-                    .scaledToFit()
-                    .opacity(emoteFloat ? 0.0 : 0.85)
-                    .offset(y: emoteFloat ? 20 : 0)
+                // Exhaustion lines: suppressed at mini — too noisy at small sizes
+                if size != .mini {
+                    Image(name)
+                        .resizable()
+                        .scaledToFit()
+                        .opacity(emoteFloat ? 0.0 : 0.85)
+                        .offset(y: emoteFloat ? 20 : 0)
+                }
 
             case .spin:
                 // Flame ring: continuous rotation above the head
