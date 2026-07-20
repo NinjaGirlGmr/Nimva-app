@@ -27,9 +27,20 @@ struct HomeView: View {
     @State private var showingAddIntention = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     // Convenience accessor — at most one cache entry exists at a time
     private var cache: WeekCache? { caches.first }
+
+    // True when there's no cache, or the stored cache is from a previous week.
+    private var cacheIsStale: Bool {
+        guard let cache else { return true }
+        return !SchedulerService.mondayCal.isDate(
+            cache.weekStartDate,
+            equalTo: SchedulerService.weekStart(),
+            toGranularity: .weekOfYear
+        )
+    }
 
     // Loads per day from the current cache (fallback: all zeros)
     private var dailyLoads: [DayOfWeek: Double] {
@@ -477,7 +488,15 @@ struct HomeView: View {
                 openAddEventOnLaunch = false
                 showingAddEvent = true
             }
-            if cache == nil && !events.isEmpty {
+            if cacheIsStale && !events.isEmpty {
+                recomputeSchedule()
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // Catch the case where the app was backgrounded over a week boundary.
+            // Without this, the old week's cache is shown until the user edits an event.
+            if newPhase == .active && cacheIsStale && !events.isEmpty {
+                selectedDay = Self.todayDayOfWeek()
                 recomputeSchedule()
             }
             if !reduceMotion {
@@ -912,7 +931,9 @@ private struct EventCard: View {
     var onTap: (() -> Void)? = nil
     var onCheckmark: (() -> Void)? = nil
 
-    @AppStorage("useAltEnergyPalette") private var useAltPalette = false
+    @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
+    @AppStorage("customEnergyMixedHex") private var energyMixedHex = "ef9f27"
+    @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var visible = false
 
@@ -1054,9 +1075,9 @@ private struct EventCard: View {
 
     private var energyColor: Color {
         switch event.energyCost {
-        case ..<0.35: return NimvaColors.energyLight(useAltPalette)
-        case ..<0.6:  return NimvaColors.energyMixed(useAltPalette)
-        default:      return NimvaColors.energyHeavy(useAltPalette)
+        case ..<0.35: return Color(hex: energyLightHex)
+        case ..<0.6:  return Color(hex: energyMixedHex)
+        default:      return Color(hex: energyHeavyHex)
         }
     }
 }
