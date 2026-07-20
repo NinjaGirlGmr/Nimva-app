@@ -11,10 +11,11 @@ struct NimvaApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([Event.self, WeekCache.self, Intention.self])
 
-        // CloudKit sync: add the iCloud + CloudKit capability in Xcode's Signing & Capabilities
-        // tab first, then uncomment the cloudKitDatabase line below.
-        // Container ID: iCloud.dev.hailey.nimva.Nimva
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .private("iCloud.dev.hailey.nimva.Nimva")
+        )
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
