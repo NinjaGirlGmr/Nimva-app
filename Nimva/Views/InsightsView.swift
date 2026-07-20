@@ -108,7 +108,9 @@ private struct WeeklyTrendCard: View {
     // Wave is the default: reads at a glance without requiring number-by-number comparison,
     // which matters for ADHD users who process patterns before detail.
     @AppStorage("insightsTrendStyle") private var trendStyle: TrendStyle = .wave
-    @AppStorage("useAltEnergyPalette") private var useAltPalette = false
+    @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
+    @AppStorage("customEnergyMixedHex") private var energyMixedHex = "ef9f27"
+    @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
 
     // Oldest → newest so the chart reads left to right naturally
     private var chartData: [WeekDatum] {
@@ -287,9 +289,9 @@ private struct WeeklyTrendCard: View {
 
     private var legendRow: some View {
         HStack(spacing: 16) {
-            legendItem(NimvaColors.energyLight(useAltPalette), "Light (0–1)")
-            legendItem(NimvaColors.energyMixed(useAltPalette), "Mixed (2–3)")
-            legendItem(NimvaColors.energyHeavy(useAltPalette), "Heavy (4+)")
+            legendItem(Color(hex: energyLightHex), "Light (0–1)")
+            legendItem(Color(hex: energyMixedHex), "Mixed (2–3)")
+            legendItem(Color(hex: energyHeavyHex), "Heavy (4+)")
         }
         .font(NimvaFont.micro)
         .foregroundStyle(NimvaColors.textSecondary)
@@ -305,9 +307,9 @@ private struct WeeklyTrendCard: View {
     // Thresholds: 0–1 = light week, 2–3 = mixed, 4+ = heavy
     private func severityColor(for heavyDayCount: Int) -> Color {
         switch heavyDayCount {
-        case 0...1: return NimvaColors.energyLight(useAltPalette)
-        case 2...3: return NimvaColors.energyMixed(useAltPalette)
-        default:    return NimvaColors.energyHeavy(useAltPalette)
+        case 0...1: return Color(hex: energyLightHex)
+        case 2...3: return Color(hex: energyMixedHex)
+        default:    return Color(hex: energyHeavyHex)
         }
     }
 

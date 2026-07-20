@@ -13,7 +13,9 @@ struct SettingsView: View {
     @AppStorage("soundsHapticsEnabled") private var soundsHapticsEnabled = true
     @AppStorage("globalPatternLearning") private var globalPatternLearning = true
     @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
-    @AppStorage("useAltEnergyPalette") private var useAltEnergyPalette = false
+    @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
+    @AppStorage("customEnergyMixedHex") private var energyMixedHex = "ef9f27"
+    @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
     @AppStorage("selectedCalendarIDsCSV") private var selectedCalendarIDsCSV: String = ""
 
     private var selectedCalendarIDs: Set<String> {
@@ -54,6 +56,7 @@ struct SettingsView: View {
                     pageHeader
                     profileCard
                     appearanceSection
+                    energyColoursSection
                     notificationsSection
                     energyLearningSection
                     calendarsSection
@@ -234,14 +237,6 @@ struct SettingsView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
 
-            SettingsDivider()
-
-            ToggleRow(
-                label: "Alt energy colours",
-                subtitle: "Cyan / indigo / rose instead of teal / amber / coral",
-                isOn: $useAltEnergyPalette
-            )
-
             Text("Light mode coming in a future update.")
                 .font(NimvaFont.micro)
                 .foregroundStyle(NimvaColors.textMuted)
@@ -250,6 +245,63 @@ struct SettingsView: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 12)
         }
+    }
+
+    // MARK: - Energy Colours
+
+    private var energyColoursSection: some View {
+        SettingsSection(title: "Energy Colours") {
+            Text("Light · Mixed · Heavy")
+                .font(NimvaFont.micro)
+                .foregroundStyle(NimvaColors.textMuted)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 12)
+                .padding(.bottom, 2)
+
+            LazyVGrid(
+                columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+                spacing: 10
+            ) {
+                ForEach(EnergyPalette.all, id: \.name) { palette in
+                    paletteSwatch(palette)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 14)
+        }
+    }
+
+    private func paletteSwatch(_ palette: EnergyPalette) -> some View {
+        let isActive = energyLightHex == palette.light &&
+                       energyMixedHex == palette.mixed &&
+                       energyHeavyHex == palette.heavy
+        return Button {
+            energyLightHex = palette.light
+            energyMixedHex = palette.mixed
+            energyHeavyHex = palette.heavy
+        } label: {
+            VStack(spacing: 7) {
+                HStack(spacing: 5) {
+                    Circle().fill(Color(hex: palette.light)).frame(width: 16, height: 16)
+                    Circle().fill(Color(hex: palette.mixed)).frame(width: 16, height: 16)
+                    Circle().fill(Color(hex: palette.heavy)).frame(width: 16, height: 16)
+                }
+                Text(palette.name)
+                    .font(NimvaFont.micro)
+                    .foregroundStyle(isActive ? NimvaColors.textPrimary : NimvaColors.textMuted)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(isActive ? NimvaColors.purplePrimary.opacity(0.18) : NimvaColors.surfaceDeep)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isActive ? NimvaColors.purplePrimary.opacity(0.5) : Color.clear, lineWidth: 1.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(palette.name) palette")
+        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 
     // MARK: - Notifications
@@ -644,6 +696,28 @@ private struct ActionRow: View {
             .contentShape(Rectangle())
         }
     }
+}
+
+// Curated energy palettes — all three hex values verified ≥ 4.5:1 contrast against #100c28.
+// Light/mixed/heavy ordering maps semantically: calm → engaging → intense.
+// Palettes are ordered: established defaults first, then warm, then cool.
+private struct EnergyPalette {
+    let name: String
+    let light: String   // hex, no #
+    let mixed: String
+    let heavy: String
+
+    static let all: [EnergyPalette] = [
+        // Defaults
+        EnergyPalette(name: "Classic", light: "1d9e75", mixed: "ef9f27", heavy: "e0825a"),
+        EnergyPalette(name: "Alt",     light: "3dcfb6", mixed: "9472e0", heavy: "c45a9e"),
+        // Warm — earthy tones, nature-grounded; lower saturation reduces sensory load
+        EnergyPalette(name: "Grove",   light: "85c06a", mixed: "d4a040", heavy: "c96848"),
+        EnergyPalette(name: "Sunset",  light: "a8c848", mixed: "e88840", heavy: "d05878"),
+        // Cool — calming tones; blue/purple range supports focus and reduces anxiety
+        EnergyPalette(name: "Ocean",   light: "40c8b0", mixed: "5898e0", heavy: "9070d8"),
+        EnergyPalette(name: "Dusk",    light: "78c8a8", mixed: "90a8e0", heavy: "c078b8"),
+    ]
 }
 
 #Preview {

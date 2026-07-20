@@ -21,10 +21,11 @@ struct EnergyZoneCard: View {
         return !isHeavy && heavyDays.contains(nextDay)
     }
 
-    @AppStorage("useAltEnergyPalette") private var useAltPalette = false
+    @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
+    @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
 
     // Ember's glow ring shifts heavy → light colour based on the active energy palette
-    private var emberRingColor: Color { isHeavy ? NimvaColors.energyHeavy(useAltPalette) : NimvaColors.energyLight(useAltPalette) }
+    private var emberRingColor: Color { isHeavy ? Color(hex: energyHeavyHex) : Color(hex: energyLightHex) }
 
     // Weekly energy level: sum of all loads / (7 days × heavy threshold)
     private var dailyPercent: Double {
@@ -243,7 +244,8 @@ private struct EmberAvatar: View {
 private struct WeeklyEnergyBar: View {
     let percent: Double  // 0.0–1.0
 
-    @AppStorage("useAltEnergyPalette") private var useAltPalette = false
+    @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
+    @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Shimmer sweeps left → right once on first appear, then stops.
@@ -273,9 +275,9 @@ private struct WeeklyEnergyBar: View {
                         .fill(
                             LinearGradient(
                                 gradient: Gradient(colors: [
-                                    NimvaColors.energyLight(useAltPalette),
+                                    Color(hex: energyLightHex),
                                     Color(hex: "a8689c"),  // mauve midpoint
-                                    NimvaColors.energyHeavy(useAltPalette)
+                                    Color(hex: energyHeavyHex)
                                 ]),
                                 startPoint: .leading,
                                 endPoint: .trailing
