@@ -20,11 +20,12 @@ struct NimvaApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
-            // Persistent store failed — usually a schema migration error after a model change.
+            // Persistent store failed — usually a schema migration error or CloudKit unavailable.
             // In DEBUG: fall back to in-memory so the app stays runnable while we diagnose.
-            // In release: wipe the incompatible store and recreate rather than crashing.
-            //   → TestFlight testers lose local data on this update, but the app stays open.
-            //   → Before App Store release, replace with a proper VersionedSchema migration plan.
+            // In release: wipe the incompatible store, then try without CloudKit so the app
+            //   launches even if the container isn't reachable (e.g. no iCloud on this device,
+            //   or CloudKit schema not yet deployed to production). Sync resumes on next launch
+            //   once the container becomes available.
             #if DEBUG
             print("⚠️ SwiftData: persistent store failed (\(error)). Falling back to in-memory store.")
             let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -37,7 +38,8 @@ struct NimvaApp: App {
                     try? FileManager.default.removeItem(at: URL(fileURLWithPath: store.path + suffix))
                 }
             }
-            return try! ModelContainer(for: schema, configurations: [modelConfiguration])
+            let localConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            return try! ModelContainer(for: schema, configurations: [localConfig])
             #endif
         }
     }()
