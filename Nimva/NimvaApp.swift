@@ -11,11 +11,20 @@ struct NimvaApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([Event.self, WeekCache.self, Intention.self])
 
-        let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: false,
-            cloudKitDatabase: .private("iCloud.dev.hailey.nimva.Nimva")
-        )
+        // Skip CloudKit when the test runner is hosting the app — SwiftData's CloudKit
+        // init can trap (not throw) when iCloud isn't available, crashing the test process
+        // before any test connects. In-memory is fine for unit tests.
+        let isRunningTests = ProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil
+        let modelConfiguration: ModelConfiguration
+        if isRunningTests {
+            modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        } else {
+            modelConfiguration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: false,
+                cloudKitDatabase: .private("iCloud.dev.hailey.nimva.Nimva")
+            )
+        }
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
