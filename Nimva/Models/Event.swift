@@ -3,9 +3,9 @@ import SwiftData
 
 @Model
 final class Event {
-    var id: UUID
-    var name: String
-    var isFixed: Bool
+    var id: UUID = UUID()
+    var name: String = ""
+    var isFixed: Bool = false
 
     // Fixed event fields
     var fixedDay: DayOfWeek?
@@ -17,12 +17,12 @@ final class Event {
     var duration: TimeInterval?         // estimated session length in seconds
 
     // Shared energy fields
-    var energyCost: Double              // 0.0–1.0, maps to EnergyLabel + fine-tune slider
-    var category: String
-    var patternLearningEnabled: Bool
+    var energyCost: Double = 0.5        // 0.0–1.0, maps to EnergyLabel + fine-tune slider
+    var category: String = "General"
+    var patternLearningEnabled: Bool = true
 
     // Recurrence
-    var isRecurring: Bool
+    var isRecurring: Bool = false
     var recurrenceFrequency: String?    // "weekly", "daily" — kept simple for MVP
 
     // Future-proofing: reserved for task splitting and deadline scheduling.
@@ -34,10 +34,10 @@ final class Event {
 
     // Only meaningful for flexible events — ignored for fixed.
     // Priority flex events are scheduled before nice-to-do ones.
-    var isPriority: Bool
+    var isPriority: Bool = false
 
-    var createdAt: Date
-    var updatedAt: Date
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
 
     init(
         id: UUID = UUID(),
