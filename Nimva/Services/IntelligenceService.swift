@@ -157,13 +157,13 @@ enum IntelligenceService {
 
         switch heavy.count {
         case 5...:
-            return "Most days are heavy — this week is genuinely packed."
+            return "Most days are heavy — this week is genuinely packed. Look for small gaps between fixed events and protect those as recovery time."
         case 3...4:
             let names = heavy.map { $0.key.shortName }.joined(separator: ", ")
-            return "\(heavy.count) heavy days (\(names)) — most of this was already set."
+            return "\(heavy.count) heavy days (\(names)) — most of this was already set. Worth protecting any small gap on those days as a break."
         case 1...2:
             let day = heavy.first?.key.displayName ?? "one day"
-            return "Heavily fixed week — \(day) carries most of the load."
+            return "Heavily fixed week — \(day) carries most of the load. Worth protecting a recovery window around it if you can."
         default:
             return "Most of your week is fixed — limited room to shift things around."
         }

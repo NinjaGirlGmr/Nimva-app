@@ -240,6 +240,30 @@ struct OverloadedWeekNoteTests {
         let note = IntelligenceService.overloadedWeekNote(dailyLoads: loads)
         #expect(note.contains("Most"))
     }
+
+    // #86 — a "this week is genuinely unsustainable" style message must never be left
+    // bare; every heavy-week branch pairs it with a concrete, controllable action.
+    @Test func oneHeavyDayPairsAnAction() {
+        let loads: [DayOfWeek: Double] = [.wednesday: 2.5, .thursday: 0.5]
+        let note = IntelligenceService.overloadedWeekNote(dailyLoads: loads)
+        #expect(note.contains("protect"))
+    }
+
+    @Test func threeHeavyDaysPairsAnAction() {
+        let loads: [DayOfWeek: Double] = [
+            .monday: 2.5, .wednesday: 2.1, .friday: 3.0,
+            .tuesday: 0.5, .thursday: 0.5
+        ]
+        let note = IntelligenceService.overloadedWeekNote(dailyLoads: loads)
+        #expect(note.contains("protect"))
+    }
+
+    @Test func fivePlusHeavyDaysPairsAnAction() {
+        var loads: [DayOfWeek: Double] = [:]
+        for day in DayOfWeek.allCases.prefix(5) { loads[day] = 2.5 }
+        let note = IntelligenceService.overloadedWeekNote(dailyLoads: loads)
+        #expect(note.contains("protect"))
+    }
 }
 
 // MARK: - Forward warning tests (#57)
