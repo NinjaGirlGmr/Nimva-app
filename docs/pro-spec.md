@@ -66,14 +66,24 @@ Computed from daily loads vs the user's rolling average. Toggle in Settings (PRO
 
 ---
 
-### 4. Multi-week view
-**What it is:** Ability to plan and view 2–4 weeks ahead, not just the current week.
+### 4. Multi-week view — rolling calendar
+**What it is:** As the current week progresses, the view rolls forward into the next one instead
+of staying locked to a single fixed week. Once the user reaches Thursday, Friday, or Saturday,
+next week becomes visible for planning — matching how people actually plan (a week or two out),
+rather than a hard Sunday-to-Sunday wall.
 
-**Why it matters:** Useful for planning around exams, deadlines, events, school terms.
-The free tier is intentionally week-by-week. PRO gives the bigger picture.
+**Free vs PRO split:** Free tier gets the rolling 2-week view (this week + the forward peek once
+mid/late-week is reached). PRO extends the same rolling mechanic out to 4 weeks, useful for
+planning around exams, deadlines, and school terms further out. The rolling behavior itself is
+free — PRO is purely a longer horizon, not a different feature gated off entirely.
+
+**Why it matters:** Useful for planning around exams, deadlines, events, school terms. Keeping the
+rolling mechanic in the free tier avoids it feeling like a wall — PRO extends how far ahead you
+can see, it doesn't unlock the concept.
 
 **Implementation:** Extends WeekGenerationView to support future week generation and caching.
-WeekCache model already supports this — just need UI and navigation.
+WeekCache model already supports this — needs UI, navigation, and a cap on how many weeks ahead
+are visible (2 for free, 4 for PRO).
 
 ---
 
