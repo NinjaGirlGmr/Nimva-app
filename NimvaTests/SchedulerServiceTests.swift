@@ -144,6 +144,100 @@ struct SchedulerServiceOverflowTests {
     }
 }
 
+// MARK: - Completion state (#83)
+
+private func makeIdsJSON(_ ids: [UUID]) -> String {
+    let data = (try? JSONEncoder().encode(ids.map { $0.uuidString })) ?? Data()
+    return String(data: data, encoding: .utf8) ?? "[]"
+}
+
+@Suite("SchedulerService — completion state")
+@MainActor
+struct CompletionStateTests {
+
+    private func makeCache(completed: [UUID] = [], inProgress: [UUID] = []) -> WeekCache {
+        let cache = WeekCache(weekStartDate: Date(), placementsJSON: "[]", balanceScore: 0, heavyDayValues: [])
+        cache.completedEventIdsJSON = makeIdsJSON(completed)
+        cache.inProgressEventIdsJSON = makeIdsJSON(inProgress)
+        return cache
+    }
+
+    @Test func defaultsToNotStarted() {
+        let id = UUID()
+        let cache = makeCache()
+        #expect(SchedulerService.completionState(for: id, cache: cache) == .notStarted)
+    }
+
+    @Test func reflectsCompletedSet() {
+        let id = UUID()
+        let cache = makeCache(completed: [id])
+        #expect(SchedulerService.completionState(for: id, cache: cache) == .completed)
+    }
+
+    @Test func reflectsInProgressSet() {
+        let id = UUID()
+        let cache = makeCache(inProgress: [id])
+        #expect(SchedulerService.completionState(for: id, cache: cache) == .inProgress)
+    }
+
+    @Test func malformedJSONDefaultsToNotStarted() {
+        let id = UUID()
+        let cache = WeekCache(weekStartDate: Date(), placementsJSON: "[]", balanceScore: 0, heavyDayValues: [])
+        cache.completedEventIdsJSON = "{bad}"
+        cache.inProgressEventIdsJSON = "{bad}"
+        #expect(SchedulerService.completionState(for: id, cache: cache) == .notStarted)
+    }
+
+    @Test func notStartedCyclesToInProgress() {
+        let id = UUID()
+        let result = SchedulerService.cycledCompletionJSON(for: id, completedJSON: "[]", inProgressJSON: "[]")
+        #expect(SchedulerService.completionState(
+            for: id,
+            cache: makeCacheFromJSON(completed: result.completed, inProgress: result.inProgress)
+        ) == .inProgress)
+    }
+
+    @Test func inProgressCyclesToCompleted() {
+        let id = UUID()
+        let result = SchedulerService.cycledCompletionJSON(
+            for: id, completedJSON: "[]", inProgressJSON: makeIdsJSON([id])
+        )
+        #expect(SchedulerService.completionState(
+            for: id,
+            cache: makeCacheFromJSON(completed: result.completed, inProgress: result.inProgress)
+        ) == .completed)
+    }
+
+    @Test func completedCyclesBackToNotStarted() {
+        let id = UUID()
+        let result = SchedulerService.cycledCompletionJSON(
+            for: id, completedJSON: makeIdsJSON([id]), inProgressJSON: "[]"
+        )
+        #expect(SchedulerService.completionState(
+            for: id,
+            cache: makeCacheFromJSON(completed: result.completed, inProgress: result.inProgress)
+        ) == .notStarted)
+    }
+
+    @Test func cyclingOneEventDoesNotAffectAnother() {
+        let target = UUID()
+        let other = UUID()
+        let result = SchedulerService.cycledCompletionJSON(
+            for: target, completedJSON: "[]", inProgressJSON: makeIdsJSON([other])
+        )
+        let cache = makeCacheFromJSON(completed: result.completed, inProgress: result.inProgress)
+        #expect(SchedulerService.completionState(for: target, cache: cache) == .inProgress)
+        #expect(SchedulerService.completionState(for: other, cache: cache) == .inProgress)
+    }
+
+    private func makeCacheFromJSON(completed: String, inProgress: String) -> WeekCache {
+        let cache = WeekCache(weekStartDate: Date(), placementsJSON: "[]", balanceScore: 0, heavyDayValues: [])
+        cache.completedEventIdsJSON = completed
+        cache.inProgressEventIdsJSON = inProgress
+        return cache
+    }
+}
+
 // MARK: - isLightWeek
 
 @Suite("SchedulerService — isLightWeek")

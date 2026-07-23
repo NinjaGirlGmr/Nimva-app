@@ -96,7 +96,13 @@ struct HomeView: View {
         return Set(strings.compactMap { UUID(uuidString: $0) })
     }
 
+    private func completionState(for event: Event) -> SchedulerService.EventCompletionState {
+        guard let cache else { return .notStarted }
+        return SchedulerService.completionState(for: event.id, cache: cache)
+    }
+
     // The first non-completed event on today's list — nil when viewing a different day.
+    // "In progress" still counts as next-up; only completed events are skipped.
     private var nextUpEventId: UUID? {
         guard selectedDay == Self.todayDayOfWeek() else { return nil }
         return eventsForSelectedDay.first { !completedEventIds.contains($0.id) }?.id
@@ -398,10 +404,10 @@ struct HomeView: View {
                                                 event: event,
                                                 index: index,
                                                 placementReason: placementReasons[event.id],
-                                                isCompleted: completedEventIds.contains(event.id),
+                                                completionState: completionState(for: event),
                                                 nextUpLabel: nextUpLabel(for: event),
                                                 onTap: { eventToEdit = event },
-                                                onCheckmark: { toggleCompletion(event) }
+                                                onCheckmark: { cycleCompletion(event) }
                                             )
                                                 .id("\(selectedDay.rawValue)-\(event.id)")
                                                 .padding(.horizontal, 20)
@@ -682,20 +688,24 @@ struct HomeView: View {
         }
     }
 
-    private func toggleCompletion(_ event: Event) {
+    // Cycles not started → in progress → completed → not started (#83). A single tap
+    // always advances one step, rather than a binary toggle, so a task can be marked
+    // "started" without forcing a premature all-or-nothing done/not-done call.
+    private func cycleCompletion(_ event: Event) {
         guard let cache else { return }
-        var ids = completedEventIds
-        if ids.contains(event.id) {
-            ids.remove(event.id)
-            NimvaHaptics.light()
-        } else {
-            ids.insert(event.id)
-            NimvaHaptics.success()
-        }
-        if let data = try? JSONEncoder().encode(ids.map { $0.uuidString }),
-           let json = String(data: data, encoding: .utf8) {
-            cache.completedEventIdsJSON = json
-            try? modelContext.save()
+        let (completedJSON, inProgressJSON) = SchedulerService.cycledCompletionJSON(
+            for: event.id,
+            completedJSON: cache.completedEventIdsJSON,
+            inProgressJSON: cache.inProgressEventIdsJSON
+        )
+        cache.completedEventIdsJSON = completedJSON
+        cache.inProgressEventIdsJSON = inProgressJSON
+        try? modelContext.save()
+
+        switch completionState(for: event) {
+        case .inProgress: NimvaHaptics.light()
+        case .completed:  NimvaHaptics.success()
+        case .notStarted: NimvaHaptics.light()
         }
     }
 
@@ -928,10 +938,12 @@ private struct EventCard: View {
     let event: Event
     var index: Int = 0
     var placementReason: String? = nil
-    var isCompleted: Bool = false
+    var completionState: SchedulerService.EventCompletionState = .notStarted
     var nextUpLabel: String? = nil
     var onTap: (() -> Void)? = nil
     var onCheckmark: (() -> Void)? = nil
+
+    private var isCompleted: Bool { completionState == .completed }
 
     @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
     @AppStorage("customEnergyMixedHex") private var energyMixedHex = "ef9f27"
@@ -994,18 +1006,20 @@ private struct EventCard: View {
                         .background(typeTagBackground)
                         .clipShape(Capsule())
 
-                    // Checkmark — nested Button intercepts its own tap, outer Button handles edit
+                    // Checkmark — nested Button intercepts its own tap, outer Button handles edit.
+                    // Cycles three states (#83): not started → in progress → completed, so a
+                    // half-finished task can be marked "started" without an all-or-nothing call.
                     Button {
                         onCheckmark?()
                     } label: {
-                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
+                        Image(systemName: completionIconName)
                             .font(.system(.title3))
-                            .foregroundStyle(isCompleted ? NimvaColors.teal : NimvaColors.border)
+                            .foregroundStyle(completionIconColor)
                             .frame(width: 36, height: 36)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(isCompleted ? "Completed. Tap to undo." : "Mark complete")
+                    .accessibilityLabel(completionAccessibilityLabel)
                 }
                 .padding(.leading, 14)
                 .padding(.vertical, 14)
@@ -1016,6 +1030,8 @@ private struct EventCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(EventCardStyle(reduceMotion: reduceMotion))
+        // Only "completed" dims the card — "in progress" shouldn't read as a lesser state,
+        // just a different one, per #83 (avoid all-or-nothing failure framing).
         .opacity(isCompleted ? 0.6 : 1.0)
         .accessibilityLabel(cardAccessibilityLabel)
         .accessibilityHint("Tap to edit")
@@ -1034,7 +1050,35 @@ private struct EventCard: View {
 
     private var cardAccessibilityLabel: String {
         let base = "\(event.name), \(typeTagLabel), \(energyLabel) energy, \(subtitleText)"
-        return isCompleted ? "Completed: \(base)" : base
+        switch completionState {
+        case .completed:  return "Completed: \(base)"
+        case .inProgress: return "In progress: \(base)"
+        case .notStarted: return base
+        }
+    }
+
+    private var completionIconName: String {
+        switch completionState {
+        case .completed:  return "checkmark.circle.fill"
+        case .inProgress: return "circle.lefthalf.filled"
+        case .notStarted: return "circle"
+        }
+    }
+
+    private var completionIconColor: Color {
+        switch completionState {
+        case .completed:  return NimvaColors.teal
+        case .inProgress: return NimvaColors.teal.opacity(0.6)
+        case .notStarted: return NimvaColors.border
+        }
+    }
+
+    private var completionAccessibilityLabel: String {
+        switch completionState {
+        case .completed:  return "Completed. Tap to reset."
+        case .inProgress: return "In progress. Tap to mark complete."
+        case .notStarted: return "Not started. Tap to mark in progress."
+        }
     }
 
     private var typeTagLabel: String {

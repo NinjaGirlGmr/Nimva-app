@@ -21,6 +21,10 @@ final class WeekCache {
     // Cleared implicitly when the week is rebuilt (new WeekCache replaces old one).
     var completedEventIdsJSON: String = "[]"
 
+    // JSON-encoded [String] of UUIDs marked "in progress" — started but not finished (#83).
+    // Mutually exclusive with completedEventIdsJSON; an ID lives in exactly one or neither.
+    var inProgressEventIdsJSON: String = "[]"
+
     // True when the algorithm classified this as a light week at generation time.
     // Drives the recovery check-in branch and Insights recovery pattern.
     var wasRecoveryWeek: Bool = false
