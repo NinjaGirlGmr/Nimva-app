@@ -171,3 +171,15 @@ This log pairs naturally with GitHub Issues once development moves to a reposito
 **Tags:** #decision #testing #swift-pattern
 
 ---
+
+### 2026-07-23 — CloudKit sync crashed on launch: default values, not entitlements
+
+**Spark:** App crashed on launch somewhere between build 60 and 62. Bisected with the user to two commits: `fc390d6` (working) vs `1b3c947` "enable CloudKit private database sync" (failing) — so the CloudKit-enabling commit itself was the cause, not anything downstream. Two later commits (`fbd52db`, `02a974c`) had already tried graceful-fallback and test-runner-skip patches without actually fixing the crash.
+
+**Chase:** Assumed first it'd be entitlements/provisioning (missing iCloud capability, container not deployed) since that's the usual CloudKit gotcha. It wasn't. SwiftData's CloudKit integration (`ModelConfiguration(cloudKitDatabase:)`) has a stricter, less-documented requirement: every non-relationship stored property must be `Optional` *or* have a default value declared inline on the property itself — an `init` parameter default doesn't count. `Event`, `WeekCache`, and `Intention` had none of their required properties (`name`, `isFixed`, `energyCost`, `weekStartDate`, `placementsJSON`, etc.) declared with inline defaults — only set via constructor params. `NSPersistentCloudKitContainer` validates this at `ModelContainer` init and traps (not throws), so it crashed before any `do/catch` in `NimvaApp.swift` could run — explains why the existing fallback-on-failure code never helped.
+
+**Catch:** Added inline default values to every non-optional stored property across all three `@Model` classes (init bodies untouched — purely a schema-level fix, no behavior change). Also unwound a WIP workaround in `NimvaApp.swift` that had forced Debug builds to always use an in-memory store (which hid the crash locally but left Release/TestFlight builds still broken) — restored CloudKit for both Debug and Release now that the schema is actually compliant, keeping only the `XCTestSessionIdentifier` check so the test runner still gets in-memory. Rule going forward: any new `@Model` property needs either `?` or an inline default, full stop, if CloudKit sync is ever going to touch it.
+
+**Tags:** #bug #swiftdata #cloudkit #decision
+
+---
