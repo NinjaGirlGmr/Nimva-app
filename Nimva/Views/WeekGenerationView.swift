@@ -14,6 +14,9 @@ struct WeekGenerationView: View {
     @Query(sort: \Event.createdAt) private var events: [Event]
 
     @AppStorage("selectedTab") private var selectedTab = 0
+    // #87 — shown once, the first time a user approves a week, so they know the
+    // schedule won't shift under them. Reduces OCD-style re-checking anxiety.
+    @AppStorage("hasSeenScheduleStabilityNote") private var hasSeenScheduleStabilityNote = false
 
     @State private var genState: GenerationState = .ready
     @State private var progress: Double = 0.0
@@ -24,6 +27,9 @@ struct WeekGenerationView: View {
     @State private var revealedDays: Set<DayOfWeek> = []
     @State private var showingScheduleError = false
     @State private var showCutSuggestion = true
+    // Captured at approve time, before hasSeenScheduleStabilityNote flips to true —
+    // otherwise the note would never render on the very approval it's meant for.
+    @State private var showStabilityNoteThisApproval = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -216,7 +222,7 @@ struct WeekGenerationView: View {
                 }
 
                 if deferrable.isEmpty {
-                    Text("All your flexible events are marked must-do — nothing obvious to cut.")
+                    Text("All your flexible events are marked must-do — nothing to cut, but a small protected gap still helps.")
                         .font(.system(.caption))
                         .foregroundStyle(NimvaColors.textSecondary)
                 } else {
@@ -267,7 +273,7 @@ struct WeekGenerationView: View {
     private func heavyDayChipText(for day: DayOfWeek) -> String {
         switch userType {
         case .optimizer:      return "\(day.displayName) looks heavy — consider moving something"
-        case .overloadedFixed: return "\(day.displayName) is packed — most of this is fixed, I've noted the load"
+        case .overloadedFixed: return "\(day.displayName) is packed — mostly fixed, watch for a small gap to protect"
         case .patternLearner: return "\(day.displayName) looks heavy — I've routed flex tasks around it"
         }
     }
@@ -543,6 +549,8 @@ struct WeekGenerationView: View {
     // Fire success haptic, then show the approval confirmation before routing home.
     private func approveWeek() {
         NimvaHaptics.success()
+        showStabilityNoteThisApproval = !hasSeenScheduleStabilityNote
+        hasSeenScheduleStabilityNote = true
         withAnimation(NimvaAnimation.cardAppear) { genState = .approved }
     }
 
@@ -567,6 +575,15 @@ struct WeekGenerationView: View {
                         .foregroundStyle(NimvaColors.textSecondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    if showStabilityNoteThisApproval {
+                        Text("Your week stays as shown until you redo it or change an event.")
+                            .font(.system(.caption))
+                            .foregroundStyle(NimvaColors.textMuted)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 4)
+                    }
                 }
                 .padding(.horizontal, 8)
             }
