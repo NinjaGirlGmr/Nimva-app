@@ -167,6 +167,60 @@ enum SchedulerService {
         return Set(records.filter { $0.dayRawValue == day.rawValue }.map { $0.eventId })
     }
 
+    // MARK: - Completion state (#83)
+
+    /// Three-state completion tracking — richer than a binary done/not-done, since ADHD
+    /// task-switching and OCD all-or-nothing thinking are both worsened by forcing an
+    /// interrupted task into either "done" or "failed."
+    enum EventCompletionState: String, Codable {
+        case notStarted
+        case inProgress
+        case completed
+    }
+
+    /// Reads an event's current completion state from the cache's two ID-set fields.
+    static func completionState(for eventId: UUID, cache: WeekCache) -> EventCompletionState {
+        if idSet(from: cache.completedEventIdsJSON).contains(eventId) { return .completed }
+        if idSet(from: cache.inProgressEventIdsJSON).contains(eventId) { return .inProgress }
+        return .notStarted
+    }
+
+    /// Advances an event one step: not started → in progress → completed → not started.
+    /// Returns the two JSON strings to write back — the sets are always mutually exclusive.
+    static func cycledCompletionJSON(
+        for eventId: UUID,
+        completedJSON: String,
+        inProgressJSON: String
+    ) -> (completed: String, inProgress: String) {
+        var completed = idSet(from: completedJSON)
+        var inProgress = idSet(from: inProgressJSON)
+
+        if completed.contains(eventId) {
+            completed.remove(eventId)
+        } else if inProgress.contains(eventId) {
+            inProgress.remove(eventId)
+            completed.insert(eventId)
+        } else {
+            inProgress.insert(eventId)
+        }
+
+        return (encodeIds(completed), encodeIds(inProgress))
+    }
+
+    private static func idSet(from json: String) -> Set<UUID> {
+        guard let data = json.data(using: .utf8),
+              let strings = try? JSONDecoder().decode([String].self, from: data)
+        else { return [] }
+        return Set(strings.compactMap { UUID(uuidString: $0) })
+    }
+
+    private static func encodeIds(_ ids: Set<UUID>) -> String {
+        guard let data = try? JSONEncoder().encode(ids.map(\.uuidString)),
+              let json = String(data: data, encoding: .utf8)
+        else { return "[]" }
+        return json
+    }
+
     // MARK: - Mapping: SwiftData Event → pure structs
 
     private static func toFixedEvent(_ event: Event) -> FixedEvent? {
