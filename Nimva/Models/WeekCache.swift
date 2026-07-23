@@ -5,11 +5,11 @@ import SwiftData
 // re-running the algorithm. Invalidated when any event is added, edited, or deleted.
 @Model
 final class WeekCache {
-    var weekStartDate: Date
-    var placementsJSON: String      // JSON-encoded [{eventId, dayRawValue}]
-    var balanceScore: Double
-    var heavyDayValues: [Int]       // DayOfWeek.rawValue for each flagged day
-    var generatedAt: Date
+    var weekStartDate: Date = Date()
+    var placementsJSON: String = "[]"      // JSON-encoded [{eventId, dayRawValue}]
+    var balanceScore: Double = 0.0
+    var heavyDayValues: [Int] = []       // DayOfWeek.rawValue for each flagged day
+    var generatedAt: Date = Date()
 
     // Written by the weekly check-in flow. nil means the user hasn't checked in yet.
     // 0.0 = not draining at all, 1.0 = very draining — same scale as energyCost.
