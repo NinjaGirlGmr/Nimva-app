@@ -186,6 +186,7 @@ struct HomeView: View {
                                 isRecoveryWeek: cache?.wasRecoveryWeek == true
                             )
                             .padding(.horizontal, 20)
+                            .transition(.opacity.combined(with: .offset(y: 8)))
                         }
 
                         // ── Ember daily note ──
@@ -240,6 +241,7 @@ struct HomeView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                                 .padding(.horizontal, 20)
                                 .transition(.opacity.combined(with: .offset(y: 4)))
+                                .nimvaAnimation(NimvaAnimation.cardAppear, value: selectedDay)
                             }
                         }
 
@@ -437,6 +439,8 @@ struct HomeView: View {
                     .padding(.top, 16)
                     .opacity(contentAppeared ? 1 : 0)
                     .offset(y: contentAppeared ? 0 : 12)
+                    .animation(reduceMotion ? .none : NimvaAnimation.cardAppear.delay(0.08), value: contentAppeared)
+                    .animation(reduceMotion ? .none : NimvaAnimation.cardAppear, value: cache != nil)
                 }
                 .transition(.opacity)
             }
@@ -458,6 +462,7 @@ struct HomeView: View {
                 .accessibilityLabel("Add event")
                 .pressScale()
                 .padding(24)
+                .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
         }
         .overlay(alignment: .bottom) {
@@ -483,6 +488,7 @@ struct HomeView: View {
             // when the user switches tabs and returns, but corrects stale state on relaunch.
             if !contentAppeared {
                 selectedDay = Self.todayDayOfWeek()
+                contentAppeared = true
             }
             if openAddEventOnLaunch {
                 openAddEventOnLaunch = false
@@ -495,15 +501,11 @@ struct HomeView: View {
         .onChange(of: scenePhase) { _, newPhase in
             // Catch the case where the app was backgrounded over a week boundary.
             // Without this, the old week's cache is shown until the user edits an event.
-            if newPhase == .active && cacheIsStale && !events.isEmpty {
-                selectedDay = Self.todayDayOfWeek()
-                recomputeSchedule()
-            }
-            if !reduceMotion {
-                withAnimation(NimvaAnimation.cardAppear.delay(0.08)) {
-                    contentAppeared = true
+            if newPhase == .active {
+                if cacheIsStale && !events.isEmpty {
+                    selectedDay = Self.todayDayOfWeek()
+                    recomputeSchedule()
                 }
-            } else {
                 contentAppeared = true
             }
         }
