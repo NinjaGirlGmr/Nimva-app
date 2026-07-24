@@ -29,7 +29,11 @@ private struct InsightsProContent: View {
     // the trend bar chart becomes unreadable on a phone screen.
     @Query(sort: \WeekCache.weekStartDate, order: .reverse) private var caches: [WeekCache]
 
-    private var recentCaches: [WeekCache] { Array(caches.prefix(8)) }
+    // Excludes future (rolling-calendar) weeks — Insights trend/pattern data must only ever
+    // reflect weeks that have actually happened, never one still being planned or redone.
+    private var recentCaches: [WeekCache] {
+        Array(caches.filter { $0.weekStartDate <= SchedulerService.weekStart() }.prefix(8))
+    }
     private var hasEnoughForPatterns: Bool { recentCaches.count >= 2 }
 
     var body: some View {

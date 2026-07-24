@@ -238,6 +238,159 @@ struct CompletionStateTests {
     }
 }
 
+// MARK: - Multi-week regenerate/load (#13 — rolling calendar)
+
+@MainActor
+private func makeInMemoryContext() throws -> ModelContext {
+    let schema = Schema([Event.self, WeekCache.self])
+    let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+    return ModelContext(try ModelContainer(for: schema, configurations: [config]))
+}
+
+@Suite("SchedulerService — multi-week regenerate/load")
+@MainActor
+struct MultiWeekSchedulerServiceTests {
+
+    @Test func regenerateForDifferentOffsetsCreatesSeparateCaches() throws {
+        let context = try makeInMemoryContext()
+        let events = [Event(name: "Gym", isFixed: false)]
+
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: 0)
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: 1)
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: 2)
+
+        let all = try context.fetch(FetchDescriptor<WeekCache>(sortBy: [SortDescriptor(\.weekStartDate)]))
+        #expect(all.count == 3)
+        let sevenDays: TimeInterval = 7 * 24 * 3600
+        #expect(abs(all[1].weekStartDate.timeIntervalSince(all[0].weekStartDate) - sevenDays) < 60)
+        #expect(abs(all[2].weekStartDate.timeIntervalSince(all[1].weekStartDate) - sevenDays) < 60)
+    }
+
+    @Test func regeneratingOneOffsetDoesNotMutateAnotherOffsetsCache() throws {
+        let context = try makeInMemoryContext()
+        let events = [Event(name: "Gym", isFixed: false, energyCost: 0.4)]
+
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: 0)
+        let beforeAll = try context.fetch(FetchDescriptor<WeekCache>())
+        let thisWeekBefore = beforeAll.first { SchedulerService.mondayCal.isDate($0.weekStartDate, equalTo: SchedulerService.weekStart(offsetWeeks: 0), toGranularity: .weekOfYear) }
+        let jsonBefore = thisWeekBefore?.placementsJSON
+
+        // Rebuild next week — this week's cache must be untouched (regression test for
+        // the currentStart -> targetStart fix).
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: 1)
+
+        let afterAll = try context.fetch(FetchDescriptor<WeekCache>())
+        let thisWeekAfter = afterAll.first { SchedulerService.mondayCal.isDate($0.weekStartDate, equalTo: SchedulerService.weekStart(offsetWeeks: 0), toGranularity: .weekOfYear) }
+        #expect(afterAll.count == 2)
+        #expect(thisWeekAfter?.placementsJSON == jsonBefore)
+    }
+
+    @Test func loadCachedScheduleFindsMatchingOffsetEvenWhenANewerOffsetCacheExists() throws {
+        let context = try makeInMemoryContext()
+        let events = [Event(name: "Gym", isFixed: false)]
+
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: 0)
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: 2)   // offset 1 deliberately skipped
+
+        let offset1 = try SchedulerService.loadCachedSchedule(context: context, events: events, weekOffset: 1)
+        let offset2 = try SchedulerService.loadCachedSchedule(context: context, events: events, weekOffset: 2)
+        #expect(offset1 == nil)
+        #expect(offset2 != nil)
+    }
+
+    @Test func loadCachedScheduleReturnsNilForOffsetWithNoCache() throws {
+        let context = try makeInMemoryContext()
+        let events = [Event(name: "Gym", isFixed: false)]
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: 0)
+
+        let result = try SchedulerService.loadCachedSchedule(context: context, events: events, weekOffset: 1)
+        #expect(result == nil)
+    }
+
+    // Future weeks have no "past days" yet, so `today` is forced to .monday inside regenerate,
+    // which naturally empties pastRecords/idsInPast regardless of preservePastPlacements. This
+    // can only be asserted deterministically for the future-week half — todayAsDayOfWeek() has
+    // no injection point for a fake "today," so the current-week half of this behavior remains
+    // untested here (pre-existing limitation, not something this feature needs to fix).
+    @Test func futureWeekRegenerateIgnoresPreservePastPlacementsFlag() throws {
+        let context = try makeInMemoryContext()
+        let events = [Event(name: "Gym", isFixed: false, energyCost: 0.4)]
+
+        try SchedulerService.regenerate(context: context, events: events, preservePastPlacements: true, weekOffset: 1)
+        let all = try context.fetch(FetchDescriptor<WeekCache>())
+        #expect(all.count == 1)
+        // No prior cache existed for this future week, so nothing could have been "preserved" —
+        // the placement is freshly computed regardless of the flag.
+        #expect(all.first?.placementsJSON.contains(events[0].id.uuidString) == true)
+    }
+
+    @Test func trimKeepsUpToEightHistoryCachesIndependentOfFutureCaches() throws {
+        let context = try makeInMemoryContext()
+        let events = [Event(name: "Gym", isFixed: false)]
+
+        // Seed 9 past-dated caches directly (bypassing regenerate, which would trim as it goes).
+        let sevenDays: TimeInterval = 7 * 24 * 3600
+        for i in 1...9 {
+            let past = SchedulerService.weekStart().addingTimeInterval(-Double(i) * sevenDays)
+            context.insert(WeekCache(weekStartDate: past, placementsJSON: "[]", balanceScore: 0, heavyDayValues: []))
+        }
+
+        // Populate the future bucket, then trigger a trim via one more regenerate call.
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: 1)
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: 2)
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: 0)
+
+        let all = try context.fetch(FetchDescriptor<WeekCache>())
+        let todayStart = SchedulerService.weekStart()
+        let history = all.filter { $0.weekStartDate <= todayStart }
+        let future = all.filter { $0.weekStartDate > todayStart }
+        #expect(history.count == 8)
+        #expect(future.count == 2)
+    }
+
+    @Test func trimCapsFuturePoolIfMoreThanThreeFutureCachesExistSomehow() throws {
+        let context = try makeInMemoryContext()
+        let events = [Event(name: "Gym", isFixed: false)]
+
+        // Seed 5 future-dated caches directly, simulating a bug that bypassed the UI's +3 gate.
+        let sevenDays: TimeInterval = 7 * 24 * 3600
+        for i in 1...5 {
+            let future = SchedulerService.weekStart().addingTimeInterval(Double(i) * sevenDays)
+            context.insert(WeekCache(weekStartDate: future, placementsJSON: "[]", balanceScore: 0, heavyDayValues: []))
+        }
+
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: 0)
+
+        let all = try context.fetch(FetchDescriptor<WeekCache>())
+        let todayStart = SchedulerService.weekStart()
+        let future = all.filter { $0.weekStartDate > todayStart }.sorted { $0.weekStartDate < $1.weekStartDate }
+        #expect(future.count == 3)
+        // Must be the 3 NEAREST future weeks (+1, +2, +3), not the 3 furthest — regression
+        // test for a real ordering bug where dropFirst(3) on furthest-first-sorted data
+        // deleted the nearest weeks and kept the furthest ones instead.
+        let expectedNearest = (1...3).map { SchedulerService.weekStart().addingTimeInterval(Double($0) * sevenDays) }
+        for (actual, expected) in zip(future, expectedNearest) {
+            #expect(abs(actual.weekStartDate.timeIntervalSince(expected)) < 60)
+        }
+    }
+
+    // Regression test for the defensive floor added to regenerate/loadCachedSchedule —
+    // a negative offset must never be allowed to target (and silently overwrite) a real
+    // past week's cache with a fresh recompute.
+    @Test func negativeWeekOffsetIsClampedToZeroNotAPastWeek() throws {
+        let context = try makeInMemoryContext()
+        let events = [Event(name: "Gym", isFixed: false)]
+
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: -3)
+
+        let all = try context.fetch(FetchDescriptor<WeekCache>())
+        #expect(all.count == 1)
+        #expect(SchedulerService.mondayCal.isDate(
+            all.first!.weekStartDate, equalTo: SchedulerService.weekStart(), toGranularity: .weekOfYear
+        ))
+    }
+}
+
 // MARK: - isLightWeek
 
 @Suite("SchedulerService — isLightWeek")
