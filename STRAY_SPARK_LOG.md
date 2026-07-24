@@ -183,3 +183,25 @@ This log pairs naturally with GitHub Issues once development moves to a reposito
 **Tags:** #bug #swiftdata #cloudkit #decision
 
 ---
+
+### 2026-07-23 — "Build my week" felt pointless because the week was already built
+
+**Spark:** User noticed flexible events were already placed before ever tapping "Build my week" in the Plan tab — as if the button was theater over a decision already made.
+
+**Chase:** Found three separate auto-recompute triggers, only one of which was ever meant to exist. (1) `HomeView`'s `.onAppear`/scene-phase-active handlers called `recomputeSchedule()` whenever `cacheIsStale` — which was true not just on a real week rollover, but also whenever *no cache existed yet at all*, silently running the full algorithm the first moment Home appeared with 3+ events. (2) `AddEventView` and `EditEventView`'s sheets both had `onDismiss: recomputeSchedule` — so every single add or edit re-ran the whole algorithm immediately. Neither of these was a bug in isolation — (2) was explicitly sanctioned by the "recompute on event added/edited/deleted" non-negotiable rule already in CLAUDE.md — but together they meant the schedule was fully assembled well before the user ever reached the Plan tab's explicit build ceremony. There was already a correctly-built "Ready to build your week? Tap to go to the Plan tab" nudge card gated on `cache == nil` — it just could never fire, because the cache was never allowed to stay nil.
+
+**Catch:** Removed both. `HomeView.cache` now returns nil (not just "stale") whenever the freshest cache isn't for the current week, so the existing nudge card takes over correctly instead of showing stale or auto-built data. Add/Edit sheets no longer recompute on dismiss — new or edited events sit as "unscheduled" until the user explicitly taps "Build my week" or "Redo." Delete/undo-delete were deliberately left recomputing, since removing a *placed* event needs the stored balance score / heavy-day flags to stay accurate immediately, and that wasn't the behavior in question. This required actually rewriting the non-negotiable caching rule in CLAUDE.md and `technical-requirements.md` 8.3 — confirmed explicitly with the user first, since silently changing a documented non-negotiable rule isn't something to do on a hunch, even when the user's own request implies it.
+
+**Tags:** #bug #decision #ux
+
+---
+
+### 2026-07-24 — `assert` + a graceful clamp are contradictory, and the crash masqueraded as unrelated test failures
+
+**Spark:** While hardening the new rolling-calendar `weekOffset` parameter, added `assert(weekOffset >= 0, ...)` right above a defensive `let weekOffset = max(0, weekOffset)` clamp in `SchedulerService.regenerate`/`loadCachedSchedule` — belt-and-suspenders, in theory. Wrote a regression test that deliberately passes `weekOffset: -3` to confirm the clamp works. Ran the full suite: ~30 tests failed across four unrelated files (`CompletionStateTests`, `SchedulerServiceOverflowTests`, `SchedulerServiceDayQueryTests`, `UserTypeDetectionTests` in a completely different file) — none of which touch `regenerate` or `loadCachedSchedule` at all. Every failure showed `(0.000 seconds)` with no assertion message.
+
+**Chase:** `assert()` traps (crashes the process) in debug builds when its condition is false — it doesn't throw, doesn't get caught, doesn't let code after it run. My own test's `-3` tripped the assert and crashed the whole test process mid-batch, and the test runner marked every other test scheduled in that same process/batch as "Failed" with zero diagnostic detail, since the process never got to report real results for them — a crash upstream reads as scattered unrelated failures downstream if you don't recognize the "0.000s, no message, spans totally unrelated suites" signature. `assert` and a subsequent graceful fallback are fundamentally incompatible: if the assert fires, the fallback code below it never executes anyway, so combining them either crashes (assert) or the assert is pointless dead weight (the clamp alone already handles it). Pick one contract, not both.
+
+**Catch:** Removed both `assert` calls, kept only the silent `max(0, weekOffset)` clamp. This path needs to degrade safely even in debug builds (where the negative-offset regression test runs), not trap — a hard precondition would have been the right call for something the codebase asserts can truly never happen without a caller bug, but here the whole point was "verify this is handled gracefully," which is incompatible with a crashing guard. Rule going forward: don't pair `assert`/`precondition` with a fallback for the same condition in the same breath, and if a test deliberately exercises an "invalid" input, that's a signal the code path should degrade, not trap.
+
+**Tags:** #bug #testing #swift-gotcha

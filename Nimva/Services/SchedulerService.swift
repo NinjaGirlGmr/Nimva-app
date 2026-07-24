@@ -14,19 +14,34 @@ enum SchedulerService {
     /// - Parameter preservePastPlacements: When true (mid-week background rebuilds), flex events
     ///   already placed on past days are frozen and carried forward. When false (explicit Plan-tab
     ///   builds), the schedule is regenerated fresh from today onwards with no past placements.
+    /// - Parameter weekOffset: Which week to build, in weeks from the current week (0 = this week,
+    ///   1 = next week, etc.) — the rolling calendar feature. Defaults to 0 so every existing
+    ///   caller (event edits, "Redo") keeps building the current week unchanged.
     ///
     /// Returns the WeekSchedule that was just computed (today-onwards only, not including
     /// any preserved past placements). The persisted cache always contains the full merged picture.
     @discardableResult
-    static func regenerate(context: ModelContext, events: [Event], preservePastPlacements: Bool = true) throws -> WeekSchedule {
+    static func regenerate(context: ModelContext, events: [Event], preservePastPlacements: Bool = true, weekOffset: Int = 0) throws -> WeekSchedule {
+        // Defensive floor, not just a UI-layer assumption: a negative offset here would target
+        // a genuine past week and silently overwrite real Insights history with a fresh
+        // recompute. The UI already clamps at 0, but the data layer shouldn't rely solely on
+        // that — this makes it structurally impossible regardless of caller behavior. A silent
+        // clamp (not an assert) is deliberate: this path needs to degrade safely even in debug
+        // builds, not trap — an assert here would crash before ever reaching the safety net.
+        let weekOffset = max(0, weekOffset)
+
         let fixed = events.compactMap { toFixedEvent($0) }
         let flexible = events.compactMap { toFlexibleEvent($0) }
 
-        let today = todayAsDayOfWeek()
-        let currentStart = weekStart()
+        let targetStart = weekStart(offsetWeeks: weekOffset)
+        let todayWeekStart = weekStart()
+        let isCurrentWeek = mondayCal.isDate(targetStart, equalTo: todayWeekStart, toGranularity: .weekOfYear)
+        // Future weeks have no "past days" yet, so always start from Monday — this also
+        // naturally empties pastRecords/idsInPast below without a separate branch.
+        let today = isCurrentWeek ? todayAsDayOfWeek() : .monday
         let existing = try context.fetch(FetchDescriptor<WeekCache>())
         let priorCache = existing.first {
-            mondayCal.isDate($0.weekStartDate, equalTo: currentStart, toGranularity: .weekOfYear)
+            mondayCal.isDate($0.weekStartDate, equalTo: targetStart, toGranularity: .weekOfYear)
         }
 
         // Extract placements from days that have already passed so they survive the rebuild.
@@ -68,11 +83,11 @@ enum SchedulerService {
 
         // Replace only this week's cache — older weeks are kept for Insights history
         existing
-            .filter { mondayCal.isDate($0.weekStartDate, equalTo: currentStart, toGranularity: .weekOfYear) }
+            .filter { mondayCal.isDate($0.weekStartDate, equalTo: targetStart, toGranularity: .weekOfYear) }
             .forEach { context.delete($0) }
 
         let cache = WeekCache(
-            weekStartDate: currentStart,
+            weekStartDate: targetStart,
             placementsJSON: json,
             balanceScore: result.balanceScore,
             heavyDayValues: heavyDayValues
@@ -87,32 +102,50 @@ enum SchedulerService {
         // Experiment: keep the same suggestion if one was already set this week;
         // pick a new one (deterministic by date) for fresh light weeks.
         if cache.wasRecoveryWeek {
-            cache.experimentText = priorCache?.experimentText ?? pickExperiment(for: currentStart)
+            cache.experimentText = priorCache?.experimentText ?? pickExperiment(for: targetStart)
         }
         cache.experimentTriedRaw = priorCache?.experimentTriedRaw
         context.insert(cache)
 
-        // Trim history to 8 weeks so SwiftData doesn't accumulate unbounded records.
-        // Insights only renders the last 8 weeks, so anything older has no UX value.
+        // Trim history to 8 weeks so SwiftData doesn't accumulate unbounded records —
+        // bucketed separately from future (rolling-calendar) weeks so building ahead never
+        // eats into the history Insights needs. Both buckets computed relative to the real
+        // current week, not whichever week was just built.
         let all = try context.fetch(FetchDescriptor<WeekCache>(sortBy: [SortDescriptor(\.weekStartDate, order: .reverse)]))
-        if all.count > 8 {
-            all.dropFirst(8).forEach { context.delete($0) }
+        let history = all.filter { $0.weekStartDate <= todayWeekStart }
+        if history.count > 8 {
+            history.dropFirst(8).forEach { context.delete($0) }
+        }
+        // Defensive cap — the rolling calendar UI enforces at most 3 weeks ahead, but the
+        // data layer shouldn't silently trust that; keep only the 3 nearest future weeks.
+        // `all` (and therefore this filtered slice) is sorted furthest-future-first, so it
+        // must be re-sorted nearest-first before dropFirst(3) — otherwise dropFirst keeps
+        // the *furthest* 3 and deletes the nearest ones, which is exactly backwards.
+        let future = all
+            .filter { $0.weekStartDate > todayWeekStart }
+            .sorted { $0.weekStartDate < $1.weekStartDate }
+        if future.count > 3 {
+            future.dropFirst(3).forEach { context.delete($0) }
         }
 
         return result
     }
 
-    /// Reads the current cache and decodes it back into a WeekSchedule.
-    /// Returns nil if the cache is empty or stale (caller should trigger regenerate).
-    static func loadCachedSchedule(context: ModelContext, events: [Event]) throws -> WeekSchedule? {
+    /// Reads a cached schedule and decodes it back into a WeekSchedule.
+    /// - Parameter weekOffset: Which week to load, in weeks from the current week (0 = this week).
+    /// Returns nil if no cache exists yet for that week (caller should trigger regenerate).
+    static func loadCachedSchedule(context: ModelContext, events: [Event], weekOffset: Int = 0) throws -> WeekSchedule? {
+        // Silent clamp, not an assert — see regenerate's matching comment.
+        let weekOffset = max(0, weekOffset)
+        let targetStart = weekStart(offsetWeeks: weekOffset)
         let descriptor = FetchDescriptor<WeekCache>(sortBy: [SortDescriptor(\.weekStartDate, order: .reverse)])
         let caches = try context.fetch(descriptor)
-        guard let cache = caches.first else { return nil }
 
-        // Stale if the cache is from a previous week
-        guard mondayCal.isDate(cache.weekStartDate, equalTo: weekStart(), toGranularity: .weekOfYear) else {
-            return nil
-        }
+        // Search for the matching week — don't assume the newest row is the one wanted,
+        // since multiple weeks (this week + rolling-calendar future weeks) can coexist.
+        guard let cache = caches.first(where: {
+            mondayCal.isDate($0.weekStartDate, equalTo: targetStart, toGranularity: .weekOfYear)
+        }) else { return nil }
 
         let placements = try decodePlacements(cache.placementsJSON, events: events)
         let fixed = events.compactMap { toFixedEvent($0) }
@@ -296,6 +329,14 @@ enum SchedulerService {
         return mondayCal.dateInterval(of: .weekOfYear, for: date)?.start ?? date
     }
 
+    /// Returns the Monday of the week `offsetWeeks` weeks from now (0 = this week, 1 = next
+    /// week, etc.) — the rolling calendar feature's target-week lookup. Uses Calendar arithmetic
+    /// rather than raw time-interval math so it stays correct across DST transitions.
+    static func weekStart(offsetWeeks: Int) -> Date {
+        let base = mondayCal.date(byAdding: .weekOfYear, value: offsetWeeks, to: Date()) ?? Date()
+        return weekStart(for: base)
+    }
+
     /// A Monday-start calendar used for all week boundary comparisons so they're
     /// consistent with weekStart() regardless of the device's locale/firstWeekday.
     static var mondayCal: Calendar {
@@ -339,7 +380,8 @@ enum SchedulerService {
 
     // Calendar.weekday: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
     // DayOfWeek.rawValue: 1=Mon … 7=Sun
-    private static func todayAsDayOfWeek() -> DayOfWeek {
+    // internal (not private) — WeekGenerationView reads this for the rolling-calendar access check.
+    static func todayAsDayOfWeek() -> DayOfWeek {
         switch Calendar.current.component(.weekday, from: Date()) {
         case 1: return .sunday
         case 2: return .monday

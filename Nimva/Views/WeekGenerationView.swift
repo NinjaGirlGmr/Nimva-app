@@ -31,11 +31,24 @@ struct WeekGenerationView: View {
     // otherwise the note would never render on the very approval it's meant for.
     @State private var showStabilityNoteThisApproval = false
 
+    // Rolling calendar week (#13): 0 = this week, 1 = next week, up to 3 for PRO.
+    @State private var weekOffset: Int = 0
+    // Guards the staggered-reveal animation's delayed closures against a week switch
+    // happening mid-build — without this, a stale closure from a build the user
+    // navigated away from could stomp the newly-selected week's state.
+    @State private var buildToken = UUID()
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(ProService.self) private var proService
 
     private var fixedEvents: [Event]    { events.filter(\.isFixed) }
     private var flexibleEvents: [Event] { events.filter { !$0.isFixed } }
     private var userType: UserType      { SchedulerService.detectUserType(events: events) }
+
+    // Rolling calendar week (#13): how far ahead this user can currently navigate.
+    private var maxWeekOffset: Int {
+        WeekAccessPolicy.maxVisibleOffset(today: SchedulerService.todayAsDayOfWeek(), isProEnabled: proService.isProEnabled)
+    }
 
     var body: some View {
         ZStack {
@@ -51,6 +64,7 @@ struct WeekGenerationView: View {
                 ScrollView {
                     VStack(spacing: 24) {
                         headerRow
+                        weekNavRow
                         dayGrid
                         if genState == .ready    { unscheduledSection }
                         if genState == .done     { insightChips }
@@ -73,6 +87,12 @@ struct WeekGenerationView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Something went wrong generating your schedule. Try again or restart the app if the problem persists.")
+        }
+        .onAppear {
+            // Reflects whatever was already explicitly built for this week, if anything —
+            // a read of prior state, not a new computation, so this doesn't reintroduce
+            // the silent-auto-build behavior removed elsewhere in the app.
+            switchToWeek(weekOffset)
         }
     }
 
@@ -100,6 +120,42 @@ struct WeekGenerationView: View {
                     .clipShape(Circle())
             }
             .accessibilityLabel("Add event")
+        }
+    }
+
+    // MARK: - Week navigation (#13 — rolling calendar)
+
+    private var weekNavRow: some View {
+        HStack {
+            Button { switchToWeek(weekOffset - 1) } label: {
+                Image(systemName: "chevron.left")
+                    .font(NimvaFont.calloutSemi)
+                    .foregroundStyle(weekOffset > 0 ? NimvaColors.textPrimary : NimvaColors.textMuted.opacity(0.3))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .disabled(weekOffset <= 0 || genState == .building)
+            .accessibilityLabel("Previous week")
+
+            Spacer()
+
+            Text(WeekAccessPolicy.weekLabel(offset: weekOffset, weekStartDate: SchedulerService.weekStart(offsetWeeks: weekOffset)))
+                .font(NimvaFont.bodySemi)
+                .foregroundStyle(NimvaColors.textSecondary)
+
+            Spacer()
+
+            Button { switchToWeek(weekOffset + 1) } label: {
+                Image(systemName: "chevron.right")
+                    .font(NimvaFont.calloutSemi)
+                    .foregroundStyle(weekOffset < maxWeekOffset ? NimvaColors.textPrimary : NimvaColors.textMuted.opacity(0.3))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            // No PRO copy anywhere here — the control just silently stops working past
+            // the cap, per the "no PRO mentions outside Insights" non-negotiable rule.
+            .disabled(weekOffset >= maxWeekOffset || genState == .building)
+            .accessibilityLabel("Next week")
         }
     }
 
@@ -499,12 +555,34 @@ struct WeekGenerationView: View {
 
     // MARK: - Actions
 
+    // Switches which week is being viewed, checking for an already-built cache rather than
+    // always dropping back to "ready" — reflects prior explicit state, doesn't compute anything.
+    private func switchToWeek(_ newOffset: Int) {
+        let clamped = min(max(newOffset, 0), maxWeekOffset)
+        weekOffset = clamped
+        revealedDays = []
+        showCutSuggestion = true
+
+        if let cached = try? SchedulerService.loadCachedSchedule(context: modelContext, events: events, weekOffset: clamped) {
+            schedule = cached
+            progress = 1.0
+            genState = .done
+        } else {
+            schedule = nil
+            progress = 0
+            genState = .ready
+        }
+    }
+
     private func startBuilding() {
+        let token = UUID()
+        buildToken = token
+
         do {
             // preservePastPlacements: false — explicit Plan-tab build always starts fresh from today.
             // Using the returned schedule directly avoids a cache round-trip (and the unsorted-fetch
             // bug that could return a historical week's cache and leave schedule == nil).
-            schedule = try SchedulerService.regenerate(context: modelContext, events: events, preservePastPlacements: false)
+            schedule = try SchedulerService.regenerate(context: modelContext, events: events, preservePastPlacements: false, weekOffset: weekOffset)
         } catch {
             showingScheduleError = true
             return
@@ -528,6 +606,7 @@ struct WeekGenerationView: View {
         let days = DayOfWeek.orderedForLocale
         for (i, day) in days.enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.3) {
+                guard buildToken == token else { return }   // stale — a week switch happened mid-build
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                     revealedDays.insert(day)
                     progress = Double(i + 1) / Double(days.count)
@@ -538,6 +617,7 @@ struct WeekGenerationView: View {
         // Transition to done after all days have been revealed
         let finishDelay = Double(days.count) * 0.3 + 0.5
         DispatchQueue.main.asyncAfter(deadline: .now() + finishDelay) {
+            guard buildToken == token else { return }   // stale — a week switch happened mid-build
             withAnimation(.easeInOut(duration: 0.4)) {
                 genState = .done
                 progress = 1.0  // Bar stays full — week is 100% built; quality shown by chips below
@@ -592,6 +672,7 @@ struct WeekGenerationView: View {
 
             Button {
                 withAnimation { genState = .ready; progress = 0 }
+                weekOffset = 0
                 selectedTab = 0
             } label: {
                 Text("Back to home")
@@ -753,5 +834,6 @@ private struct StatusChip: View {
 
 #Preview {
     WeekGenerationView()
+        .environment(ProService())
         .modelContainer(for: [Event.self, WeekCache.self], inMemory: true)
 }
