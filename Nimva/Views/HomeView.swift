@@ -29,17 +29,20 @@ struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
-    // Convenience accessor — at most one cache entry exists at a time
-    private var cache: WeekCache? { caches.first }
-
-    // True when there's no cache, or the stored cache is from a previous week.
-    private var cacheIsStale: Bool {
-        guard let cache else { return true }
-        return !SchedulerService.mondayCal.isDate(
-            cache.weekStartDate,
-            equalTo: SchedulerService.weekStart(),
-            toGranularity: .weekOfYear
-        )
+    // Most recent cache, but only if it's actually for the current week — a cache left
+    // over from a previous week (or none at all) is treated as "not built yet" and falls
+    // through to the "Ready to build your week?" nudge, never shown as if it were current.
+    // The week is only ever (re)computed when the user explicitly taps "Build my week" or
+    // "Redo" in the Plan tab, or edits/deletes an event — never silently in the background.
+    private var cache: WeekCache? {
+        guard let latest = caches.first,
+              SchedulerService.mondayCal.isDate(
+                  latest.weekStartDate,
+                  equalTo: SchedulerService.weekStart(),
+                  toGranularity: .weekOfYear
+              )
+        else { return nil }
+        return latest
     }
 
     // Loads per day from the current cache (fallback: all zeros)
@@ -480,10 +483,13 @@ struct HomeView: View {
         }
         .animation(reduceMotion ? .none : NimvaAnimation.cardAppear, value: showUndoBanner)
         .animation(reduceMotion ? .none : NimvaAnimation.cardAppear, value: events.isEmpty)
-        .sheet(isPresented: $showingAddEvent, onDismiss: recomputeSchedule) {
+        // No onDismiss recompute — adding/editing an event no longer auto-rebuilds the
+        // schedule. New/edited flexible events sit as "unscheduled" (Plan tab already
+        // supports this) until the user explicitly taps "Build my week" or "Redo".
+        .sheet(isPresented: $showingAddEvent) {
             AddEventView(defaultDay: selectedDay)
         }
-        .sheet(item: $eventToEdit, onDismiss: recomputeSchedule) { event in
+        .sheet(item: $eventToEdit) { event in
             EditEventView(event: event)
         }
         .sheet(isPresented: $showingAddIntention) {
@@ -500,18 +506,15 @@ struct HomeView: View {
                 openAddEventOnLaunch = false
                 showingAddEvent = true
             }
-            if cacheIsStale && !events.isEmpty {
-                recomputeSchedule()
-            }
         }
         .onChange(of: scenePhase) { _, newPhase in
-            // Catch the case where the app was backgrounded over a week boundary.
-            // Without this, the old week's cache is shown until the user edits an event.
+            // Catch the case where the app was backgrounded over a day/week boundary and
+            // re-snap the selected day — but never silently rebuild the schedule. A cache
+            // left over from a previous week is handled by `cache` returning nil for it,
+            // which surfaces the "Ready to build your week?" nudge instead. Building only
+            // ever happens when the user explicitly taps "Build my week" or "Redo".
             if newPhase == .active {
-                if cacheIsStale && !events.isEmpty {
-                    selectedDay = Self.todayDayOfWeek()
-                    recomputeSchedule()
-                }
+                selectedDay = Self.todayDayOfWeek()
                 contentAppeared = true
             }
         }
