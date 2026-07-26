@@ -565,6 +565,11 @@ struct WeekGenerationView: View {
 
         if let cached = try? SchedulerService.loadCachedSchedule(context: modelContext, events: events, weekOffset: clamped) {
             schedule = cached
+            // No build animation runs on this path (we're loading existing state, not
+            // computing it fresh), so reveal every day immediately — otherwise dayGrid's
+            // showFlexible check (which gates on revealedDays) stays false forever and
+            // the already-placed flexible events silently never render.
+            revealedDays = Set(DayOfWeek.allCases)
             progress = 1.0
             genState = .done
         } else {
