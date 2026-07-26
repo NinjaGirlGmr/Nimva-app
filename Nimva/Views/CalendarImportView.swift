@@ -65,13 +65,13 @@ struct CalendarImportView: View {
             Text("📅")
                 .font(NimvaFont.largeDisplay)
 
-            Text(candidates.isEmpty ? "Nothing new this week" : "Found \(candidates.count) new \(candidates.count == 1 ? "event" : "events")")
+            Text(candidates.isEmpty ? "Nothing new in the next few weeks" : "Found \(candidates.count) new \(candidates.count == 1 ? "event" : "events")")
                 .font(NimvaFont.pageTitleBold)
                 .foregroundStyle(NimvaColors.textPrimary)
 
             Text(candidates.isEmpty
-                ? "No new timed events were found in your Apple Calendar for this week."
-                : "Select which events to add to this week.")
+                ? "No new timed events were found in your Apple Calendar for the next few weeks."
+                : "Select which events to add.")
                 .font(NimvaFont.body)
                 .foregroundStyle(NimvaColors.textSecondary)
                 .multilineTextAlignment(.center)
@@ -126,15 +126,17 @@ struct CalendarImportView: View {
                         .font(NimvaFont.calloutMed)
                         .foregroundStyle(NimvaColors.textPrimary)
                         .lineLimit(1)
-                    Text(timeLabel(for: candidate))
+                    Text("\(timeLabel(for: candidate)) · \(recurrenceLabel(for: candidate))")
                         .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted)
                 }
 
                 Spacer()
 
-                // Day chip
-                Text(candidate.day.shortName)
+                // Recurring events show the weekday they repeat on; one-off events show
+                // their actual date instead, since day-of-week alone would be misleading
+                // for something that only happens once.
+                Text(candidate.isRecurring ? candidate.day.shortName : shortDateLabel(candidate.specificDate))
                     .font(NimvaFont.chip)
                     .foregroundStyle(NimvaColors.purplePrimary)
                     .padding(.horizontal, 8)
@@ -156,6 +158,16 @@ struct CalendarImportView: View {
         fmt.timeStyle = .short
         fmt.dateStyle = .none
         return "\(fmt.string(from: candidate.startTime)) – \(fmt.string(from: candidate.endTime))"
+    }
+
+    private func recurrenceLabel(for candidate: CalendarImportService.ImportCandidate) -> String {
+        candidate.isRecurring ? "Every \(candidate.day.displayName)" : "One-time"
+    }
+
+    private func shortDateLabel(_ date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "MMM d"
+        return fmt.string(from: date)
     }
 
     // MARK: - Action bar

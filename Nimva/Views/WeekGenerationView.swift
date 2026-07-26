@@ -171,7 +171,10 @@ struct WeekGenerationView: View {
             ForEach(DayOfWeek.orderedForLocale, id: \.self) { day in
                 GenDayColumn(
                     day: day,
-                    fixedEvents: fixedEvents.filter { $0.fixedDay == day },
+                    fixedEvents: fixedEvents.filter {
+                        $0.fixedDay == day
+                            && SchedulerService.isFixedEventVisible($0, inWeekStarting: SchedulerService.weekStart(offsetWeeks: weekOffset))
+                    },
                     placedFlexible: placedFlexibleOn(day),
                     // In .ready, all columns show their fixed anchors immediately.
                     // In .building, a day's flexible events appear only after it's been "revealed".

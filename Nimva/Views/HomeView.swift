@@ -55,7 +55,9 @@ struct HomeView: View {
             uniqueKeysWithValues: DayOfWeek.allCases.map { ($0, 0.0) }
         )
         for event in events where event.isFixed {
-            if let day = event.fixedDay { loads[day, default: 0] += event.energyCost }
+            if let day = event.fixedDay, SchedulerService.isFixedEventVisible(event, inWeekStarting: cache.weekStartDate) {
+                loads[day, default: 0] += event.energyCost
+            }
         }
         if let data = cache.placementsJSON.data(using: .utf8),
            let records = try? JSONDecoder().decode([FlexRecord].self, from: data) {
@@ -78,7 +80,10 @@ struct HomeView: View {
         if let cache {
             raw = SchedulerService.events(for: selectedDay, cache: cache, from: events)
         } else {
-            raw = events.filter { $0.isFixed && $0.fixedDay == selectedDay }
+            raw = events.filter {
+                $0.isFixed && $0.fixedDay == selectedDay
+                    && SchedulerService.isFixedEventVisible($0, inWeekStarting: SchedulerService.weekStart())
+            }
         }
         // Fixed events sort by start time; flex events (no startTime) fall to the end.
         return raw.sorted { a, b in

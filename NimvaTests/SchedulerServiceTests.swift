@@ -389,6 +389,45 @@ struct MultiWeekSchedulerServiceTests {
             all.first!.weekStartDate, equalTo: SchedulerService.weekStart(), toGranularity: .weekOfYear
         ))
     }
+
+    // Regression test for multi-week calendar import: a date-specific fixed event
+    // (Event.specificDate set) must only appear in the week containing that date,
+    // never in an adjacent week's build.
+    @Test func dateSpecificFixedEventOnlyAppearsInItsOwnWeek() throws {
+        let context = try makeInMemoryContext()
+        let nextWeekMonday = SchedulerService.weekStart(offsetWeeks: 1)
+        let oneOffEvent = Event(
+            name: "Dentist", isFixed: true, fixedDay: .monday,
+            startTime: nextWeekMonday, endTime: nextWeekMonday.addingTimeInterval(3600),
+            specificDate: nextWeekMonday
+        )
+
+        let thisWeekResult = try SchedulerService.regenerate(context: context, events: [oneOffEvent], weekOffset: 0)
+        #expect(!thisWeekResult.fixedEvents.contains { $0.name == "Dentist" })
+
+        let nextWeekResult = try SchedulerService.regenerate(context: context, events: [oneOffEvent], weekOffset: 1)
+        #expect(nextWeekResult.fixedEvents.contains { $0.name == "Dentist" })
+    }
+}
+
+// MARK: - isFixedEventVisible (multi-week calendar import)
+
+@Suite("SchedulerService — isFixedEventVisible")
+struct IsFixedEventVisibleTests {
+
+    @Test func recurringEventWithNoSpecificDateIsAlwaysVisible() {
+        let event = Event(name: "Math Class", isFixed: true, fixedDay: .monday)
+        #expect(SchedulerService.isFixedEventVisible(event, inWeekStarting: SchedulerService.weekStart()))
+        #expect(SchedulerService.isFixedEventVisible(event, inWeekStarting: SchedulerService.weekStart(offsetWeeks: 2)))
+    }
+
+    @Test func dateSpecificEventVisibleOnlyInMatchingWeek() {
+        let targetWeek = SchedulerService.weekStart(offsetWeeks: 1)
+        let event = Event(name: "Dentist", isFixed: true, fixedDay: .monday, specificDate: targetWeek)
+        #expect(SchedulerService.isFixedEventVisible(event, inWeekStarting: targetWeek))
+        #expect(!SchedulerService.isFixedEventVisible(event, inWeekStarting: SchedulerService.weekStart()))
+        #expect(!SchedulerService.isFixedEventVisible(event, inWeekStarting: SchedulerService.weekStart(offsetWeeks: 2)))
+    }
 }
 
 // MARK: - isLightWeek

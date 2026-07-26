@@ -11,6 +11,12 @@ final class Event {
     var fixedDay: DayOfWeek?
     var startTime: Date?
     var endTime: Date?
+    // nil (default): recurs every week forever, matching fixedDay — the original,
+    // still-default behavior for every manually-added or previously-imported event.
+    // Non-nil: this occurrence only applies to the single week containing this date
+    // (a one-off calendar import, e.g. a single doctor's appointment) — see
+    // SchedulerService.isFixedEventVisible(_:inWeekStarting:).
+    var specificDate: Date?
 
     // Flexible event fields
     var preferredWindow: TimePreference?
@@ -46,6 +52,7 @@ final class Event {
         fixedDay: DayOfWeek? = nil,
         startTime: Date? = nil,
         endTime: Date? = nil,
+        specificDate: Date? = nil,
         preferredWindow: TimePreference? = nil,
         duration: TimeInterval? = nil,
         energyCost: Double = 0.5,
@@ -63,6 +70,7 @@ final class Event {
         self.fixedDay = fixedDay
         self.startTime = startTime
         self.endTime = endTime
+        self.specificDate = specificDate
         self.preferredWindow = preferredWindow
         self.duration = duration
         self.energyCost = min(max(energyCost, 0.0), 1.0)
