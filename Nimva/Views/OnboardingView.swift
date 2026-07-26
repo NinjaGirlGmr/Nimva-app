@@ -1,4 +1,6 @@
 import SwiftUI
+import EventKit
+import SwiftData
 
 // Root container for the 4-screen onboarding flow.
 // Uses a paged TabView so screens slide horizontally — familiar, low-friction.
@@ -521,8 +523,21 @@ private struct ReadyScreen: View {
     @State private var showAddEvent = false
     @FocusState private var nameFocused: Bool
 
+    // Calendar import — a friction reducer for Step 1 specifically, since this app's
+    // core audience (students) usually already has classes/meetings in their phone
+    // calendar. Kept secondary to manual entry and asked for right where the benefit
+    // is obvious (not cold on screen 1) — matches how EventKit permission priming
+    // works best: request access when the reason is immediate and visible.
+    @Environment(\.modelContext) private var modelContext
+    @Query private var existingEvents: [Event]
+    @State private var ekStore = EKEventStore()
+    @State private var isImportingFromCalendar = false
+    @State private var showingCalendarImport = false
+    @State private var showingCalendarDenied = false
+    @State private var calendarCandidates: [CalendarImportService.ImportCandidate] = []
+
     private let steps = [
-        ("1", "Add your fixed events", "Classes, meetings — anything with a set time"),
+        ("1", "Add your fixed events", "Classes, meetings — or import them from your calendar"),
         ("2", "Add flexible tasks",    "Study sessions, gym, anything you can move around"),
         ("3", "Build your week",       "Nimva places everything based on your energy load"),
     ]
@@ -608,6 +623,22 @@ private struct ReadyScreen: View {
 
                 Button {
                     saveName()
+                    connectAndImportCalendar()
+                } label: {
+                    if isImportingFromCalendar {
+                        ProgressView()
+                            .tint(NimvaColors.textSecondary)
+                    } else {
+                        Text("or, add from calendar")
+                            .font(NimvaFont.callout)
+                            .foregroundStyle(NimvaColors.textSecondary)
+                    }
+                }
+                .frame(minHeight: 44)
+                .disabled(isImportingFromCalendar)
+
+                Button {
+                    saveName()
                     onSkip()
                 } label: {
                     Text("Maybe later")
@@ -623,6 +654,49 @@ private struct ReadyScreen: View {
         // before being dropped into the main app — smoother first-run experience
         .sheet(isPresented: $showAddEvent, onDismiss: onAddEvent) {
             AddEventView()
+        }
+        .sheet(isPresented: $showingCalendarImport) {
+            CalendarImportView(
+                candidates: calendarCandidates,
+                onImport: { selected in
+                    CalendarImportService.insert(selected, into: modelContext)
+                    showingCalendarImport = false
+                    // Events already exist now — no need to force-open the manual
+                    // add-event sheet on first launch, unlike the "Add my first
+                    // event" path. onSkip just proceeds to the trial prompt/completion.
+                    onSkip()
+                },
+                onCancel: { showingCalendarImport = false }
+            )
+        }
+        .alert("Calendar Access Needed", isPresented: $showingCalendarDenied) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Nimva needs calendar access to import your events. Enable it in Settings › Privacy › Calendars, or add events manually instead.")
+        }
+    }
+
+    private func connectAndImportCalendar() {
+        isImportingFromCalendar = true
+        Task {
+            let granted = await CalendarImportService.requestAccess(store: ekStore)
+            await MainActor.run {
+                isImportingFromCalendar = false
+                guard granted else {
+                    showingCalendarDenied = true
+                    return
+                }
+                calendarCandidates = CalendarImportService.fetchCandidates(
+                    store: ekStore,
+                    existingEvents: existingEvents
+                )
+                showingCalendarImport = true
+            }
         }
     }
 
