@@ -169,6 +169,20 @@ enum SchedulerService {
         )
     }
 
+    // MARK: - Current week cache lookup
+
+    /// Finds the cache matching the current week among all caches — searches rather than
+    /// assuming the newest row is the one wanted. A stale future-week cache (from building
+    /// ahead via the rolling calendar) would otherwise sort as "newest" and be mistaken for
+    /// "nothing's been built yet" even when a valid current-week cache exists elsewhere in
+    /// the list. Same class of bug already fixed once in loadCachedSchedule — this is the
+    /// shared, testable version so it isn't duplicated (and re-broken) inline per caller.
+    static func currentWeekCache(from caches: [WeekCache]) -> WeekCache? {
+        caches.first {
+            mondayCal.isDate($0.weekStartDate, equalTo: weekStart(), toGranularity: .weekOfYear)
+        }
+    }
+
     // MARK: - Day query
 
     /// Returns all events scheduled on a given day — fixed events anchored there, plus

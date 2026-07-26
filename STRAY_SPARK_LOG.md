@@ -205,3 +205,15 @@ This log pairs naturally with GitHub Issues once development moves to a reposito
 **Catch:** Removed both `assert` calls, kept only the silent `max(0, weekOffset)` clamp. This path needs to degrade safely even in debug builds (where the negative-offset regression test runs), not trap — a hard precondition would have been the right call for something the codebase asserts can truly never happen without a caller bug, but here the whole point was "verify this is handled gracefully," which is incompatible with a crashing guard. Rule going forward: don't pair `assert`/`precondition` with a fallback for the same condition in the same breath, and if a test deliberately exercises an "invalid" input, that's a signal the code path should degrade, not trap.
 
 **Tags:** #bug #testing #swift-gotcha
+
+---
+
+### 2026-07-26 — "assume the newest row is the one you want" bit three separate times
+
+**Spark:** Bug-testing the rolling calendar surfaced Home showing fixed events fine but never flexible ones, even after confirming a real "This week" build existed and displayed correctly in the Plan tab. Traced it to `HomeView.cache` — `caches.first` (newest by `weekStartDate`), then check if *that* row happens to match the current week; if not, treat it as "nothing built yet." Once a future week gets built via the rolling calendar chevrons, that future cache is legitimately "newest," so Home silently decided the current week — which was genuinely, correctly built — didn't exist.
+
+**Chase:** This is the exact same mistake as `loadCachedSchedule`'s original `.first`-then-check bug from the rolling calendar's design-review pass (2026-07-23), and structurally similar to the future-trim ordering bug from the hardening pass the next day — three separate instances this week of "grab the newest/first item and assume it's the one you want" instead of actually searching for the match. The first two got fixed in `SchedulerService`; this one lived in `HomeView`'s own inline computed property, which duplicated similar lookup logic instead of reusing anything, so the earlier fix never reached it.
+
+**Catch:** Extracted `SchedulerService.currentWeekCache(from:)` — a shared, searching (`caches.first { matches }`, not `caches.first` then check) lookup — and pointed `HomeView.cache` at it instead of keeping its own inline duplicate. Added regression tests specifically for "a newer future cache exists but the current week should still be found." Rule worth remembering: whenever multiple time-scoped rows can coexist (which is now permanent given the rolling calendar), "newest" and "the one I want" are different questions — every lookup needs to ask the second one explicitly, and duplicated inline versions of the same lookup are exactly how a fix in one place stops covering the others.
+
+**Tags:** #bug #decision #swift-gotcha
