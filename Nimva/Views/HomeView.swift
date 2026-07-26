@@ -35,14 +35,7 @@ struct HomeView: View {
     // The week is only ever (re)computed when the user explicitly taps "Build my week" or
     // "Redo" in the Plan tab, or edits/deletes an event — never silently in the background.
     private var cache: WeekCache? {
-        guard let latest = caches.first,
-              SchedulerService.mondayCal.isDate(
-                  latest.weekStartDate,
-                  equalTo: SchedulerService.weekStart(),
-                  toGranularity: .weekOfYear
-              )
-        else { return nil }
-        return latest
+        SchedulerService.currentWeekCache(from: caches)
     }
 
     // Loads per day — fixed-event load is always computable directly from events, with

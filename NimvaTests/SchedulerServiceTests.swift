@@ -247,6 +247,38 @@ private func makeInMemoryContext() throws -> ModelContext {
     return ModelContext(try ModelContainer(for: schema, configurations: [config]))
 }
 
+// MARK: - currentWeekCache(from:)
+
+@Suite("SchedulerService — currentWeekCache")
+struct CurrentWeekCacheTests {
+
+    @Test func findsCurrentWeekCacheWhenItIsTheOnlyOne() {
+        let cache = WeekCache(weekStartDate: SchedulerService.weekStart(), placementsJSON: "[]", balanceScore: 0, heavyDayValues: [])
+        #expect(SchedulerService.currentWeekCache(from: [cache]) === cache)
+    }
+
+    // Regression test for a bug where Home treated a genuinely-built current week as
+    // "not built yet" whenever a newer future-week cache (from testing the rolling
+    // calendar) existed — the lookup assumed the newest row was the one wanted instead
+    // of searching for the actual match.
+    @Test func findsCurrentWeekCacheEvenWhenANewerFutureCacheExists() {
+        let current = WeekCache(weekStartDate: SchedulerService.weekStart(), placementsJSON: "[]", balanceScore: 0, heavyDayValues: [])
+        let future = WeekCache(weekStartDate: SchedulerService.weekStart(offsetWeeks: 2), placementsJSON: "[]", balanceScore: 0, heavyDayValues: [])
+        // Newest-first, matching the @Query sort order HomeView actually uses.
+        let result = SchedulerService.currentWeekCache(from: [future, current])
+        #expect(result === current)
+    }
+
+    @Test func returnsNilWhenOnlyFutureCachesExist() {
+        let future = WeekCache(weekStartDate: SchedulerService.weekStart(offsetWeeks: 1), placementsJSON: "[]", balanceScore: 0, heavyDayValues: [])
+        #expect(SchedulerService.currentWeekCache(from: [future]) == nil)
+    }
+
+    @Test func returnsNilForEmptyList() {
+        #expect(SchedulerService.currentWeekCache(from: []) == nil)
+    }
+}
+
 @Suite("SchedulerService — multi-week regenerate/load")
 @MainActor
 struct MultiWeekSchedulerServiceTests {
