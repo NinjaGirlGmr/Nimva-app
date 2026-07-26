@@ -45,20 +45,21 @@ struct HomeView: View {
         return latest
     }
 
-    // Loads per day from the current cache (fallback: all zeros)
+    // Loads per day — fixed-event load is always computable directly from events, with
+    // no build required. Flexible-event placements layer on top once a cache exists.
+    // This keeps EnergyZoneCard/Ember meaningful before the first "Build my week" tap,
+    // not just after — the fixed-only picture is partial, but not nothing.
     private var dailyLoads: [DayOfWeek: Double] {
-        guard let cache else {
-            return Dictionary(uniqueKeysWithValues: DayOfWeek.allCases.map { ($0, 0.0) })
-        }
-        // Recompute loads from cache placements + fixed events
         var loads: [DayOfWeek: Double] = Dictionary(
             uniqueKeysWithValues: DayOfWeek.allCases.map { ($0, 0.0) }
         )
+        let referenceWeekStart = cache?.weekStartDate ?? SchedulerService.weekStart()
         for event in events where event.isFixed {
-            if let day = event.fixedDay, SchedulerService.isFixedEventVisible(event, inWeekStarting: cache.weekStartDate) {
+            if let day = event.fixedDay, SchedulerService.isFixedEventVisible(event, inWeekStarting: referenceWeekStart) {
                 loads[day, default: 0] += event.energyCost
             }
         }
+        guard let cache else { return loads }
         if let data = cache.placementsJSON.data(using: .utf8),
            let records = try? JSONDecoder().decode([FlexRecord].self, from: data) {
             for record in records {
@@ -72,7 +73,12 @@ struct HomeView: View {
     }
 
     private var heavyDays: Set<DayOfWeek> {
-        Set((cache?.heavyDayValues ?? []).compactMap { DayOfWeek(rawValue: $0) })
+        if let cache {
+            return Set(cache.heavyDayValues.compactMap { DayOfWeek(rawValue: $0) })
+        }
+        // No build yet — approximate from fixed-only load using the same threshold
+        // the algorithm itself uses, so the card still means something pre-build.
+        return Set(dailyLoads.filter { $0.value >= Scheduler.heavyDayThreshold }.map(\.key))
     }
 
     private var eventsForSelectedDay: [Event] {
@@ -156,25 +162,22 @@ struct HomeView: View {
                                 Text("Your week")
                                     .font(NimvaFont.greeting)
                                     .foregroundStyle(NimvaColors.textPrimary)
-                                // #56: overloaded users get honest framing; others get the standard summary
-                                if cache != nil {
-                                    let subtitle = weekSubtitle
-                                    if !subtitle.isEmpty {
-                                        Text(subtitle)
-                                            .font(.system(.caption))
-                                            .foregroundStyle(NimvaColors.textMuted)
-                                            .transition(.opacity)
-                                    }
+                                // #56: overloaded users get honest framing; others get the standard summary.
+                                // Works pre-build too now (dailyLoads has fixed-only data until a build exists).
+                                let subtitle = weekSubtitle
+                                if !subtitle.isEmpty {
+                                    Text(subtitle)
+                                        .font(.system(.caption))
+                                        .foregroundStyle(NimvaColors.textMuted)
+                                        .transition(.opacity)
                                 }
                                 // #59: lightest upcoming day — only when viewing today
-                                if cache != nil {
-                                    let lightestText = lightestDaySubtitle
-                                    if !lightestText.isEmpty {
-                                        Text(lightestText)
-                                            .font(NimvaFont.micro)
-                                            .foregroundStyle(NimvaColors.textMuted.opacity(0.75))
-                                            .transition(.opacity)
-                                    }
+                                let lightestText = lightestDaySubtitle
+                                if !lightestText.isEmpty {
+                                    Text(lightestText)
+                                        .font(NimvaFont.micro)
+                                        .foregroundStyle(NimvaColors.textMuted.opacity(0.75))
+                                        .transition(.opacity)
                                 }
                             }
                             Spacer()
@@ -187,45 +190,44 @@ struct HomeView: View {
                             .padding(.horizontal, 12)
 
                         // ── Energy zone card ──
-                        // Only shown after the first build — before that dailyLoads
-                        // are all zeros and the card conveys nothing meaningful.
-                        if cache != nil {
-                            EnergyZoneCard(
-                                selectedDay: selectedDay,
-                                dailyLoads: dailyLoads,
-                                heavyDays: heavyDays,
-                                eventsOnSelectedDay: eventsForSelectedDay.count,
-                                overflowCount: overflowCount,
-                                userType: userType,
-                                isRecoveryWeek: cache?.wasRecoveryWeek == true
-                            )
-                            .padding(.horizontal, 20)
-                            .transition(.opacity.combined(with: .offset(y: 8)))
-                        }
+                        // Shown as soon as there's at least fixed-event data to work with —
+                        // dailyLoads/heavyDays now compute a fixed-only picture before the
+                        // first "Build my week" tap, and the full picture once a cache exists.
+                        EnergyZoneCard(
+                            selectedDay: selectedDay,
+                            dailyLoads: dailyLoads,
+                            heavyDays: heavyDays,
+                            eventsOnSelectedDay: eventsForSelectedDay.count,
+                            overflowCount: overflowCount,
+                            userType: userType,
+                            isRecoveryWeek: cache?.wasRecoveryWeek == true
+                        )
+                        .padding(.horizontal, 20)
+                        .transition(.opacity.combined(with: .offset(y: 8)))
 
                         // ── Ember daily note ──
                         // Only appears when IntelligenceService has something timing-specific
                         // to say that EnergyZoneCard's generic load narrative doesn't cover.
-                        if cache != nil {
-                            let note = IntelligenceService.dailyNote(events: eventsForSelectedDay)
-                            if !note.isEmpty {
-                                HStack(spacing: 12) {
-                                    EmberView(expression: .calm, size: .mini)
-                                        .frame(width: 28, height: 28)
-                                    Text(note)
-                                        .font(.system(.caption))
-                                        .foregroundStyle(NimvaColors.textSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                    Spacer()
-                                }
-                                .padding(14)
-                                .background(NimvaColors.cardDark)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .padding(.horizontal, 20)
-                                .id(selectedDay)
-                                .transition(.opacity.combined(with: .offset(y: 4)))
-                                .nimvaAnimation(NimvaAnimation.cardAppear, value: selectedDay)
+                        // Works pre-build too — eventsForSelectedDay already falls back to
+                        // fixed-only events until a build exists.
+                        let note = IntelligenceService.dailyNote(events: eventsForSelectedDay)
+                        if !note.isEmpty {
+                            HStack(spacing: 12) {
+                                EmberView(expression: .calm, size: .mini)
+                                    .frame(width: 28, height: 28)
+                                Text(note)
+                                    .font(.system(.caption))
+                                    .foregroundStyle(NimvaColors.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Spacer()
                             }
+                            .padding(14)
+                            .background(NimvaColors.cardDark)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .padding(.horizontal, 20)
+                            .id(selectedDay)
+                            .transition(.opacity.combined(with: .offset(y: 4)))
+                            .nimvaAnimation(NimvaAnimation.cardAppear, value: selectedDay)
                         }
 
                         // ── Forward warning card (#57) ──
