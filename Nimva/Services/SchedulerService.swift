@@ -128,6 +128,13 @@ enum SchedulerService {
             future.dropFirst(3).forEach { context.delete($0) }
         }
 
+        // Explicit save — every other mutation in the app (completion cycling, calendar
+        // import, intention deletion) saves immediately; this was the one place relying
+        // on autosave timing. Without it, a build could exist only in memory: correct in
+        // the view that just built it, but lost if the app is force-quit before an autosave
+        // trigger fires, and not guaranteed to be visible to sibling views in the meantime.
+        try context.save()
+
         return result
     }
 
