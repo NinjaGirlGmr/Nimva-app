@@ -33,6 +33,10 @@ struct WeekGenerationView: View {
 
     // Rolling calendar week (#13): 0 = this week, 1 = next week, up to 3 for PRO.
     @State private var weekOffset: Int = 0
+    // Which day's detail sheet is showing — the day grid's compact bars are color-only
+    // once built, so this is the only way to see what's actually on a given day of a
+    // future week without waiting for it to arrive on Home.
+    @State private var selectedDayDetail: DayOfWeek? = nil
     // Guards the staggered-reveal animation's delayed closures against a week switch
     // happening mid-build — without this, a stale closure from a build the user
     // navigated away from could stomp the newly-selected week's state.
@@ -83,6 +87,14 @@ struct WeekGenerationView: View {
         }
         .animation(reduceMotion ? .none : NimvaAnimation.squashStretch, value: genState == .approved)
         .sheet(isPresented: $showingAddEvent) { AddEventView() }
+        .sheet(isPresented: Binding(
+            get: { selectedDayDetail != nil },
+            set: { if !$0 { selectedDayDetail = nil } }
+        )) {
+            if let day = selectedDayDetail {
+                DayDetailView(day: day, events: eventsForDay(day))
+            }
+        }
         .alert("Couldn't build your week", isPresented: $showingScheduleError) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -169,28 +181,62 @@ struct WeekGenerationView: View {
     private var dayGrid: some View {
         HStack(spacing: 6) {
             ForEach(DayOfWeek.orderedForLocale, id: \.self) { day in
-                GenDayColumn(
-                    day: day,
-                    fixedEvents: fixedEvents.filter {
-                        $0.fixedDay == day
-                            && SchedulerService.isFixedEventVisible($0, inWeekStarting: SchedulerService.weekStart(offsetWeeks: weekOffset))
-                    },
-                    placedFlexible: placedFlexibleOn(day),
-                    // In .ready, all columns show their fixed anchors immediately.
-                    // In .building, a day's flexible events appear only after it's been "revealed".
-                    showFlexible: genState == .ready ? false : revealedDays.contains(day),
-                    isCompact: isCompact
-                )
-                .accessibilityHidden(true)
+                let dayFixed = fixedEvents.filter {
+                    $0.fixedDay == day
+                        && SchedulerService.isEventVisible($0, inWeekStarting: SchedulerService.weekStart(offsetWeeks: weekOffset))
+                }
+                let dayFlex = placedFlexibleOn(day)
+                // Compact-mode bars are color-only with no text — tappable so a day's
+                // actual events are still reachable, here and for future weeks Home
+                // can't show yet (never accessibilityHidden now that it's interactive).
+                Button {
+                    selectedDayDetail = day
+                } label: {
+                    GenDayColumn(
+                        day: day,
+                        fixedEvents: dayFixed,
+                        placedFlexible: dayFlex,
+                        // In .ready, all columns show their fixed anchors immediately.
+                        // In .building, a day's flexible events appear only after it's been "revealed".
+                        showFlexible: genState == .ready ? false : revealedDays.contains(day),
+                        isCompact: isCompact
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(dayAccessibilityLabel(day: day, fixedCount: dayFixed.count, flexCount: dayFlex.count))
+                .accessibilityHint("Double tap for details")
             }
         }
         .nimvaAnimation(.spring(response: 0.35, dampingFraction: 0.75), value: isCompact)
+    }
+
+    private func dayAccessibilityLabel(day: DayOfWeek, fixedCount: Int, flexCount: Int) -> String {
+        let total = fixedCount + flexCount
+        return "\(day.displayName), \(total) event\(total == 1 ? "" : "s")"
     }
 
     private func placedFlexibleOn(_ day: DayOfWeek) -> [Event] {
         guard let schedule else { return [] }
         let ids = Set(schedule.placedFlexibleEvents.filter { $0.day == day }.map(\.event.id))
         return events.filter { ids.contains($0.id) }
+    }
+
+    // Full event list for a day — same fixed+flexible union as dayGrid's columns use,
+    // just sorted for detail display (fixed events by start time, flex events last).
+    private func eventsForDay(_ day: DayOfWeek) -> [Event] {
+        let fixed = fixedEvents.filter {
+            $0.fixedDay == day
+                && SchedulerService.isEventVisible($0, inWeekStarting: SchedulerService.weekStart(offsetWeeks: weekOffset))
+        }
+        let flex = placedFlexibleOn(day)
+        return (fixed + flex).sorted { a, b in
+            switch (a.startTime, b.startTime) {
+            case (.some(let at), .some(let bt)): return at < bt
+            case (.some, .none):                 return true
+            case (.none, .some):                 return false
+            case (.none, .none):                 return false
+            }
+        }
     }
 
     // MARK: - Unscheduled chips (ready state only)
@@ -837,6 +883,49 @@ private struct StatusChip: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(color.opacity(0.25), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - DayDetailView
+// Read-only day detail, reached by tapping a compact day column — the compact bars
+// are color-only once a week is built, so this is the only way to see what's actually
+// on a given day, including future weeks Home has no way to show yet.
+
+private struct DayDetailView: View {
+    let day: DayOfWeek
+    let events: [Event]
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                NimvaColors.background.ignoresSafeArea()
+
+                if events.isEmpty {
+                    Text("Nothing here")
+                        .font(NimvaFont.callout)
+                        .foregroundStyle(NimvaColors.textMuted)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 8) {
+                            ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
+                                EventCard(event: event, index: index)
+                                    .padding(.horizontal, 20)
+                            }
+                        }
+                        .padding(.top, 12)
+                        .padding(.bottom, 24)
+                    }
+                }
+            }
+            .navigationTitle(day.displayName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 }
 

@@ -105,6 +105,26 @@ struct EditEventView: View {
                         .tint(NimvaColors.amber)
                     }
                     .listRowBackground(NimvaColors.cardDark)
+
+                    Section("Repeats") {
+                        Toggle(isOn: Binding(
+                            get: { event.specificDate == nil },
+                            set: { everyWeek in event.specificDate = everyWeek ? nil : (event.specificDate ?? Date()) }
+                        )) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(event.specificDate == nil ? "Every week" : "This week only")
+                                    .font(NimvaFont.callout)
+                                    .foregroundStyle(NimvaColors.textPrimary)
+                                Text(event.specificDate == nil
+                                    ? "A candidate for every week you build"
+                                    : "Won't carry over to future weeks")
+                                    .font(NimvaFont.micro)
+                                    .foregroundStyle(NimvaColors.textMuted)
+                            }
+                        }
+                        .tint(NimvaColors.teal)
+                    }
+                    .listRowBackground(NimvaColors.cardDark)
                 }
 
                 // MARK: Delete
@@ -198,10 +218,16 @@ struct EditEventView: View {
                         event.preferredWindow = nil
                         event.duration = nil
                         event.isPriority = false
+                        // Switching to fixed resets to the normal recurring-fixed-event
+                        // convention (manually-added fixed events never carry specificDate).
+                        event.specificDate = nil
                     } else {
                         event.fixedDay = nil
                         event.startTime = nil
                         event.endTime = nil
+                        // Switching to flexible defaults to "this week only," matching a
+                        // freshly-added flexible event's own default.
+                        event.specificDate = Date()
                     }
                     pendingTypeSwitch = nil
                 }
