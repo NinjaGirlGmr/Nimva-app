@@ -34,7 +34,11 @@ enum SchedulerService {
         let todayWeekStart = weekStart()
 
         let fixed = events.compactMap { toFixedEvent($0, weekStart: targetStart) }
-        let flexible = events.compactMap { toFlexibleEvent($0) }
+        // Same visibility rule as fixed events: a "this week only" flexible event
+        // (Event.specificDate set) is only ever a placement candidate for its own week.
+        let flexible = events
+            .filter { !$0.isFixed && isEventVisible($0, inWeekStarting: targetStart) }
+            .compactMap { toFlexibleEvent($0) }
         let isCurrentWeek = mondayCal.isDate(targetStart, equalTo: todayWeekStart, toGranularity: .weekOfYear)
         // Future weeks have no "past days" yet, so always start from Monday — this also
         // naturally empties pastRecords/idsInPast below without a separate branch.
@@ -183,13 +187,34 @@ enum SchedulerService {
         }
     }
 
+    // MARK: - Recurring-pattern detection
+
+    /// True when a flexible event named `name` has been added as "this week only" in
+    /// `consecutiveWeeks` (default 3) consecutive weeks, including the current one.
+    /// Checked right after saving a new one-off flexible event, to offer converting it
+    /// to recurring instead of requiring manual re-entry every week.
+    static func hasRecurringPattern(name: String, events: [Event], consecutiveWeeks: Int = 3) -> Bool {
+        let target = name.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !target.isEmpty else { return false }
+        let matchingWeeks = Set(events.compactMap { event -> Date? in
+            guard !event.isFixed, let specific = event.specificDate,
+                  event.name.trimmingCharacters(in: .whitespaces).lowercased() == target
+            else { return nil }
+            return weekStart(for: specific)
+        })
+        for i in 0..<consecutiveWeeks {
+            guard matchingWeeks.contains(weekStart(offsetWeeks: -i)) else { return false }
+        }
+        return true
+    }
+
     // MARK: - Day query
 
     /// Returns all events scheduled on a given day — fixed events anchored there, plus
     /// flexible events the algorithm placed there. Used by HomeView to populate the day list.
     static func events(for day: DayOfWeek, cache: WeekCache, from events: [Event]) -> [Event] {
         let fixed = events.filter {
-            $0.isFixed && $0.fixedDay == day && isFixedEventVisible($0, inWeekStarting: cache.weekStartDate)
+            $0.isFixed && $0.fixedDay == day && isEventVisible($0, inWeekStarting: cache.weekStartDate)
         }
         let placedIds = flexibleIds(for: day, in: cache.placementsJSON)
         let flexible = events.filter { !$0.isFixed && placedIds.contains($0.id) }
@@ -202,7 +227,7 @@ enum SchedulerService {
     /// (specificDate == nil — the default, covering every manually-added or
     /// previously-imported event) are visible every week. Date-anchored events (a
     /// one-off calendar import) are visible only in the single week containing that date.
-    static func isFixedEventVisible(_ event: Event, inWeekStarting weekStart: Date) -> Bool {
+    static func isEventVisible(_ event: Event, inWeekStarting weekStart: Date) -> Bool {
         guard let specific = event.specificDate else { return true }
         return mondayCal.isDate(specific, equalTo: weekStart, toGranularity: .weekOfYear)
     }
@@ -291,7 +316,7 @@ enum SchedulerService {
     // MARK: - Mapping: SwiftData Event → pure structs
 
     private static func toFixedEvent(_ event: Event, weekStart: Date) -> FixedEvent? {
-        guard event.isFixed, let day = event.fixedDay, isFixedEventVisible(event, inWeekStarting: weekStart)
+        guard event.isFixed, let day = event.fixedDay, isEventVisible(event, inWeekStarting: weekStart)
         else { return nil }
         return FixedEvent(id: event.id, name: event.name, day: day, energyCost: event.energyCost)
     }

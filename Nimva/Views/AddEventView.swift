@@ -6,6 +6,7 @@ struct AddEventView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Query(sort: \Event.createdAt) private var events: [Event]
 
     @State private var name: String = ""
     @State private var isFixed: Bool = true
@@ -17,10 +18,18 @@ struct AddEventView: View {
     @State private var selectedLabel: EnergyLabel = .manageable
     @State private var energyCost: Double = EnergyLabel.manageable.cost
     @State private var isPriority: Bool = false
+    // Default true — a new flexible event only applies to the current week unless the
+    // user says otherwise, matching how most one-off tasks ("study for chemistry test")
+    // outnumber genuine recurring habits. See hasRecurringPattern below for how a task
+    // added 3 weeks running gets offered as recurring instead of needing this flipped manually.
+    @State private var isThisWeekOnly: Bool = true
     @AppStorage("globalPatternLearning") private var globalPatternLearning = true
     @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
     @State private var category: String = "General"
     @FocusState private var nameFieldFocused: Bool
+
+    @State private var showingRecurringPrompt = false
+    @State private var pendingRecurringEvent: Event? = nil
 
     var body: some View {
         NavigationStack {
@@ -121,6 +130,26 @@ struct AddEventView: View {
                         .tint(NimvaColors.amber)
                     }
                     .listRowBackground(NimvaColors.cardDark)
+
+                    Section("Repeats") {
+                        Toggle(isOn: Binding(
+                            get: { !isThisWeekOnly },
+                            set: { isThisWeekOnly = !$0 }
+                        )) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(isThisWeekOnly ? "This week only" : "Every week")
+                                    .font(NimvaFont.callout)
+                                    .foregroundStyle(NimvaColors.textPrimary)
+                                Text(isThisWeekOnly
+                                    ? "Won't carry over to future weeks"
+                                    : "A candidate for every week you build")
+                                    .font(NimvaFont.micro)
+                                    .foregroundStyle(NimvaColors.textMuted)
+                            }
+                        }
+                        .tint(NimvaColors.teal)
+                    }
+                    .listRowBackground(NimvaColors.cardDark)
                 }
 
                 // MARK: Energy
@@ -189,6 +218,18 @@ struct AddEventView: View {
                     selectedDays = [day]
                 }
             }
+            .alert("Make this recurring?", isPresented: $showingRecurringPrompt) {
+                Button("Make recurring") {
+                    pendingRecurringEvent?.specificDate = nil
+                    try? modelContext.save()
+                    dismiss()
+                }
+                Button("Not now", role: .cancel) {
+                    dismiss()
+                }
+            } message: {
+                Text("You've added \"\(pendingRecurringEvent?.name ?? "this")\" for 3 weeks in a row. Want it to repeat automatically from now on?")
+            }
         }
     }
 
@@ -218,16 +259,23 @@ struct AddEventView: View {
                 ))
             }
         } else {
-            modelContext.insert(Event(
+            let newEvent = Event(
                 name: trimmedName,
                 isFixed: false,
+                specificDate: isThisWeekOnly ? Date() : nil,
                 preferredWindow: preferredWindow,
                 duration: TimeInterval(durationMinutes * 60),
                 energyCost: energyCost,
                 category: category,
                 patternLearningEnabled: globalPatternLearning,
                 isPriority: isPriority
-            ))
+            )
+            modelContext.insert(newEvent)
+            if isThisWeekOnly, SchedulerService.hasRecurringPattern(name: trimmedName, events: events + [newEvent]) {
+                pendingRecurringEvent = newEvent
+                showingRecurringPrompt = true
+                return   // don't dismiss yet — wait for the alert response
+            }
         }
         dismiss()
     }

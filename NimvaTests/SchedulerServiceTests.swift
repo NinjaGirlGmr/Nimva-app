@@ -440,25 +440,121 @@ struct MultiWeekSchedulerServiceTests {
         let nextWeekResult = try SchedulerService.regenerate(context: context, events: [oneOffEvent], weekOffset: 1)
         #expect(nextWeekResult.fixedEvents.contains { $0.name == "Dentist" })
     }
+
+    // Mirror of the fixed-event test above, for flexible events — a "this week only"
+    // flexible event (Event.specificDate set) must only ever be a placement candidate
+    // for the week containing that date, not an adjacent one.
+    @Test func dateSpecificFlexibleEventOnlyAppearsInItsOwnWeek() throws {
+        let context = try makeInMemoryContext()
+        let nextWeekMonday = SchedulerService.weekStart(offsetWeeks: 1)
+        let oneOffFlex = Event(name: "Study for chem test", isFixed: false, specificDate: nextWeekMonday)
+
+        let thisWeekResult = try SchedulerService.regenerate(context: context, events: [oneOffFlex], weekOffset: 0)
+        #expect(!thisWeekResult.placedFlexibleEvents.contains { $0.event.name == "Study for chem test" })
+
+        let nextWeekResult = try SchedulerService.regenerate(context: context, events: [oneOffFlex], weekOffset: 1)
+        #expect(nextWeekResult.placedFlexibleEvents.contains { $0.event.name == "Study for chem test" })
+    }
 }
 
-// MARK: - isFixedEventVisible (multi-week calendar import)
+// MARK: - hasRecurringPattern
 
-@Suite("SchedulerService — isFixedEventVisible")
-struct IsFixedEventVisibleTests {
+@Suite("SchedulerService — hasRecurringPattern")
+struct HasRecurringPatternTests {
+
+    private func oneOffFlex(name: String, weeksAgo: Int) -> Event {
+        Event(name: name, isFixed: false, specificDate: SchedulerService.weekStart(offsetWeeks: -weeksAgo))
+    }
+
+    @Test func threeConsecutiveWeeksMatches() {
+        let events = [
+            oneOffFlex(name: "Study session", weeksAgo: 0),
+            oneOffFlex(name: "Study session", weeksAgo: 1),
+            oneOffFlex(name: "Study session", weeksAgo: 2),
+        ]
+        #expect(SchedulerService.hasRecurringPattern(name: "Study session", events: events))
+    }
+
+    @Test func onlyTwoConsecutiveWeeksDoesNotMatch() {
+        let events = [
+            oneOffFlex(name: "Study session", weeksAgo: 0),
+            oneOffFlex(name: "Study session", weeksAgo: 1),
+        ]
+        #expect(!SchedulerService.hasRecurringPattern(name: "Study session", events: events))
+    }
+
+    @Test func threeWeeksWithAGapDoesNotMatch() {
+        // Missing week -1 — not consecutive, even though 3 total occurrences exist.
+        let events = [
+            oneOffFlex(name: "Study session", weeksAgo: 0),
+            oneOffFlex(name: "Study session", weeksAgo: 2),
+            oneOffFlex(name: "Study session", weeksAgo: 3),
+        ]
+        #expect(!SchedulerService.hasRecurringPattern(name: "Study session", events: events))
+    }
+
+    @Test func nameMatchIsCaseAndWhitespaceInsensitive() {
+        let events = [
+            oneOffFlex(name: "  STUDY session ", weeksAgo: 0),
+            oneOffFlex(name: "study SESSION", weeksAgo: 1),
+            oneOffFlex(name: "Study Session", weeksAgo: 2),
+        ]
+        #expect(SchedulerService.hasRecurringPattern(name: "study session", events: events))
+    }
+
+    @Test func unrelatedNamesDoNotMatch() {
+        let events = [
+            oneOffFlex(name: "Gym", weeksAgo: 0),
+            oneOffFlex(name: "Reading", weeksAgo: 1),
+            oneOffFlex(name: "Cooking", weeksAgo: 2),
+        ]
+        #expect(!SchedulerService.hasRecurringPattern(name: "Study session", events: events))
+    }
+
+    @Test func fixedEventsWithMatchingNameDoNotCount() {
+        let events = [
+            Event(name: "Study session", isFixed: true, fixedDay: .monday, specificDate: SchedulerService.weekStart(offsetWeeks: 0)),
+            Event(name: "Study session", isFixed: true, fixedDay: .monday, specificDate: SchedulerService.weekStart(offsetWeeks: -1)),
+            Event(name: "Study session", isFixed: true, fixedDay: .monday, specificDate: SchedulerService.weekStart(offsetWeeks: -2)),
+        ]
+        #expect(!SchedulerService.hasRecurringPattern(name: "Study session", events: events))
+    }
+
+    @Test func alreadyRecurringEventDoesNotCountTowardThePattern() {
+        // specificDate == nil means "already every week" — it shouldn't feed into
+        // detecting a *new* one-off pattern (there's nothing to promote).
+        let events = [
+            Event(name: "Study session", isFixed: false, specificDate: nil)
+        ]
+        #expect(!SchedulerService.hasRecurringPattern(name: "Study session", events: events))
+    }
+
+    @Test func customThresholdIsRespected() {
+        let events = [
+            oneOffFlex(name: "Study session", weeksAgo: 0),
+            oneOffFlex(name: "Study session", weeksAgo: 1),
+        ]
+        #expect(SchedulerService.hasRecurringPattern(name: "Study session", events: events, consecutiveWeeks: 2))
+    }
+}
+
+// MARK: - isEventVisible (multi-week calendar import)
+
+@Suite("SchedulerService — isEventVisible")
+struct IsEventVisibleTests {
 
     @Test func recurringEventWithNoSpecificDateIsAlwaysVisible() {
         let event = Event(name: "Math Class", isFixed: true, fixedDay: .monday)
-        #expect(SchedulerService.isFixedEventVisible(event, inWeekStarting: SchedulerService.weekStart()))
-        #expect(SchedulerService.isFixedEventVisible(event, inWeekStarting: SchedulerService.weekStart(offsetWeeks: 2)))
+        #expect(SchedulerService.isEventVisible(event, inWeekStarting: SchedulerService.weekStart()))
+        #expect(SchedulerService.isEventVisible(event, inWeekStarting: SchedulerService.weekStart(offsetWeeks: 2)))
     }
 
     @Test func dateSpecificEventVisibleOnlyInMatchingWeek() {
         let targetWeek = SchedulerService.weekStart(offsetWeeks: 1)
         let event = Event(name: "Dentist", isFixed: true, fixedDay: .monday, specificDate: targetWeek)
-        #expect(SchedulerService.isFixedEventVisible(event, inWeekStarting: targetWeek))
-        #expect(!SchedulerService.isFixedEventVisible(event, inWeekStarting: SchedulerService.weekStart()))
-        #expect(!SchedulerService.isFixedEventVisible(event, inWeekStarting: SchedulerService.weekStart(offsetWeeks: 2)))
+        #expect(SchedulerService.isEventVisible(event, inWeekStarting: targetWeek))
+        #expect(!SchedulerService.isEventVisible(event, inWeekStarting: SchedulerService.weekStart()))
+        #expect(!SchedulerService.isEventVisible(event, inWeekStarting: SchedulerService.weekStart(offsetWeeks: 2)))
     }
 }
 

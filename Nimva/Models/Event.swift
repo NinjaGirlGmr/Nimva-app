@@ -15,7 +15,7 @@ final class Event {
     // still-default behavior for every manually-added or previously-imported event.
     // Non-nil: this occurrence only applies to the single week containing this date
     // (a one-off calendar import, e.g. a single doctor's appointment) — see
-    // SchedulerService.isFixedEventVisible(_:inWeekStarting:).
+    // SchedulerService.isEventVisible(_:inWeekStarting:).
     var specificDate: Date?
 
     // Flexible event fields
