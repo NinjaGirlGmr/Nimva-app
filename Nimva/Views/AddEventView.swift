@@ -26,10 +26,22 @@ struct AddEventView: View {
     @AppStorage("globalPatternLearning") private var globalPatternLearning = true
     @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
     @State private var category: String = "General"
+    @State private var categorySuggestionHint: String? = nil
     @FocusState private var nameFieldFocused: Bool
 
     @State private var showingRecurringPrompt = false
     @State private var pendingRecurringEvent: Event? = nil
+    @State private var showingAddCategory = false
+    @State private var newCategoryText = ""
+
+    // Built-in presets first, then any custom categories already in use across real events —
+    // self-cleaning, since nothing separately persists a custom category once every event
+    // using it is deleted. Always includes the currently-selected category so a just-typed
+    // custom one shows up immediately, before it's attached to any saved event.
+    private var categoryOptions: [String] {
+        let custom = Set(events.map(\.category)).union([category]).subtracting(EventCategory.presets)
+        return EventCategory.presets + custom.sorted()
+    }
 
     var body: some View {
         NavigationStack {
@@ -50,6 +62,30 @@ struct AddEventView: View {
                     TextField("What's the event?", text: $name)
                         .foregroundStyle(NimvaColors.textPrimary)
                         .focused($nameFieldFocused)
+                }
+                .listRowBackground(NimvaColors.cardDark)
+
+                // MARK: Category
+                Section("Category") {
+                    Picker("Category", selection: $category) {
+                        ForEach(categoryOptions, id: \.self) { preset in
+                            Text(preset).tag(preset)
+                        }
+                    }
+                    .foregroundStyle(NimvaColors.textPrimary)
+                    .onChange(of: category) { _, newCategory in
+                        applyCategorySuggestion(for: newCategory)
+                    }
+
+                    Button {
+                        newCategoryText = ""
+                        showingAddCategory = true
+                    } label: {
+                        Label("Add a category", systemImage: "plus.circle")
+                            .font(NimvaFont.callout)
+                            .foregroundStyle(NimvaColors.teal)
+                    }
+                    .frame(minHeight: 44)
                 }
                 .listRowBackground(NimvaColors.cardDark)
 
@@ -154,6 +190,11 @@ struct AddEventView: View {
 
                 // MARK: Energy
                 Section("Energy") {
+                    if let hint = categorySuggestionHint {
+                        Label(hint, systemImage: "sparkles")
+                            .font(NimvaFont.micro)
+                            .foregroundStyle(NimvaColors.textMuted)
+                    }
                     VStack(spacing: 8) {
                         ForEach(EnergyLabel.allCases, id: \.self) { label in
                             VStack(alignment: .leading, spacing: 4) {
@@ -230,6 +271,16 @@ struct AddEventView: View {
             } message: {
                 Text("You've added \"\(pendingRecurringEvent?.name ?? "this")\" for 3 weeks in a row. Want it to repeat automatically from now on?")
             }
+            .alert("New category", isPresented: $showingAddCategory) {
+                TextField("e.g. Volunteering", text: $newCategoryText)
+                Button("Add") {
+                    let trimmed = newCategoryText.trimmingCharacters(in: .whitespaces)
+                    guard !trimmed.isEmpty else { return }
+                    category = trimmed
+                    applyCategorySuggestion(for: trimmed)
+                }
+                Button("Cancel", role: .cancel) {}
+            }
         }
     }
 
@@ -243,8 +294,26 @@ struct AddEventView: View {
         return "\(hours)h \(minutes)m"
     }
 
+    // Pre-fills the energy label from the category's learned baseline, if one exists yet.
+    // Never applied silently without the user seeing it — the hint text says why, and the
+    // label buttons stay fully tappable/overridable underneath.
+    private func applyCategorySuggestion(for newCategory: String) {
+        guard newCategory != "General",
+              let baseline = PatternService.shared.baseline(for: newCategory) else {
+            categorySuggestionHint = nil
+            return
+        }
+        let suggested = EnergyLabel.closest(to: baseline)
+        selectedLabel = suggested
+        energyCost = suggested.cost
+        categorySuggestionHint = "Suggested from your past \(newCategory) entries"
+    }
+
     private func saveEvent() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        if globalPatternLearning {
+            PatternService.shared.record(energyCost: energyCost, for: category)
+        }
         if isFixed {
             for day in selectedDays.sorted(by: { $0.rawValue < $1.rawValue }) {
                 modelContext.insert(Event(

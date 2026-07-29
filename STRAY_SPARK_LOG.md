@@ -216,4 +216,18 @@ This log pairs naturally with GitHub Issues once development moves to a reposito
 
 **Catch:** Extracted `SchedulerService.currentWeekCache(from:)` — a shared, searching (`caches.first { matches }`, not `caches.first` then check) lookup — and pointed `HomeView.cache` at it instead of keeping its own inline duplicate. Added regression tests specifically for "a newer future cache exists but the current week should still be found." Rule worth remembering: whenever multiple time-scoped rows can coexist (which is now permanent given the rolling calendar), "newest" and "the one I want" are different questions — every lookup needs to ask the second one explicitly, and duplicated inline versions of the same lookup are exactly how a fix in one place stops covering the others.
 
+**Tags:** #bug #design-change
+
+---
+
+### 2026-07-29 — Two features were fully built, tested, and completely disconnected
+
+**Spark:** User asked whether the app's "static vs. adaptive weighting" was in good shape before beta. Went to check, expecting a small gap. Found two: (1) `PatternLearner`/`PatternService` — the EMA per-category energy baseline system — was fully implemented with a passing test suite, but nothing in the app ever called `.record(...)` or `.baseline(for:...)`. The only live reference was Settings' "Reset learned patterns," resetting data that was never collected. (2) `Event.category` had existed on the model since early in the project, but there was no UI anywhere to set it to anything but the default `"General"` — only `SeedService`'s debug demo data ever used real categories like "School." Onboarding copy confidently claimed both were live ("Nimva learns your patterns... improves its suggestions").
+
+**Chase:** Both gaps were invisible from the code that was actually exercised — the storage layer, the algorithm, and the tests all worked correctly in isolation, so nothing failed and nothing looked broken. The disconnect only showed up by tracing call sites end to end (`grep` for every place `.record`/`.baseline`/`category` actually got read or written) rather than trusting that "there's a passing test suite for this" meant "this is wired into the app." A closed GitHub issue (#11) for "implement per-category baseline storage" reinforced the false confidence — the storage layer genuinely was done, it just never got connected to anything upstream or downstream.
+
+**Catch:** Filed the onboarding overpromise as its own issue (#90, same shape as the earlier #71). Added a real category picker (fixed preset list, not free text, to keep the learning signal clustered) to Add/Edit event views, wired `PatternService.record(...)` on save (gated by the existing per-event/global pattern-learning toggle), added a suggested-label hint at add time from the learned baseline, and surfaced baselines as a new Insights card — all purely observational, nothing feeds back into the scheduler yet (that's #91, deliberately deferred until real usage data exists to learn from). Rule worth remembering: a passing test suite proves a unit works, not that it's reachable — periodically grep for whether a service's public methods are actually called from anywhere outside its own tests, especially for anything built ahead of the UI that was meant to drive it.
+
+**Tags:** #bug #decision #open-question
+
 **Tags:** #bug #decision #swift-gotcha
