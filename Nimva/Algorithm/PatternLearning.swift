@@ -28,3 +28,22 @@ final class PatternLearner {
         current * 0.7 + newRating * 0.3
     }
 }
+
+struct CategoryPattern: Identifiable, Equatable {
+    var id: String { category }
+    let category: String
+    let label: EnergyLabel
+    let count: Int
+}
+
+// Surfaces a learned baseline per category once it has enough tagged occurrences to be
+// meaningful (matches PatternService's own default minimumPoints). "General" is excluded —
+// it's the fallback every event gets when no real category was chosen, so a baseline there
+// isn't a real signal. Sorted by count so the best-supported pattern shows first.
+func categoryPatterns(baselines: [String: Double], counts: [String: Int], minimumPoints: Int = 3) -> [CategoryPattern] {
+    counts.compactMap { category, count -> CategoryPattern? in
+        guard count >= minimumPoints, category != "General", let baseline = baselines[category] else { return nil }
+        return CategoryPattern(category: category, label: EnergyLabel.closest(to: baseline), count: count)
+    }
+    .sorted { $0.count > $1.count }
+}

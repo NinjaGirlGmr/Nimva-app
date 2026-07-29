@@ -307,6 +307,54 @@ struct PatternLearningTests {
     }
 }
 
+// MARK: - Category Patterns (Insights)
+
+@Suite("Category Patterns")
+struct CategoryPatternsTests {
+
+    @Test func belowMinimumPointsExcluded() {
+        let result = categoryPatterns(baselines: ["School": 0.8], counts: ["School": 2])
+        #expect(result.isEmpty)
+    }
+
+    @Test func atMinimumPointsIncluded() {
+        let result = categoryPatterns(baselines: ["School": 0.8], counts: ["School": 3])
+        #expect(result.count == 1)
+        #expect(result.first?.category == "School")
+        // 0.8 is closer to takesEffort (0.75, distance 0.05) than prettyDraining (1.0, distance 0.2)
+        #expect(result.first?.label == .takesEffort)
+    }
+
+    @Test func generalCategoryAlwaysExcluded() {
+        let result = categoryPatterns(baselines: ["General": 0.9], counts: ["General": 10])
+        #expect(result.isEmpty)
+    }
+
+    @Test func categoryWithoutBaselineExcludedEvenIfCounted() {
+        // Defensive: a count entry with no matching baseline shouldn't crash or appear.
+        let result = categoryPatterns(baselines: [:], counts: ["School": 5])
+        #expect(result.isEmpty)
+    }
+
+    @Test func multipleCategoriesSortedByCountDescending() {
+        let result = categoryPatterns(
+            baselines: ["School": 0.8, "Work": 0.5, "Social": 0.2],
+            counts: ["School": 5, "Work": 12, "Social": 3]
+        )
+        #expect(result.map(\.category) == ["Work", "School", "Social"])
+    }
+
+    @Test func customMinimumPointsRespected() {
+        let result = categoryPatterns(baselines: ["Work": 0.6], counts: ["Work": 4], minimumPoints: 5)
+        #expect(result.isEmpty)
+    }
+
+    @Test func labelMapsToClosestBaseline() {
+        let result = categoryPatterns(baselines: ["Health": 0.1], counts: ["Health": 3])
+        #expect(result.first?.label == .noEnergy)
+    }
+}
+
 // MARK: - User Type Detection
 
 @Suite("User Type Detection")
@@ -395,6 +443,25 @@ struct SchedulerTypesTests {
     @Test func energyLabelAllCasesContainsFiveEntries() {
         #expect(EnergyLabel.allCases.count == 5)
         #expect(EnergyLabel.allCases.first == .noEnergy)
+    }
+
+    @Test func closestMatchesExactCosts() {
+        #expect(EnergyLabel.closest(to: 0.0) == .noEnergy)
+        #expect(EnergyLabel.closest(to: 0.25) == .alright)
+        #expect(EnergyLabel.closest(to: 0.5) == .manageable)
+        #expect(EnergyLabel.closest(to: 0.75) == .takesEffort)
+        #expect(EnergyLabel.closest(to: 1.0) == .prettyDraining)
+    }
+
+    @Test func closestRoundsToNearestLabel() {
+        #expect(EnergyLabel.closest(to: 0.82) == .takesEffort)
+        #expect(EnergyLabel.closest(to: 0.9) == .prettyDraining)
+        #expect(EnergyLabel.closest(to: 0.1) == .noEnergy)
+    }
+
+    @Test func closestClampsOutOfRangeValues() {
+        #expect(EnergyLabel.closest(to: -5.0) == .noEnergy)
+        #expect(EnergyLabel.closest(to: 5.0) == .prettyDraining)
     }
 
     @Test func timePreferenceDisplayNamesAreCorrect() {

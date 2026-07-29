@@ -53,6 +53,9 @@ private struct InsightsProContent: View {
                 } else {
                     BuildingDataCard()
                 }
+
+                // Independent of week history — driven by tagged event count, not weeks built.
+                CategoryPatternCard()
             }
             .padding(NimvaLayout.screenPadding)
         }
@@ -477,6 +480,49 @@ private struct PatternCoachingCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Ember says: \(pattern.coaching)")
+                }
+            }
+            .padding(NimvaLayout.cardPadding)
+            .background(NimvaColors.cardDark)
+            .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.cardRadius))
+        }
+    }
+}
+
+// MARK: - Category Pattern Card
+
+// Surfaces PatternService's learned per-category baselines — purely observational, matches
+// the rest of Insights' "evidence, not a directive" tone. Never feeds back into scheduling.
+private struct CategoryPatternCard: View {
+    private var patterns: [CategoryPattern] {
+        categoryPatterns(baselines: PatternService.shared.baselines, counts: PatternService.shared.recordedCounts)
+    }
+
+    var body: some View {
+        if !patterns.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Category patterns", systemImage: "tag")
+                    .font(NimvaFont.sectionLabel)
+                    .foregroundStyle(NimvaColors.textMuted)
+                    .tracking(1.0)
+
+                ForEach(patterns) { pattern in
+                    HStack(alignment: .top, spacing: 12) {
+                        Circle()
+                            .fill(NimvaColors.teal)
+                            .frame(width: 6, height: 6)
+                            .padding(.top, 6)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(pattern.category) tends to run \"\(pattern.label.displayName)\"")
+                                .font(NimvaFont.cardTitle)
+                                .foregroundStyle(NimvaColors.textPrimary)
+                            Text("Based on \(pattern.count) tagged \(pattern.category) events.")
+                                .font(NimvaFont.body)
+                                .foregroundStyle(NimvaColors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
             }
             .padding(NimvaLayout.cardPadding)

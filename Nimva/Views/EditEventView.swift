@@ -5,12 +5,26 @@ struct EditEventView: View {
     @Bindable var event: Event
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Event.createdAt) private var events: [Event]
 
     @State private var selectedLabel: EnergyLabel = .manageable
     @State private var showingDeleteConfirm = false
     @State private var pendingTypeSwitch: Bool? = nil
+    @State private var categorySuggestionHint: String? = nil
+    // Captured on appear so Done only records a data point if the label actually changed
+    // during this edit — opening and closing without touching Energy shouldn't count.
+    @State private var initialEnergyCost: Double = 0.5
+    @State private var showingAddCategory = false
+    @State private var newCategoryText = ""
     @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
     @FocusState private var nameFieldFocused: Bool
+
+    // Same derivation as AddEventView — built-in presets, then whatever custom categories
+    // are already in use, always including this event's own current category.
+    private var categoryOptions: [String] {
+        let custom = Set(events.map(\.category)).union([event.category]).subtracting(EventCategory.presets)
+        return EventCategory.presets + custom.sorted()
+    }
 
     var body: some View {
         NavigationStack {
@@ -36,6 +50,30 @@ struct EditEventView: View {
                     TextField("What's the event?", text: $event.name)
                         .foregroundStyle(NimvaColors.textPrimary)
                         .focused($nameFieldFocused)
+                }
+                .listRowBackground(NimvaColors.cardDark)
+
+                // MARK: Category
+                Section("Category") {
+                    Picker("Category", selection: $event.category) {
+                        ForEach(categoryOptions, id: \.self) { preset in
+                            Text(preset).tag(preset)
+                        }
+                    }
+                    .foregroundStyle(NimvaColors.textPrimary)
+                    .onChange(of: event.category) { _, newCategory in
+                        applyCategorySuggestion(for: newCategory)
+                    }
+
+                    Button {
+                        newCategoryText = ""
+                        showingAddCategory = true
+                    } label: {
+                        Label("Add a category", systemImage: "plus.circle")
+                            .font(NimvaFont.callout)
+                            .foregroundStyle(NimvaColors.teal)
+                    }
+                    .frame(minHeight: 44)
                 }
                 .listRowBackground(NimvaColors.cardDark)
 
@@ -140,6 +178,11 @@ struct EditEventView: View {
 
                 // MARK: Energy
                 Section("Energy") {
+                    if let hint = categorySuggestionHint {
+                        Label(hint, systemImage: "sparkles")
+                            .font(NimvaFont.micro)
+                            .foregroundStyle(NimvaColors.textMuted)
+                    }
                     VStack(spacing: 8) {
                         ForEach(EnergyLabel.allCases, id: \.self) { label in
                             VStack(alignment: .leading, spacing: 4) {
@@ -203,6 +246,16 @@ struct EditEventView: View {
             } message: {
                 Text("This can't be undone.")
             }
+            .alert("New category", isPresented: $showingAddCategory) {
+                TextField("e.g. Volunteering", text: $newCategoryText)
+                Button("Add") {
+                    let trimmed = newCategoryText.trimmingCharacters(in: .whitespaces)
+                    guard !trimmed.isEmpty else { return }
+                    event.category = trimmed
+                    applyCategorySuggestion(for: trimmed)
+                }
+                Button("Cancel", role: .cancel) {}
+            }
             .confirmationDialog(
                 "Switch event type?",
                 isPresented: Binding(
@@ -236,13 +289,15 @@ struct EditEventView: View {
                 Text("Switching will clear your timing settings.")
             }
             .onAppear {
-                selectedLabel = EnergyLabel.allCases.min(by: {
-                    abs($0.cost - event.energyCost) < abs($1.cost - event.energyCost)
-                }) ?? .manageable
+                selectedLabel = EnergyLabel.closest(to: event.energyCost)
+                initialEnergyCost = event.energyCost
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
+                        if event.patternLearningEnabled, event.energyCost != initialEnergyCost {
+                            PatternService.shared.record(energyCost: event.energyCost, for: event.category)
+                        }
                         try? modelContext.save()
                         dismiss()
                     }
@@ -250,6 +305,20 @@ struct EditEventView: View {
                 }
             }
         }
+    }
+
+    // Same suggestion behavior as AddEventView — never applied without the hint text
+    // explaining why, and the label buttons stay fully overridable underneath.
+    private func applyCategorySuggestion(for newCategory: String) {
+        guard newCategory != "General",
+              let baseline = PatternService.shared.baseline(for: newCategory) else {
+            categorySuggestionHint = nil
+            return
+        }
+        let suggested = EnergyLabel.closest(to: baseline)
+        selectedLabel = suggested
+        event.energyCost = suggested.cost
+        categorySuggestionHint = "Suggested from your past \(newCategory) entries"
     }
 
     private var hasTimeError: Bool {

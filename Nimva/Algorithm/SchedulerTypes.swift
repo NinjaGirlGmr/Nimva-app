@@ -18,6 +18,19 @@ enum EnergyLabel: Double, CaseIterable, Codable {
         case .prettyDraining: return "Pretty Draining"
         }
     }
+
+    // The label whose cost is nearest a raw 0.0–1.0 value, e.g. a PatternService baseline.
+    static func closest(to cost: Double) -> EnergyLabel {
+        allCases.min(by: { abs($0.cost - cost) < abs($1.cost - cost) })!
+    }
+}
+
+// A fixed preset list, not free text — keeps per-category pattern learning (PatternService)
+// clustered on a handful of real buckets instead of fragmenting across near-duplicate
+// user-typed strings ("chem hw" vs "chemistry homework") that would never individually
+// reach the minimum data points needed for a baseline.
+enum EventCategory {
+    static let presets = ["General", "School", "Work", "Social", "Health", "Personal"]
 }
 
 enum TimePreference: String, CaseIterable, Codable {
