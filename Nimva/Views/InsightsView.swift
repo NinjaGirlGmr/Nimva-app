@@ -8,16 +8,63 @@ import Charts
 // for non-PRO users — no real data is computed or shown behind the lock.
 struct InsightsView: View {
     @Environment(ProService.self) private var proService
+    // Beta testers are always auto-PRO via ProService.isTestFlight, so without this they'd
+    // have no way to see what the free/locked experience even looks like. Toggled in Settings
+    // → Beta Testing, off by default, reversible anytime.
+    @AppStorage("betaPreviewLockedInsights") private var previewLockedInsights = false
+
+    private var showBetaLockedPreview: Bool {
+        ProService.isTestFlight && previewLockedInsights
+    }
 
     var body: some View {
         ZStack {
             NimvaColors.background.ignoresSafeArea()
 
-            if proService.isProEnabled {
+            if showBetaLockedPreview {
+                BetaLockedPreviewContent()
+            } else if proService.isProEnabled {
                 InsightsProContent()
             } else {
                 InsightsLockedContent()
             }
+        }
+    }
+}
+
+// MARK: - Beta Locked Preview (TestFlight only)
+
+// A simplified stand-in for the real locked view — deliberately just a lock, no Ember and
+// no purchase flow, since this isn't a real upsell moment, just letting a beta tester see
+// what a free user's Insights tab looks like without losing their own PRO access.
+private struct BetaLockedPreviewContent: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Beta testers can turn this off in Settings")
+                .font(NimvaFont.micro)
+                .foregroundStyle(NimvaColors.textMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+                .padding(.top, 24)
+
+            Spacer()
+
+            Image(systemName: "lock.fill")
+                .font(.system(size: 44, weight: .semibold))
+                .foregroundStyle(NimvaColors.amber)
+
+            Text("Insights, locked")
+                .font(NimvaFont.pageTitle)
+                .foregroundStyle(NimvaColors.textPrimary)
+
+            Text("This is what the Insights tab looks like for a free user, before upgrading to PRO.")
+                .font(NimvaFont.body)
+                .foregroundStyle(NimvaColors.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+            Spacer()
+            Spacer()
         }
     }
 }
