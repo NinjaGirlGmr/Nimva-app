@@ -31,6 +31,14 @@ enum EnergyLabel: Double, CaseIterable, Codable {
 // reach the minimum data points needed for a baseline.
 enum EventCategory {
     static let presets = ["General", "School", "Work", "Social", "Health", "Personal"]
+
+    // Reuses an existing option's exact casing when one matches case-insensitively, so typing
+    // a differently-cased version of an existing category ("school" vs "School") doesn't
+    // fragment it into a near-duplicate — keeps PatternService's per-category baselines
+    // clustered, which is the whole point of this preset+growable design.
+    static func resolve(_ typed: String, existingOptions: [String]) -> String {
+        existingOptions.first(where: { $0.caseInsensitiveCompare(typed) == .orderedSame }) ?? typed
+    }
 }
 
 enum TimePreference: String, CaseIterable, Codable {
