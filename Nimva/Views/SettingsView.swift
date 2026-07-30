@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage("customEnergyMixedHex") private var energyMixedHex = "ef9f27"
     @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
     @AppStorage("selectedCalendarIDsCSV") private var selectedCalendarIDsCSV: String = ""
+    @AppStorage("betaPreviewLockedInsights") private var previewLockedInsights = false
 
     private var selectedCalendarIDs: Set<String> {
         Set(selectedCalendarIDsCSV.split(separator: ",").map(String.init).filter { !$0.isEmpty })
@@ -62,6 +63,9 @@ struct SettingsView: View {
                     calendarsSection
                     accountSection
                     helpSection
+                    if ProService.isTestFlight {
+                        betaTestingSection
+                    }
                     versionFooter
                     #if DEBUG
                     developerSection
@@ -571,6 +575,19 @@ struct SettingsView: View {
     private func clearAllData() {
         try? modelContext.delete(model: Event.self)
         try? modelContext.delete(model: WeekCache.self)
+    }
+
+    // MARK: - Beta Testing section (TestFlight builds only — runtime check, not #if DEBUG,
+    // since real testers run Release builds, not Xcode debug builds)
+
+    private var betaTestingSection: some View {
+        SettingsSection(title: "Beta Testing") {
+            ToggleRow(
+                label: "Preview locked Insights screen",
+                subtitle: "See what free users see, without losing your PRO access — turn off anytime",
+                isOn: $previewLockedInsights
+            )
+        }
     }
 
     // MARK: - Developer section (DEBUG only)
