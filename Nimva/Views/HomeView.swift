@@ -825,7 +825,7 @@ struct HomeView: View {
         VStack(spacing: 20) {
             Spacer()
             EmberView(expression: .calm, size: .standard)
-                .frame(width: 120, height: 120)
+                .frame(width: 156, height: 156)
                 .opacity(contentAppeared ? 1 : 0)
                 .scaleEffect(contentAppeared ? 1 : 0.85)
                 .nimvaAnimation(NimvaAnimation.squashStretch, value: contentAppeared)

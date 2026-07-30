@@ -121,9 +121,26 @@ struct EmberView: View {
                 Circle()
                     .fill(displayed.glowColor)
                     .blur(radius: 28)
-                    .opacity(0.22)
-                    .scaleEffect(1.35)
+                    .opacity(0.3)
+                    .scaleEffect(1.4)
                     .animation(.easeInOut(duration: 0.5), value: displayed)
+
+                // Echoes the app icon's gradient ring — a defined stroke, not just a soft
+                // glow, so Ember reads as "framed" rather than just backlit.
+                Circle()
+                    .stroke(
+                        AngularGradient(
+                            colors: [
+                                NimvaColors.teal, NimvaColors.purplePrimary,
+                                NimvaColors.coral, NimvaColors.purplePrimary, NimvaColors.teal
+                            ],
+                            center: .center
+                        ),
+                        lineWidth: 5
+                    )
+                    .blur(radius: 3)
+                    .opacity(0.6)
+                    .scaleEffect(1.55)
             }
 
             ZStack {
