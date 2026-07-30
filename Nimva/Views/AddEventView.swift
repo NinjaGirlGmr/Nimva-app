@@ -33,6 +33,12 @@ struct AddEventView: View {
     @State private var pendingRecurringEvent: Event? = nil
     @State private var showingAddCategory = false
     @State private var newCategoryText = ""
+    // Collapsed by default — Priority/Repeats are occasional-use settings; the common
+    // "add a quick event" path shouldn't have to scroll past them every time.
+    @State private var showingAdvanced = false
+    // Once the user taps a label directly, a later category change must not silently
+    // override that explicit choice — only ever pre-fill before they've touched it.
+    @State private var energyManuallySet = false
 
     // Built-in presets first, then any custom categories already in use across real events —
     // self-cleaning, since nothing separately persists a custom category once every event
@@ -152,38 +158,43 @@ struct AddEventView: View {
                     }
                     .listRowBackground(NimvaColors.cardDark)
 
-                    Section("Priority") {
-                        Toggle(isOn: $isPriority) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Must do this week")
-                                    .font(NimvaFont.callout)
-                                    .foregroundStyle(NimvaColors.textPrimary)
-                                Text("Scheduled before nice-to-do events")
-                                    .font(NimvaFont.micro)
-                                    .foregroundStyle(NimvaColors.textMuted)
+                    Section {
+                        DisclosureGroup(isExpanded: $showingAdvanced) {
+                            Toggle(isOn: $isPriority) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Must do this week")
+                                        .font(NimvaFont.callout)
+                                        .foregroundStyle(NimvaColors.textPrimary)
+                                    Text("Scheduled before nice-to-do events")
+                                        .font(NimvaFont.micro)
+                                        .foregroundStyle(NimvaColors.textMuted)
+                                }
                             }
-                        }
-                        .tint(NimvaColors.amber)
-                    }
-                    .listRowBackground(NimvaColors.cardDark)
+                            .tint(NimvaColors.amber)
+                            .padding(.top, 4)
 
-                    Section("Repeats") {
-                        Toggle(isOn: Binding(
-                            get: { !isThisWeekOnly },
-                            set: { isThisWeekOnly = !$0 }
-                        )) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(isThisWeekOnly ? "This week only" : "Every week")
-                                    .font(NimvaFont.callout)
-                                    .foregroundStyle(NimvaColors.textPrimary)
-                                Text(isThisWeekOnly
-                                    ? "Won't carry over to future weeks"
-                                    : "A candidate for every week you build")
-                                    .font(NimvaFont.micro)
-                                    .foregroundStyle(NimvaColors.textMuted)
+                            Toggle(isOn: Binding(
+                                get: { !isThisWeekOnly },
+                                set: { isThisWeekOnly = !$0 }
+                            )) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(isThisWeekOnly ? "This week only" : "Every week")
+                                        .font(NimvaFont.callout)
+                                        .foregroundStyle(NimvaColors.textPrimary)
+                                    Text(isThisWeekOnly
+                                        ? "Won't carry over to future weeks"
+                                        : "A candidate for every week you build")
+                                        .font(NimvaFont.micro)
+                                        .foregroundStyle(NimvaColors.textMuted)
+                                }
                             }
+                            .tint(NimvaColors.teal)
+                        } label: {
+                            Label("Advanced", systemImage: "slider.horizontal.3")
+                                .font(NimvaFont.callout)
+                                .foregroundStyle(NimvaColors.textPrimary)
                         }
-                        .tint(NimvaColors.teal)
+                        .tint(NimvaColors.textPrimary)
                     }
                     .listRowBackground(NimvaColors.cardDark)
                 }
@@ -201,6 +212,7 @@ struct AddEventView: View {
                                 Button {
                                     selectedLabel = label
                                     energyCost = label.cost
+                                    energyManuallySet = true
                                 } label: {
                                     Text(label.displayName)
                                         .font(NimvaFont.calloutMed)
@@ -276,8 +288,9 @@ struct AddEventView: View {
                 Button("Add") {
                     let trimmed = newCategoryText.trimmingCharacters(in: .whitespaces)
                     guard !trimmed.isEmpty else { return }
-                    category = trimmed
-                    applyCategorySuggestion(for: trimmed)
+                    let resolved = EventCategory.resolve(trimmed, existingOptions: categoryOptions)
+                    category = resolved
+                    applyCategorySuggestion(for: resolved)
                 }
                 Button("Cancel", role: .cancel) {}
             }
@@ -294,9 +307,10 @@ struct AddEventView: View {
         return "\(hours)h \(minutes)m"
     }
 
-    // Pre-fills the energy label from the category's learned baseline, if one exists yet.
-    // Never applied silently without the user seeing it — the hint text says why, and the
-    // label buttons stay fully tappable/overridable underneath.
+    // Pre-fills the energy label from the category's learned baseline, if one exists yet —
+    // but only before the user has manually picked a label themselves this session. Once
+    // energyManuallySet is true, this only updates the hint text, never the actual selection,
+    // so a later category change can't silently clobber an explicit choice.
     private func applyCategorySuggestion(for newCategory: String) {
         guard newCategory != "General",
               let baseline = PatternService.shared.baseline(for: newCategory) else {
@@ -304,18 +318,19 @@ struct AddEventView: View {
             return
         }
         let suggested = EnergyLabel.closest(to: baseline)
+        categorySuggestionHint = "Suggested from your past \(newCategory) entries"
+        guard !energyManuallySet else { return }
         selectedLabel = suggested
         energyCost = suggested.cost
-        categorySuggestionHint = "Suggested from your past \(newCategory) entries"
     }
 
     private func saveEvent() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
-        if globalPatternLearning {
-            PatternService.shared.record(energyCost: energyCost, for: category)
-        }
         if isFixed {
             for day in selectedDays.sorted(by: { $0.rawValue < $1.rawValue }) {
+                if globalPatternLearning {
+                    PatternService.shared.record(energyCost: energyCost, for: category)
+                }
                 modelContext.insert(Event(
                     name: trimmedName,
                     isFixed: true,
@@ -328,6 +343,9 @@ struct AddEventView: View {
                 ))
             }
         } else {
+            if globalPatternLearning {
+                PatternService.shared.record(energyCost: energyCost, for: category)
+            }
             let newEvent = Event(
                 name: trimmedName,
                 isFixed: false,

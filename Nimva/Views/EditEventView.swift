@@ -16,6 +16,7 @@ struct EditEventView: View {
     @State private var initialEnergyCost: Double = 0.5
     @State private var showingAddCategory = false
     @State private var newCategoryText = ""
+    @State private var showingAdvanced = false
     @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
     @FocusState private var nameFieldFocused: Bool
 
@@ -129,38 +130,43 @@ struct EditEventView: View {
                     }
                     .listRowBackground(NimvaColors.cardDark)
 
-                    Section("Priority") {
-                        Toggle(isOn: $event.isPriority) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Must do this week")
-                                    .font(NimvaFont.callout)
-                                    .foregroundStyle(NimvaColors.textPrimary)
-                                Text("Scheduled before nice-to-do events")
-                                    .font(NimvaFont.micro)
-                                    .foregroundStyle(NimvaColors.textMuted)
+                    Section {
+                        DisclosureGroup(isExpanded: $showingAdvanced) {
+                            Toggle(isOn: $event.isPriority) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Must do this week")
+                                        .font(NimvaFont.callout)
+                                        .foregroundStyle(NimvaColors.textPrimary)
+                                    Text("Scheduled before nice-to-do events")
+                                        .font(NimvaFont.micro)
+                                        .foregroundStyle(NimvaColors.textMuted)
+                                }
                             }
-                        }
-                        .tint(NimvaColors.amber)
-                    }
-                    .listRowBackground(NimvaColors.cardDark)
+                            .tint(NimvaColors.amber)
+                            .padding(.top, 4)
 
-                    Section("Repeats") {
-                        Toggle(isOn: Binding(
-                            get: { event.specificDate == nil },
-                            set: { everyWeek in event.specificDate = everyWeek ? nil : (event.specificDate ?? Date()) }
-                        )) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(event.specificDate == nil ? "Every week" : "This week only")
-                                    .font(NimvaFont.callout)
-                                    .foregroundStyle(NimvaColors.textPrimary)
-                                Text(event.specificDate == nil
-                                    ? "A candidate for every week you build"
-                                    : "Won't carry over to future weeks")
-                                    .font(NimvaFont.micro)
-                                    .foregroundStyle(NimvaColors.textMuted)
+                            Toggle(isOn: Binding(
+                                get: { event.specificDate == nil },
+                                set: { everyWeek in event.specificDate = everyWeek ? nil : (event.specificDate ?? Date()) }
+                            )) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(event.specificDate == nil ? "Every week" : "This week only")
+                                        .font(NimvaFont.callout)
+                                        .foregroundStyle(NimvaColors.textPrimary)
+                                    Text(event.specificDate == nil
+                                        ? "A candidate for every week you build"
+                                        : "Won't carry over to future weeks")
+                                        .font(NimvaFont.micro)
+                                        .foregroundStyle(NimvaColors.textMuted)
+                                }
                             }
+                            .tint(NimvaColors.teal)
+                        } label: {
+                            Label("Advanced", systemImage: "slider.horizontal.3")
+                                .font(NimvaFont.callout)
+                                .foregroundStyle(NimvaColors.textPrimary)
                         }
-                        .tint(NimvaColors.teal)
+                        .tint(NimvaColors.textPrimary)
                     }
                     .listRowBackground(NimvaColors.cardDark)
                 }
@@ -251,8 +257,9 @@ struct EditEventView: View {
                 Button("Add") {
                     let trimmed = newCategoryText.trimmingCharacters(in: .whitespaces)
                     guard !trimmed.isEmpty else { return }
-                    event.category = trimmed
-                    applyCategorySuggestion(for: trimmed)
+                    let resolved = EventCategory.resolve(trimmed, existingOptions: categoryOptions)
+                    event.category = resolved
+                    applyCategorySuggestion(for: resolved)
                 }
                 Button("Cancel", role: .cancel) {}
             }
@@ -291,6 +298,9 @@ struct EditEventView: View {
             .onAppear {
                 selectedLabel = EnergyLabel.closest(to: event.energyCost)
                 initialEnergyCost = event.energyCost
+                // Start expanded if either setting is already non-default, so an existing
+                // priority/recurring event's state isn't hidden behind a collapsed section.
+                showingAdvanced = event.isPriority || event.specificDate == nil
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -307,19 +317,20 @@ struct EditEventView: View {
         }
     }
 
-    // Same suggestion behavior as AddEventView — never applied without the hint text
-    // explaining why, and the label buttons stay fully overridable underneath.
+    // Informational only — unlike AddEventView, editing always starts from an energy cost
+    // the user already deliberately set (possibly a while ago). Recategorizing an existing
+    // event must never silently overwrite that live model value with no cancel path, so this
+    // only ever updates the hint text; the user has to tap a label themselves to change it.
     private func applyCategorySuggestion(for newCategory: String) {
         guard newCategory != "General",
               let baseline = PatternService.shared.baseline(for: newCategory) else {
             categorySuggestionHint = nil
             return
         }
-        let suggested = EnergyLabel.closest(to: baseline)
-        selectedLabel = suggested
-        event.energyCost = suggested.cost
-        categorySuggestionHint = "Suggested from your past \(newCategory) entries"
+        let label = EnergyLabel.closest(to: baseline)
+        categorySuggestionHint = "Your past \(newCategory) entries tend to run \"\(label.displayName)\""
     }
+
 
     private var hasTimeError: Bool {
         guard event.isFixed, let start = event.startTime, let end = event.endTime else { return false }

@@ -464,6 +464,21 @@ struct SchedulerTypesTests {
         #expect(EnergyLabel.closest(to: 5.0) == .prettyDraining)
     }
 
+    @Test func resolveReusesExistingCasingCaseInsensitively() {
+        let result = EventCategory.resolve("school", existingOptions: ["General", "School", "Work"])
+        #expect(result == "School")
+    }
+
+    @Test func resolveKeepsTypedCasingWhenNoMatchExists() {
+        let result = EventCategory.resolve("Volunteering", existingOptions: EventCategory.presets)
+        #expect(result == "Volunteering")
+    }
+
+    @Test func resolveIsExactMatchWhenCasingAlreadyMatches() {
+        let result = EventCategory.resolve("Work", existingOptions: EventCategory.presets)
+        #expect(result == "Work")
+    }
+
     @Test func timePreferenceDisplayNamesAreCorrect() {
         #expect(TimePreference.morning.displayName == "Morning")
         #expect(TimePreference.afternoon.displayName == "Afternoon")
