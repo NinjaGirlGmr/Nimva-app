@@ -238,6 +238,85 @@ struct CompletionStateTests {
     }
 }
 
+@Suite("SchedulerService — isCompletionPremature")
+@MainActor
+struct IsCompletionPrematureTests {
+
+    @Test func futureDayIsAlwaysPremature() {
+        let event = Event(name: "Test", isFixed: false, preferredWindow: .any, energyCost: 0.5)
+        #expect(SchedulerService.isCompletionPremature(event: event, selectedDay: .friday, today: .monday))
+    }
+
+    @Test func pastDayIsNeverPremature() {
+        let event = Event(name: "Test", isFixed: false, preferredWindow: .any, energyCost: 0.5)
+        #expect(!SchedulerService.isCompletionPremature(event: event, selectedDay: .monday, today: .friday))
+    }
+
+    @Test func flexibleEventTodayIsNeverPremature() {
+        // Flexible events have no specific hour, so "today" is as fine-grained as it gets.
+        let event = Event(name: "Test", isFixed: false, preferredWindow: .any, energyCost: 0.5)
+        #expect(!SchedulerService.isCompletionPremature(event: event, selectedDay: .wednesday, today: .wednesday))
+    }
+
+    // Uses explicit hour/minute construction rather than now.addingTimeInterval(±3600) —
+    // a relative offset from a live Date() can silently wrap across midnight depending on
+    // what second the test happens to run (caught this for real: run at 00:24 AM, "-1 hour"
+    // landed at 23:24 the day before, which broke the equivalent hand-written test below
+    // before this fix). Deterministic construction avoids that flakiness entirely.
+    @Test func fixedEventTodayWithFutureStartTimeIsPremature() {
+        let calendar = Calendar.current
+        let now = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
+        let future = calendar.date(bySettingHour: 13, minute: 0, second: 0, of: Date())!
+        let event = Event(name: "Test", isFixed: true, fixedDay: .wednesday, startTime: future, endTime: future, energyCost: 0.5)
+        #expect(SchedulerService.isCompletionPremature(event: event, selectedDay: .wednesday, today: .wednesday, now: now))
+    }
+
+    @Test func fixedEventTodayWithPastStartTimeIsNotPremature() {
+        let calendar = Calendar.current
+        let now = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
+        let past = calendar.date(bySettingHour: 11, minute: 0, second: 0, of: Date())!
+        let event = Event(name: "Test", isFixed: true, fixedDay: .wednesday, startTime: past, endTime: now, energyCost: 0.5)
+        #expect(!SchedulerService.isCompletionPremature(event: event, selectedDay: .wednesday, today: .wednesday, now: now))
+    }
+
+    // Regression: a real fixed event's startTime carries whatever date it happened to be
+    // created on — weeks or months in the past for anything set up once and left recurring.
+    // Only the time-of-day is meaningful. This mirrors that: startTime's DATE is long past,
+    // but its time-of-day (8 PM) is still later than "now" (noon), so it should still read
+    // as premature. A full-Date comparison would get this wrong.
+    @Test func fixedEventWithStaleDateButFutureTimeOfDayIsPremature() {
+        let calendar = Calendar.current
+        let staleCreationDate = calendar.date(byAdding: .day, value: -30, to: Date())!
+        let staleStart = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: staleCreationDate)!
+        let now = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
+        let event = Event(name: "Training Camp", isFixed: true, fixedDay: .wednesday, startTime: staleStart, endTime: staleStart, energyCost: 0.5)
+        #expect(SchedulerService.isCompletionPremature(event: event, selectedDay: .wednesday, today: .wednesday, now: now))
+    }
+
+    @Test func fixedEventWithStaleDateButPastTimeOfDayIsNotPremature() {
+        let calendar = Calendar.current
+        let staleCreationDate = calendar.date(byAdding: .day, value: -30, to: Date())!
+        let staleStart = calendar.date(bySettingHour: 8, minute: 0, second: 0, of: staleCreationDate)!
+        let now = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: Date())!
+        let event = Event(name: "Morning Class", isFixed: true, fixedDay: .wednesday, startTime: staleStart, endTime: staleStart, energyCost: 0.5)
+        #expect(!SchedulerService.isCompletionPremature(event: event, selectedDay: .wednesday, today: .wednesday, now: now))
+    }
+
+    @Test func fixedEventAtExactSameMinuteIsNotPremature() {
+        let calendar = Calendar.current
+        let now = calendar.date(bySettingHour: 14, minute: 30, second: 0, of: Date())!
+        let event = Event(name: "Test", isFixed: true, fixedDay: .wednesday, startTime: now, endTime: now, energyCost: 0.5)
+        #expect(!SchedulerService.isCompletionPremature(event: event, selectedDay: .wednesday, today: .wednesday, now: now))
+    }
+
+    @Test func fixedEventWithNoStartTimeIsNotPremature() {
+        // Defensive: a fixed event should always have a startTime in practice, but guard
+        // against a nil value being treated as "always premature."
+        let event = Event(name: "Test", isFixed: true, fixedDay: .wednesday, energyCost: 0.5)
+        #expect(!SchedulerService.isCompletionPremature(event: event, selectedDay: .wednesday, today: .wednesday))
+    }
+}
+
 // MARK: - Multi-week regenerate/load (#13 — rolling calendar)
 
 @MainActor
