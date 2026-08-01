@@ -1,4 +1,4 @@
-# Nimva — Concept Preview & Community Feedback
+# Nimva — Energy-Aware iOS Scheduling App
 
 > *A scheduling application designed around energy, not just time.*
 
@@ -6,12 +6,9 @@
 
 ## About This Repository
 
-This repository hosts the public concept preview for **Nimva**, an independently designed mobile application built to solve a problem I experience firsthand as a student managing a demanding academic schedule alongside leadership roles, extracurricular commitments, and personal health.
+This repository is the working codebase for **Nimva**, a native iOS app (Swift + SwiftUI + SwiftData + CloudKit) built to solve a problem I experience firsthand as a student managing a demanding academic schedule alongside leadership roles, extracurricular commitments, and personal health.
 
-The concept page serves two purposes:
-
-1. **To communicate the vision** — giving community members a clear, visual walkthrough of how Nimva works before a single line of production code is written
-2. **To collect honest feedback** — an anonymous embedded form captures real reactions from students and peers whose input will directly shape what gets built
+The core app — the energy-aware scheduling algorithm, event CRUD, week generation, Home/Plan/Insights/Settings, onboarding, and a full test suite — is built and in active pre-launch hardening, heading toward a TestFlight beta. This repo started life hosting a concept-preview landing page used to collect early feedback before any code existed; that origin is kept below for the portfolio narrative, but it no longer describes what's in this repository today.
 
 ---
 
@@ -27,9 +24,13 @@ The target audience is students and young adults — particularly those who are 
 
 ---
 
-## What the Concept Page Includes
+## Origin — The Concept Preview
 
-The hosted page walks through four core screens with annotated callouts explaining what each element does and why it was designed that way:
+Before any Swift code was written, the idea was validated with a standalone concept-preview page and an anonymous feedback form. Kept here as part of the project's actual history — define the problem, validate before building, then build — rather than as a description of the current repository.
+
+### What the concept page included
+
+The hosted page walked through four core screens with annotated callouts explaining what each element does and why it was designed that way:
 
 | Screen | Purpose |
 |---|---|
@@ -40,11 +41,9 @@ The hosted page walks through four core screens with annotated callouts explaini
 
 Each annotation is written for someone encountering the concept for the first time — no assumed knowledge of the app required.
 
----
+### The feedback form
 
-## The Feedback Form
-
-The anonymous feedback form at the bottom of the concept page collects seven responses:
+The anonymous feedback form at the bottom of the concept page collected seven responses:
 
 - Whether the core concept is immediately understood
 - Likelihood of actual use
@@ -54,15 +53,11 @@ The anonymous feedback form at the bottom of the concept page collects seven res
 - Open suggestions for improvement
 - Anything that felt confusing or off
 
-Responses are stored anonymously — no names, no emails, no identifying information of any kind is collected or requested. The goal is honest, unfiltered reaction from real students and peers, not curated feedback from people who know they're being watched.
+Responses were stored anonymously — no names, no emails, no identifying information of any kind was collected or requested. The goal was honest, unfiltered reaction from real students and peers, not curated feedback from people who knew they were being watched.
 
----
+### Design decisions from the concept page that carried through
 
-## Design Decisions Worth Noting
-
-Several intentional choices were made in designing the concept page itself:
-
-**Dark mode first** — the app's primary palette is deep purple and blue with warm amber accents used specifically for energy warnings. This combination was chosen for its calm, professional feel and its performance under colorblind accessibility checks.
+**Dark mode first** — the app's primary palette is deep purple and blue with warm amber accents used specifically for energy warnings. This combination was chosen for its calm, professional feel and its performance under colorblind accessibility checks — the same palette (`NimvaColors`) ships in the real app today, coral now standing in for the second flexible-event color for stronger colorblind contrast.
 
 **Annotated rather than described** — showing screens with numbered callouts communicates more in less time than written descriptions. Someone can understand the full concept in under three minutes without reading a word of prose.
 
@@ -79,31 +74,32 @@ Several intentional choices were made in designing the concept page itself:
 | Problem definition and market research | ✅ Complete |
 | Feature set and freemium model definition | ✅ Complete |
 | Design system and color palette | ✅ Complete |
-| Core screen wireframes (8 of 8) | ✅ Complete |
-| Community feedback collection | 🔄 Active |
+| Concept validation (preview page + feedback) | ✅ Complete |
 | Name and trademark research | ✅ Complete — Nimva selected |
 | Technical architecture and requirements | ✅ Complete |
-| Development environment setup | ⏳ Planned |
-| Core scheduling algorithm | ⏳ Planned |
-| Native iOS build | ⏳ Planned |
-| Alpha testing | ⏳ Planned |
+| Development environment setup | ✅ Complete |
+| Core scheduling algorithm | ✅ Complete — unit tested |
+| Native iOS build | ✅ Complete — Home, Plan, Insights, Settings, onboarding |
+| PRO tier (Insights, StoreKit 2 subscription) | ✅ Complete |
+| CloudKit private-database sync | ✅ Complete |
+| Pre-launch hardening (accessibility, App Store prep) | 🔄 Active |
+| TestFlight beta | ⏳ Next |
+| Public App Store launch | ⏳ Planned |
 
 ---
 
-## Technical Stack (Planned)
+## Technical Stack
 
 | Layer | Technology |
 |---|---|
 | Platform | Native iOS — Swift + SwiftUI |
 | Local storage | SwiftData |
 | Sync | CloudKit (private database, per-user) |
-| Authentication | Sign in with Apple |
-| Scheduling logic | On-device greedy heuristic |
+| Scheduling logic | On-device greedy heuristic (LPT-style bin packing) |
 | Subscriptions | StoreKit 2 |
-| Calendar integration (v2) | Apple EventKit |
-| Concept page | Vanilla HTML, CSS, JavaScript |
-| Form backend | Formspree (anonymous submission handling) |
-| Hosting | GitHub Pages |
+| Calendar integration | Apple EventKit — on-demand, multi-week import |
+| Notifications | `UNUserNotificationCenter` (local only) |
+| Hosting | GitHub Pages — privacy policy, and formerly the concept-preview page |
 
 ---
 
@@ -113,8 +109,8 @@ This project was initiated and designed independently, outside of any coursework
 
 Nimva is the result of approaching that problem the same way I approach an engineering challenge: define the problem precisely, research what already exists and why it falls short, make deliberate decisions about what to build and why, and document the thinking at every step.
 
-The concept page and this repository are part of that documentation.
+The concept page, this repository, and the commit history behind it are all part of that documentation.
 
 ---
 
-*Nimva is an independent student project. Currently in design and early planning phase.*
+*Nimva is an independent student project, built solo end-to-end — concept through native iOS implementation. Currently in pre-launch hardening ahead of a TestFlight beta.*
