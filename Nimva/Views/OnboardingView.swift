@@ -540,7 +540,14 @@ private struct EnergyAnchorScreen: View {
                         .multilineTextAlignment(.center)
                 }
                 .padding(.horizontal, 28)
-                .padding(.bottom, 40)
+                // This screen grew taller than its onboarding siblings (presets + custom
+                // field + live preview all stack above this hint text) — the old 40pt bottom
+                // padding was tuned for the original single-TextField version and was no
+                // longer reliably enough clearance above the fixed button area on shorter
+                // screens, so the last line could end up sitting under it. Generous fixed
+                // padding here, comfortably larger than the two-button area actually needs,
+                // rather than a GeometryReader/PreferenceKey round-trip for exact clearance.
+                .padding(.bottom, 140)
             }
 
             VStack(spacing: 12) {
