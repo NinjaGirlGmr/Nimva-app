@@ -5,6 +5,9 @@ CLAUDE.md
 # Personal development notes — local research, video notes, strategy docs
 docs/dev-notes/
 
+# Design research — local mockups/concepts, not meant for the repo
+docs/Design-Research/
+
 # macOS
 .DS_Store
 .AppleDouble
