@@ -14,6 +14,11 @@ struct OnboardingView: View {
 
     @State private var step = 0
     @State private var showingProTrial = false
+    // Only meaningful when this view is presented as a sheet (Settings → "How Nimva
+    // works"). At first launch, OnboardingView is the app's root content — finishing there
+    // works by flipping hasCompletedOnboarding, which swaps the whole root view over to
+    // ContentView; dismiss() in that context is a documented no-op, safe to call regardless.
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -59,7 +64,7 @@ struct OnboardingView: View {
         .fullScreenCover(isPresented: $showingProTrial) {
             ProTrialPromptView {
                 hasSeenProTrialOffer = true
-                withAnimation { hasCompletedOnboarding = true }
+                completeOnboarding()
             }
         }
     }
@@ -73,10 +78,19 @@ struct OnboardingView: View {
         // Show the trial prompt once before entering the app.
         // If already seen (e.g. user re-runs onboarding somehow), skip straight through.
         if hasSeenProTrialOffer {
-            withAnimation { hasCompletedOnboarding = true }
+            completeOnboarding()
         } else {
             showingProTrial = true
         }
+    }
+
+    // Both completion paths (with or without the trial prompt) funnel through here. At first
+    // launch, flipping hasCompletedOnboarding is what actually ends onboarding — dismiss() is
+    // extra/inert there. Replayed from Settings, hasCompletedOnboarding is already true, so
+    // flipping it again does nothing visible — dismiss() is what actually closes the sheet.
+    private func completeOnboarding() {
+        withAnimation { hasCompletedOnboarding = true }
+        dismiss()
     }
 }
 
@@ -571,6 +585,17 @@ private struct EnergyAnchorScreen: View {
             .padding(.horizontal, 28)
             .padding(.bottom, 48)
         }
+        .onAppear {
+            // Replayed from Settings, a returning user already has a real answer saved —
+            // show it instead of a blank screen that looks like the app forgot it. If it
+            // matches a preset exactly, that preset shows as selected; otherwise reveal the
+            // custom field with their actual answer in it, not an empty one to retype into.
+            guard draft.isEmpty else { return }
+            draft = energyAnchorLabel
+            if !draft.isEmpty && !presets.contains(draft) {
+                showingCustomField = true
+            }
+        }
     }
 
     private func saveAndContinue() {
@@ -715,7 +740,9 @@ private struct ReadyScreen: View {
                         eventCountBeforeSheet = existingEvents.count
                         showAddEvent = true
                     } label: {
-                        Text("Add my first event")
+                        // Replayed from Settings ("How Nimva works") for someone who already
+                        // has events — "first event" would be visibly wrong for them.
+                        Text(existingEvents.isEmpty ? "Add my first event" : "Add an event")
                             .font(NimvaFont.button)
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
@@ -793,6 +820,12 @@ private struct ReadyScreen: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Nimva needs calendar access to import your events. Enable it in Settings › Privacy › Calendars, or add events manually instead.")
+        }
+        .onAppear {
+            // Replayed from Settings, a returning user already has a real name saved —
+            // show it instead of a blank field that looks like the app forgot it. Harmless
+            // no-op for a first-time user, since displayName is genuinely empty for them.
+            if nameInput.isEmpty { nameInput = displayName }
         }
     }
 
