@@ -307,6 +307,76 @@ struct PatternLearningTests {
     }
 }
 
+// MARK: - Load Presentation (day-load + energy-balance color/fill consolidation)
+
+@Suite("Load Severity")
+struct LoadSeverityTests {
+
+    @Test func forLoadBoundariesMatchHeavyThreshold() {
+        // heavyThreshold defaults to Scheduler.heavyDayThreshold (2.0): light <1.0, moderate <2.0, heavy >=2.0
+        #expect(LoadSeverity.forLoad(0.0) == .light)
+        #expect(LoadSeverity.forLoad(0.99) == .light)
+        #expect(LoadSeverity.forLoad(1.0) == .moderate)
+        #expect(LoadSeverity.forLoad(1.99) == .moderate)
+        #expect(LoadSeverity.forLoad(2.0) == .heavy)
+        #expect(LoadSeverity.forLoad(5.0) == .heavy)
+    }
+
+    @Test func forLoadRespectsCustomThreshold() {
+        // Custom threshold of 4.0 → light <2.0, moderate <4.0, heavy >=4.0
+        #expect(LoadSeverity.forLoad(1.5, heavyThreshold: 4.0) == .light)
+        #expect(LoadSeverity.forLoad(2.5, heavyThreshold: 4.0) == .moderate)
+        #expect(LoadSeverity.forLoad(4.5, heavyThreshold: 4.0) == .heavy)
+    }
+
+    @Test func forVarianceMatchesEmberNoteBreakpoints() {
+        // Same 0.4 / 0.66 breakpoints as WeekGenerationView's "Good spread" / "Some days are
+        // heavier" / "Load is concentrated" copy — bar color and text must never disagree.
+        #expect(LoadSeverity.forVariance(0.0) == .light)
+        #expect(LoadSeverity.forVariance(0.39) == .light)
+        #expect(LoadSeverity.forVariance(0.4) == .moderate)
+        #expect(LoadSeverity.forVariance(0.65) == .moderate)
+        #expect(LoadSeverity.forVariance(0.66) == .heavy)
+        #expect(LoadSeverity.forVariance(2.0) == .heavy)
+    }
+
+    @Test func hexResolvesToMatchingTier() {
+        #expect(LoadSeverity.light.hex(light: "L", mixed: "M", heavy: "H") == "L")
+        #expect(LoadSeverity.moderate.hex(light: "L", mixed: "M", heavy: "H") == "M")
+        #expect(LoadSeverity.heavy.hex(light: "L", mixed: "M", heavy: "H") == "H")
+    }
+}
+
+@Suite("Balance Bar Fill")
+struct BalanceBarFillTests {
+
+    @Test func zeroVarianceIsFullBar() {
+        #expect(abs(balanceBarFill(forVariance: 0.0) - 1.0) < 0.0001)
+    }
+
+    @Test func fillDecreasesMonotonicallyWithVariance() {
+        let low = balanceBarFill(forVariance: 0.2)
+        let mid = balanceBarFill(forVariance: 0.5)
+        let high = balanceBarFill(forVariance: 1.5)
+        #expect(low > mid)
+        #expect(mid > high)
+    }
+
+    @Test func fillNeverReachesZeroOrNegative() {
+        #expect(balanceBarFill(forVariance: 1000.0) > 0)
+    }
+
+    @Test func fillIsNeverAboveOne() {
+        #expect(balanceBarFill(forVariance: 0.0) <= 1.0)
+        #expect(balanceBarFill(forVariance: -5.0) <= 1.0)
+    }
+
+    @Test func negativeVarianceClampedToZero() {
+        // Defensive: variance can't actually be negative, but the function shouldn't blow past 1.0 if it were.
+        #expect(abs(balanceBarFill(forVariance: -5.0) - balanceBarFill(forVariance: 0.0)) < 0.0001)
+    }
+}
+
 // MARK: - Category Patterns (Insights)
 
 @Suite("Category Patterns")

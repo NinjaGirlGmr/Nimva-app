@@ -180,7 +180,9 @@ struct SettingsView: View {
 
     private var profileCard: some View {
         HStack(spacing: 14) {
-            // Ember avatar — same warm-glow treatment as the home screen card
+            // Ember avatar — same warm-glow treatment as the home screen card; ring matches
+            // Home's now too, instead of a hardcoded amber stroke that never responded to
+            // the user's Energy Colours.
             ZStack {
                 Circle()
                     .fill(RadialGradient(
@@ -193,7 +195,7 @@ struct SettingsView: View {
                     .frame(width: 46, height: 46)
                     .background(NimvaColors.surfaceDeep)
                     .clipShape(Circle())
-                    .overlay(Circle().stroke(NimvaColors.amberWarm, lineWidth: 1.5))
+                    .overlay(Circle().strokeBorder(NimvaColors.emberRingGradient, lineWidth: 1.5))
             }
 
             VStack(alignment: .leading, spacing: 3) {

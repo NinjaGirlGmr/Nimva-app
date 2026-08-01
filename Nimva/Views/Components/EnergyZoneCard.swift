@@ -21,12 +21,6 @@ struct EnergyZoneCard: View {
         return !isHeavy && heavyDays.contains(nextDay)
     }
 
-    @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
-    @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
-
-    // Ember's glow ring shifts heavy → light colour based on the active energy palette
-    private var emberRingColor: Color { isHeavy ? Color(hex: energyHeavyHex) : Color(hex: energyLightHex) }
-
     // Weekly energy level: sum of all loads / (7 days × heavy threshold)
     private var dailyPercent: Double {
         min(selectedLoad / Scheduler.heavyDayThreshold, 1.0)
@@ -40,7 +34,7 @@ struct EnergyZoneCard: View {
         VStack(spacing: 0) {
             // ── Top row: Ember + mood text + energy bar ──
             HStack(alignment: .top, spacing: 14) {
-                EmberAvatar(ringColor: emberRingColor, expression: emberExpression)
+                EmberAvatar(expression: emberExpression)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(moodLabel)
@@ -178,7 +172,6 @@ struct EnergyZoneCard: View {
 // Two-layer glow with different durations — they drift in and out of phase
 // over time, so the pulse never feels mechanical or perfectly looped.
 private struct EmberAvatar: View {
-    let ringColor: Color
     let expression: EmberExpression
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -224,18 +217,22 @@ private struct EmberAvatar: View {
                     value: glowing
                 )
 
-            // Avatar circle — ring color shifts warm/cool based on day load
+            // Avatar circle — decorative ring, not load-colored. It used to shift warm/cool
+            // with day load, but that duplicated both the "Day load" bar right next to it and
+            // Ember's own expression (happy/calm/concerned/exhausted) a few pixels away — three
+            // encodings of the same number. This is now a fixed sweep echoing the app icon's
+            // ring (teal/purple), which also reads as a natural complement against the warm
+            // amber corona glow behind it, rather than fighting it.
             Circle()
                 .fill(NimvaColors.surfaceDeep)
                 .frame(width: 48, height: 48)
-                .overlay(Circle().strokeBorder(ringColor, lineWidth: 2))
+                .overlay(Circle().strokeBorder(NimvaColors.emberRingGradient, lineWidth: 2))
 
             EmberView(expression: expression, size: .mini)
                 .frame(width: 44, height: 44)
         }
         .frame(width: 56, height: 56)
         .onAppear { glowing = true }
-        .nimvaAnimation(NimvaAnimation.stateChange, value: ringColor)
     }
 }
 
@@ -245,6 +242,7 @@ private struct WeeklyEnergyBar: View {
     let percent: Double  // 0.0–1.0
 
     @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
+    @AppStorage("customEnergyMixedHex") private var energyMixedHex = "ef9f27"
     @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -276,7 +274,7 @@ private struct WeeklyEnergyBar: View {
                             LinearGradient(
                                 gradient: Gradient(colors: [
                                     Color(hex: energyLightHex),
-                                    Color(hex: "a8689c"),  // mauve midpoint
+                                    Color(hex: energyMixedHex),
                                     Color(hex: energyHeavyHex)
                                 ]),
                                 startPoint: .leading,

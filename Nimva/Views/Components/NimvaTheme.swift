@@ -62,6 +62,15 @@ enum NimvaColors {
     static func energyLight(_ alt: Bool) -> Color { alt ? altEnergyLight : teal }
     static func energyMixed(_ alt: Bool) -> Color { alt ? altEnergyMixed : amber }
     static func energyHeavy(_ alt: Bool) -> Color { alt ? altEnergyHeavy : coral }
+
+    // Ember's signature ring — echoes the app icon (teal → violet), used everywhere a
+    // small Ember avatar gets a ring treatment (Home, Plan, Settings). One shared constant
+    // instead of each screen declaring its own copy, so a future palette tweak updates every
+    // avatar at once instead of needing to be hunted down across files.
+    static let emberRingGradient = AngularGradient(
+        colors: [teal, purplePrimary, teal],
+        center: .center
+    )
 }
 
 // MARK: - Typography

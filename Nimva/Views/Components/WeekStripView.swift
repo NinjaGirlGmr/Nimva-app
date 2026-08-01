@@ -34,6 +34,10 @@ private struct DayColumn: View {
     let isSelected: Bool
     let isToday: Bool
 
+    @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
+    @AppStorage("customEnergyMixedHex") private var energyMixedHex = "ef9f27"
+    @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
+
     var body: some View {
         VStack(spacing: 6) {
             // 3-letter day abbreviation — teal when today, bright when selected
@@ -103,20 +107,19 @@ private struct DayColumn: View {
     }
 
     private var dotSize: CGFloat {
-        switch load {
-        case 0:      return 5
-        case ..<1.0: return 5
-        case ..<2.0: return 7
-        default:     return 9
+        switch LoadSeverity.forLoad(load) {
+        case .light:    return 5
+        case .moderate: return 7
+        case .heavy:    return 9
         }
     }
 
+    // Reads the same user-customizable Energy Colours as the day-load bar and Insights,
+    // instead of the fixed brand tokens this used to use — previously a colorblind user who
+    // customized their palette in Settings would find it respected everywhere except here,
+    // the most prominent always-visible load indicator in the app.
     private var loadColor: Color {
-        switch load {
-        case ..<1.0: return NimvaColors.teal
-        case ..<2.0: return NimvaColors.amber
-        default:     return NimvaColors.heavyBlue
-        }
+        Color(hex: LoadSeverity.forLoad(load).hex(light: energyLightHex, mixed: energyMixedHex, heavy: energyHeavyHex))
     }
 }
 
