@@ -392,7 +392,7 @@ private struct EnergyTagScreen: View {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundStyle(NimvaColors.teal)
                                     .font(NimvaFont.body)
-                                Text("Nimva learns from your weekly check-ins over time")
+                                Text("Nimva learns from taps like this over time")
                                     .font(NimvaFont.micro)
                                     .foregroundStyle(NimvaColors.teal)
                             }
@@ -437,7 +437,14 @@ private struct EnergyAnchorScreen: View {
 
     @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
     @State private var draft = ""
+    @State private var showingCustomField = false
     @FocusState private var isFocused: Bool
+
+    // Tap-first, matching screen 3's interaction pattern instead of breaking it — recognizing
+    // an example is much lower-friction than generating an answer from a blank field,
+    // especially for a slightly personal question this early, before any trust is built.
+    // "Something else" keeps full autonomy for anyone these don't fit.
+    private let presets = ["Back-to-back classes", "A tough workout", "Long meetings", "Social events"]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -458,22 +465,76 @@ private struct EnergyAnchorScreen: View {
                             .multilineTextAlignment(.center)
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Text("Think of one thing that leaves you spent. What is it?")
                             .font(NimvaFont.bodyMedium)
                             .foregroundStyle(NimvaColors.textSecondary)
 
-                        TextField("e.g. back-to-back classes, a tough workout…", text: $draft)
-                            .font(.system(.subheadline))
-                            .foregroundStyle(NimvaColors.textPrimary)
-                            .padding(14)
-                            .background(NimvaColors.cardDark)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .focused($isFocused)
-                            .onSubmit { saveAndContinue() }
-                    }
+                        VStack(spacing: 8) {
+                            ForEach(presets, id: \.self) { preset in
+                                let isSelected = draft == preset && !showingCustomField
+                                Button {
+                                    draft = preset
+                                    showingCustomField = false
+                                    isFocused = false
+                                } label: {
+                                    Text(preset)
+                                        .font(NimvaFont.sectionLabel)
+                                        .foregroundStyle(isSelected ? .white : NimvaColors.teal)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 10)
+                                        .background(isSelected ? NimvaColors.teal : NimvaColors.teal.opacity(0.12))
+                                        .clipShape(Capsule())
+                                        .overlay(Capsule().stroke(NimvaColors.teal.opacity(isSelected ? 0 : 0.4), lineWidth: 1))
+                                }
+                                .frame(minHeight: 44)
+                                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                            }
 
-                    Text("It'll appear as a hint under \"Pretty Draining\" when you add events. You can change it in Settings anytime.")
+                            Button {
+                                showingCustomField = true
+                                draft = ""
+                                isFocused = true
+                            } label: {
+                                Text("Something else…")
+                                    .font(NimvaFont.sectionLabel)
+                                    .foregroundStyle(showingCustomField ? .white : NimvaColors.textMuted)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(showingCustomField ? NimvaColors.purplePrimary : NimvaColors.surfaceDeep)
+                                    .clipShape(Capsule())
+                            }
+                            .frame(minHeight: 44)
+                            .accessibilityAddTraits(showingCustomField ? .isSelected : [])
+                        }
+
+                        if showingCustomField {
+                            TextField("Type your own…", text: $draft)
+                                .font(.system(.subheadline))
+                                .foregroundStyle(NimvaColors.textPrimary)
+                                .padding(14)
+                                .background(NimvaColors.cardDark)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .focused($isFocused)
+                                .onSubmit { saveAndContinue() }
+                        }
+
+                        // Live preview — shows the actual payoff now, instead of only promising
+                        // it for a later screen the user may not connect this moment to.
+                        if !draft.trimmingCharacters(in: .whitespaces).isEmpty {
+                            HStack(spacing: 6) {
+                                Image(systemName: "sparkles")
+                                    .font(NimvaFont.micro)
+                                Text("Like: \"\(draft)\"")
+                                    .font(NimvaFont.micro)
+                            }
+                            .foregroundStyle(NimvaColors.teal)
+                            .transition(.opacity)
+                        }
+                    }
+                    .nimvaAnimation(NimvaAnimation.stateChange, value: showingCustomField)
+
+                    Text("This appears as a hint under \"Pretty Draining\" when you add events. You can change it in Settings anytime.")
                         .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted)
                         .multilineTextAlignment(.center)
@@ -535,6 +596,11 @@ private struct ReadyScreen: View {
     @State private var showingCalendarImport = false
     @State private var showingCalendarDenied = false
     @State private var calendarCandidates: [CalendarImportService.ImportCandidate] = []
+
+    // Tracks whether the AddEventView sheet actually resulted in a saved event, vs. being
+    // cancelled — the two need different outcomes (see the sheet's onDismiss below).
+    @State private var eventCountBeforeSheet = 0
+    @State private var justAddedEventName: String? = nil
 
     private let steps = [
         ("1", "Add your fixed events", "Classes, meetings — or import them from your calendar"),
@@ -608,51 +674,93 @@ private struct ReadyScreen: View {
             }
 
             VStack(spacing: 12) {
-                Button {
-                    saveName()
-                    showAddEvent = true
-                } label: {
-                    Text("Add my first event")
-                        .font(NimvaFont.button)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(NimvaColors.teal)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-
-                Button {
-                    saveName()
-                    connectAndImportCalendar()
-                } label: {
-                    if isImportingFromCalendar {
-                        ProgressView()
-                            .tint(NimvaColors.textSecondary)
-                    } else {
-                        Text("or, add from calendar")
-                            .font(NimvaFont.callout)
-                            .foregroundStyle(NimvaColors.textSecondary)
+                if let eventName = justAddedEventName {
+                    // A real event was actually saved — quiet, honest confirmation using
+                    // their own data, not a generic illustration. No new screen, no extra
+                    // required step; "Let's go" reuses onSkip since its job (proceed without
+                    // forcing the add-event sheet open again on Home) is exactly right here.
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(NimvaFont.body)
+                        Text("\"\(eventName)\" is on your week.")
+                            .font(NimvaFont.body)
                     }
-                }
-                .frame(minHeight: 44)
-                .disabled(isImportingFromCalendar)
+                    .foregroundStyle(NimvaColors.teal)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 4)
+                    .transition(.opacity)
 
-                Button {
-                    saveName()
-                    onSkip()
-                } label: {
-                    Text("Maybe later")
-                        .font(NimvaFont.callout)
-                        .foregroundStyle(NimvaColors.textMuted)
+                    Button {
+                        saveName()
+                        onSkip()
+                    } label: {
+                        Text("Let's go")
+                            .font(NimvaFont.button)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(NimvaColors.teal)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                } else {
+                    Button {
+                        saveName()
+                        eventCountBeforeSheet = existingEvents.count
+                        showAddEvent = true
+                    } label: {
+                        Text("Add my first event")
+                            .font(NimvaFont.button)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(NimvaColors.teal)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+
+                    Button {
+                        saveName()
+                        connectAndImportCalendar()
+                    } label: {
+                        if isImportingFromCalendar {
+                            ProgressView()
+                                .tint(NimvaColors.textSecondary)
+                        } else {
+                            Text("or, add from calendar")
+                                .font(NimvaFont.callout)
+                                .foregroundStyle(NimvaColors.textSecondary)
+                        }
+                    }
+                    .frame(minHeight: 44)
+                    .disabled(isImportingFromCalendar)
+
+                    Button {
+                        saveName()
+                        onSkip()
+                    } label: {
+                        Text("Maybe later")
+                            .font(NimvaFont.callout)
+                            .foregroundStyle(NimvaColors.textMuted)
+                    }
+                    .frame(minHeight: 44)
                 }
-                .frame(minHeight: 44)
             }
+            .nimvaAnimation(NimvaAnimation.stateChange, value: justAddedEventName)
             .padding(.horizontal, 28)
             .padding(.bottom, 48)
         }
-        // Presenting AddEventView here so the user can add their first event
-        // before being dropped into the main app — smoother first-run experience
-        .sheet(isPresented: $showAddEvent, onDismiss: onAddEvent) {
+        // Presenting AddEventView here so the user can add their first event before being
+        // dropped into the main app. onDismiss only calls onAddEvent (which flags Home to
+        // auto-open the add sheet again) when the sheet was cancelled without saving — a
+        // real save here shouldn't immediately trigger a second add-event prompt on launch.
+        .sheet(isPresented: $showAddEvent, onDismiss: {
+            if existingEvents.count > eventCountBeforeSheet {
+                justAddedEventName = existingEvents
+                    .sorted(by: { $0.createdAt > $1.createdAt })
+                    .first?.name
+            } else {
+                onAddEvent()
+            }
+        }) {
             AddEventView()
         }
         .sheet(isPresented: $showingCalendarImport) {
