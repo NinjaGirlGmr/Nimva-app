@@ -17,6 +17,9 @@ struct WeekGenerationView: View {
     // #87 — shown once, the first time a user approves a week, so they know the
     // schedule won't shift under them. Reduces OCD-style re-checking anxiety.
     @AppStorage("hasSeenScheduleStabilityNote") private var hasSeenScheduleStabilityNote = false
+    @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
+    @AppStorage("customEnergyMixedHex") private var energyMixedHex = "ef9f27"
+    @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
 
     @State private var genState: GenerationState = .ready
     @State private var progress: Double = 0.0
@@ -400,7 +403,8 @@ struct WeekGenerationView: View {
 
     private var emberCard: some View {
         HStack(spacing: 14) {
-            // Ember avatar — warm glow behind, amber border ring
+            // Ember avatar — warm glow behind, ring matches Home's treatment now instead of
+            // a hardcoded amber stroke that never responded to the user's Energy Colours.
             ZStack {
                 Circle()
                     .fill(
@@ -415,7 +419,7 @@ struct WeekGenerationView: View {
                     .frame(width: 44, height: 44)
                     .background(NimvaColors.cardDark)
                     .clipShape(Circle())
-                    .overlay(Circle().stroke(NimvaColors.amberWarm, lineWidth: 1.5))
+                    .overlay(Circle().strokeBorder(NimvaColors.emberRingGradient, lineWidth: 1.5))
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -496,14 +500,8 @@ struct WeekGenerationView: View {
                         .fill(NimvaColors.purpleMuted)
                         .frame(height: 6)
 
-                    // Gradient bar — teal → purple → amber mirrors the energy bar on Home
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(
-                            LinearGradient(
-                                colors: [NimvaColors.teal, NimvaColors.purplePrimary, NimvaColors.amber],
-                                startPoint: .leading, endPoint: .trailing
-                            )
-                        )
+                        .fill(barFillStyle)
                         .frame(width: geo.size.width * progress, height: 6)
                         .nimvaAnimation(NimvaAnimation.valueUpdate, value: progress)
                 }
@@ -520,6 +518,22 @@ struct WeekGenerationView: View {
                     .foregroundStyle(NimvaColors.textSecondary)
             }
         }
+    }
+
+    // While building: a light → mixed → heavy sweep using the user's actual Energy Colours
+    // (Settings), not a fixed brand gradient — matches every other load display now. Once
+    // done: a solid color reflecting how balanced the week actually is (LoadSeverity), so a
+    // lopsided week visibly reads differently from a well-balanced one instead of the bar
+    // always looking identical either way.
+    private var barFillStyle: AnyShapeStyle {
+        guard genState == .done else {
+            return AnyShapeStyle(LinearGradient(
+                colors: [Color(hex: energyLightHex), Color(hex: energyMixedHex), Color(hex: energyHeavyHex)],
+                startPoint: .leading, endPoint: .trailing
+            ))
+        }
+        let severity = LoadSeverity.forVariance(schedule?.balanceScore ?? 0)
+        return AnyShapeStyle(Color(hex: severity.hex(light: energyLightHex, mixed: energyMixedHex, heavy: energyHeavyHex)))
     }
 
     // MARK: - Action buttons
@@ -619,7 +633,7 @@ struct WeekGenerationView: View {
             // showFlexible check (which gates on revealedDays) stays false forever and
             // the already-placed flexible events silently never render.
             revealedDays = Set(DayOfWeek.allCases)
-            progress = 1.0
+            progress = balanceBarFill(forVariance: cached.balanceScore)
             genState = .done
         } else {
             schedule = nil
@@ -651,7 +665,7 @@ struct WeekGenerationView: View {
             // 7 sequential move transitions are the most motion-intensive moment in the
             // whole app; for users who need Reduce Motion, instant is strongly preferable.
             revealedDays = Set(DayOfWeek.allCases)
-            progress = 1.0
+            progress = balanceBarFill(forVariance: schedule?.balanceScore ?? 0)
             genState = .done
             return
         }
@@ -674,7 +688,9 @@ struct WeekGenerationView: View {
             guard buildToken == token else { return }   // stale — a week switch happened mid-build
             withAnimation(.easeInOut(duration: 0.4)) {
                 genState = .done
-                progress = 1.0  // Bar stays full — week is 100% built; quality shown by chips below
+                // Reflects real balance data now — see balanceBarFill — instead of always
+                // sitting pinned at 100% regardless of whether the week is actually balanced.
+                progress = balanceBarFill(forVariance: schedule?.balanceScore ?? 0)
             }
         }
     }
