@@ -299,6 +299,38 @@ enum SchedulerService {
         return (encodeIds(completed), encodeIds(inProgress))
     }
 
+    /// True when marking `event` "completed" right now would mean marking something that
+    /// hasn't actually happened yet — a genuinely future day this week, or (for fixed events
+    /// specifically, the only ones with a real clock time) later today. Flexible events have
+    /// no specific hour, so "today" is the finest granularity available for them; a flexible
+    /// event on today is never considered premature. Callers use this to add a confirmation
+    /// step before the tap that would produce the strikethrough+checkmark "completed" state —
+    /// that visual reads as "this happened," so it shouldn't apply silently to something that
+    /// demonstrably hasn't, while still letting the user confirm and mark it done anyway if
+    /// that's genuinely what they mean (e.g. they finished it early).
+    static func isCompletionPremature(
+        event: Event,
+        selectedDay: DayOfWeek,
+        today: DayOfWeek,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Bool {
+        if selectedDay.rawValue > today.rawValue { return true }
+        if selectedDay.rawValue < today.rawValue { return false }
+        guard event.isFixed, let start = event.startTime else { return false }
+        // startTime only carries a meaningful time-of-day for a recurring fixed event — its
+        // date component is just whichever day it happened to be created or last edited on,
+        // never "today" for an event set up in the past. Comparing full Dates here would
+        // silently never flag anything as premature once even a single day has passed since
+        // creation, since the stale date always sorts before `now`. Compare hour/minute only.
+        let startParts = calendar.dateComponents([.hour, .minute], from: start)
+        let nowParts = calendar.dateComponents([.hour, .minute], from: now)
+        guard let startHour = startParts.hour, let nowHour = nowParts.hour else { return false }
+        let startMinuteOfDay = startHour * 60 + (startParts.minute ?? 0)
+        let nowMinuteOfDay = nowHour * 60 + (nowParts.minute ?? 0)
+        return startMinuteOfDay > nowMinuteOfDay
+    }
+
     private static func idSet(from json: String) -> Set<UUID> {
         guard let data = json.data(using: .utf8),
               let strings = try? JSONDecoder().decode([String].self, from: data)

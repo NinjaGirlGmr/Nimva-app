@@ -25,6 +25,7 @@ struct HomeView: View {
     @State private var showUndoBanner = false
     @State private var undoTask: Task<Void, Never>? = nil
     @State private var showingAddIntention = false
+    @State private var pendingPrematureCompletion: Event? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -410,7 +411,7 @@ struct HomeView: View {
                                                 completionState: completionState(for: event),
                                                 nextUpLabel: nextUpLabel(for: event),
                                                 onTap: { eventToEdit = event },
-                                                onCheckmark: { cycleCompletion(event) }
+                                                onCheckmark: { requestCycleCompletion(event) }
                                             )
                                                 .id("\(selectedDay.rawValue)-\(event.id)")
                                                 .padding(.horizontal, 20)
@@ -522,6 +523,21 @@ struct HomeView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Something went wrong saving your week. Try again or restart the app if the problem persists.")
+        }
+        .alert(
+            "This hasn't happened yet",
+            isPresented: Binding(
+                get: { pendingPrematureCompletion != nil },
+                set: { if !$0 { pendingPrematureCompletion = nil } }
+            )
+        ) {
+            Button("Mark done anyway") {
+                if let event = pendingPrematureCompletion { cycleCompletion(event) }
+                pendingPrematureCompletion = nil
+            }
+            Button("Not yet", role: .cancel) { pendingPrematureCompletion = nil }
+        } message: {
+            Text("\(pendingPrematureCompletion?.name ?? "This event") is still ahead of you. Mark it done anyway?")
         }
     }
 
@@ -689,6 +705,22 @@ struct HomeView: View {
                 undoSnapshot = nil
             }
         }
+    }
+
+    // Gate in front of cycleCompletion: the tap that would land on "completed" (i.e. the
+    // event is currently "in progress") gets a confirmation first if the event genuinely
+    // hasn't happened yet — a future day, or later today for a fixed event with a real
+    // clock time. Every other tap (starting a task, un-completing, completing something
+    // from today or earlier) cycles instantly exactly as before.
+    private func requestCycleCompletion(_ event: Event) {
+        let wouldComplete = completionState(for: event) == .inProgress
+        if wouldComplete, SchedulerService.isCompletionPremature(
+            event: event, selectedDay: selectedDay, today: Self.todayDayOfWeek()
+        ) {
+            pendingPrematureCompletion = event
+            return
+        }
+        cycleCompletion(event)
     }
 
     // Cycles not started → in progress → completed → not started (#83). A single tap
