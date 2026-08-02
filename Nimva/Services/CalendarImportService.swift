@@ -223,11 +223,15 @@ enum CalendarImportService {
 
     // Multi-week range starting this Monday (regardless of device locale) through the
     // end of the importWeeksAhead-th week.
+    // Reuses SchedulerService's own week-boundary logic instead of a second, independent
+    // copy — this used to hardcode Monday as the week start regardless of device locale, so
+    // on a Sunday (a new week for a US/Sunday-first locale) it would anchor the fetch window
+    // to last Monday, sweeping in a full week of already-past events as import candidates
+    // every time. Same root cause as the SchedulerService week-boundary fix, just duplicated
+    // here in a separate implementation that didn't get touched by that fix.
     private static func importRange() -> (start: Date, end: Date) {
-        var cal = Calendar.current
-        cal.firstWeekday = 2
-        let thisWeekStart = cal.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
-        let end = cal.date(byAdding: .weekOfYear, value: importWeeksAhead, to: thisWeekStart) ?? thisWeekStart
+        let thisWeekStart = SchedulerService.weekStart()
+        let end = SchedulerService.weekBoundaryCal.date(byAdding: .weekOfYear, value: importWeeksAhead, to: thisWeekStart) ?? thisWeekStart
         return (thisWeekStart, end)
     }
 
