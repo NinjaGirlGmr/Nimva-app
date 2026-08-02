@@ -39,13 +39,13 @@ enum SchedulerService {
         let flexible = events
             .filter { !$0.isFixed && isEventVisible($0, inWeekStarting: targetStart) }
             .compactMap { toFlexibleEvent($0) }
-        let isCurrentWeek = mondayCal.isDate(targetStart, equalTo: todayWeekStart, toGranularity: .weekOfYear)
+        let isCurrentWeek = weekBoundaryCal.isDate(targetStart, equalTo: todayWeekStart, toGranularity: .weekOfYear)
         // Future weeks have no "past days" yet, so always start from Monday — this also
         // naturally empties pastRecords/idsInPast below without a separate branch.
         let today = isCurrentWeek ? todayAsDayOfWeek() : .monday
         let existing = try context.fetch(FetchDescriptor<WeekCache>())
         let priorCache = existing.first {
-            mondayCal.isDate($0.weekStartDate, equalTo: targetStart, toGranularity: .weekOfYear)
+            weekBoundaryCal.isDate($0.weekStartDate, equalTo: targetStart, toGranularity: .weekOfYear)
         }
 
         // Extract placements from days that have already passed so they survive the rebuild.
@@ -87,7 +87,7 @@ enum SchedulerService {
 
         // Replace only this week's cache — older weeks are kept for Insights history
         existing
-            .filter { mondayCal.isDate($0.weekStartDate, equalTo: targetStart, toGranularity: .weekOfYear) }
+            .filter { weekBoundaryCal.isDate($0.weekStartDate, equalTo: targetStart, toGranularity: .weekOfYear) }
             .forEach { context.delete($0) }
 
         let cache = WeekCache(
@@ -155,7 +155,7 @@ enum SchedulerService {
         // Search for the matching week — don't assume the newest row is the one wanted,
         // since multiple weeks (this week + rolling-calendar future weeks) can coexist.
         guard let cache = caches.first(where: {
-            mondayCal.isDate($0.weekStartDate, equalTo: targetStart, toGranularity: .weekOfYear)
+            weekBoundaryCal.isDate($0.weekStartDate, equalTo: targetStart, toGranularity: .weekOfYear)
         }) else { return nil }
 
         let placements = try decodePlacements(cache.placementsJSON, events: events)
@@ -183,7 +183,7 @@ enum SchedulerService {
     /// shared, testable version so it isn't duplicated (and re-broken) inline per caller.
     static func currentWeekCache(from caches: [WeekCache]) -> WeekCache? {
         caches.first {
-            mondayCal.isDate($0.weekStartDate, equalTo: weekStart(), toGranularity: .weekOfYear)
+            weekBoundaryCal.isDate($0.weekStartDate, equalTo: weekStart(), toGranularity: .weekOfYear)
         }
     }
 
@@ -229,7 +229,7 @@ enum SchedulerService {
     /// one-off calendar import) are visible only in the single week containing that date.
     static func isEventVisible(_ event: Event, inWeekStarting weekStart: Date) -> Bool {
         guard let specific = event.specificDate else { return true }
-        return mondayCal.isDate(specific, equalTo: weekStart, toGranularity: .weekOfYear)
+        return weekBoundaryCal.isDate(specific, equalTo: weekStart, toGranularity: .weekOfYear)
     }
 
     /// Detects which user type this schedule represents based on the fixed/flexible ratio.
@@ -418,23 +418,24 @@ enum SchedulerService {
 
     /// Returns the most recent Monday at midnight — used as the canonical week identifier.
     static func weekStart(for date: Date = Date()) -> Date {
-        return mondayCal.dateInterval(of: .weekOfYear, for: date)?.start ?? date
+        return weekBoundaryCal.dateInterval(of: .weekOfYear, for: date)?.start ?? date
     }
 
     /// Returns the Monday of the week `offsetWeeks` weeks from now (0 = this week, 1 = next
     /// week, etc.) — the rolling calendar feature's target-week lookup. Uses Calendar arithmetic
     /// rather than raw time-interval math so it stays correct across DST transitions.
     static func weekStart(offsetWeeks: Int) -> Date {
-        let base = mondayCal.date(byAdding: .weekOfYear, value: offsetWeeks, to: Date()) ?? Date()
+        let base = weekBoundaryCal.date(byAdding: .weekOfYear, value: offsetWeeks, to: Date()) ?? Date()
         return weekStart(for: base)
     }
 
-    /// A Monday-start calendar used for all week boundary comparisons so they're
-    /// consistent with weekStart() regardless of the device's locale/firstWeekday.
-    static var mondayCal: Calendar {
-        var cal = Calendar.current
-        cal.firstWeekday = 2
-        return cal
+    /// The week-boundary calendar used for every "which week is this" comparison —
+    /// derives firstWeekday from the real device locale (Sunday for US, Monday for most
+    /// of Europe, etc.), matching DayOfWeek.orderedForLocale's own convention. Previously
+    /// hardcoded to Monday regardless of locale, which meant a US user's Sunday was still
+    /// classified as the tail end of last week instead of the start of a new one.
+    static var weekBoundaryCal: Calendar {
+        Calendar.current
     }
 
     /// True when the total energy load is low enough that the week feels "open."

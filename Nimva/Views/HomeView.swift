@@ -550,7 +550,7 @@ struct HomeView: View {
     private var currentWeekIntentions: [Intention] {
         let weekStart = SchedulerService.weekStart()
         return allIntentions.filter {
-            SchedulerService.mondayCal.isDate($0.weekOf, equalTo: weekStart, toGranularity: .weekOfYear)
+            SchedulerService.weekBoundaryCal.isDate($0.weekOf, equalTo: weekStart, toGranularity: .weekOfYear)
         }
     }
 
