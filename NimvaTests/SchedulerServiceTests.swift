@@ -326,6 +326,34 @@ private func makeInMemoryContext() throws -> ModelContext {
     return ModelContext(try ModelContainer(for: schema, configurations: [config]))
 }
 
+// MARK: - weekStart() locale awareness
+
+@Suite("SchedulerService — weekStart locale awareness")
+struct WeekStartLocaleTests {
+
+    // Regression: weekStart() used to hardcode Monday as the week boundary regardless of
+    // device locale, so a US user's Sunday was still classified as the tail end of last
+    // week instead of the start of a new one. weekBoundaryCal now derives firstWeekday from
+    // Calendar.current, matching DayOfWeek.orderedForLocale's own convention — this asserts
+    // that behavior dynamically against whatever locale the test happens to run under,
+    // rather than hardcoding an assumption about which one that is.
+    @Test func weekStartMatchesDeviceLocaleFirstWeekday() {
+        let start = SchedulerService.weekStart()
+        // Calendar's .weekday component is always 1=Sunday...7=Saturday, independent of
+        // firstWeekday — a stable way to check which actual day weekStart() landed on.
+        let weekday = Calendar.current.component(.weekday, from: start)
+        if Calendar.current.firstWeekday == 1 {
+            #expect(weekday == 1)  // Sunday-first locale (e.g. US) — week starts Sunday
+        } else {
+            #expect(weekday == 2)  // Monday-first locale (e.g. most of Europe/ISO)
+        }
+    }
+
+    @Test func weekBoundaryCalFirstWeekdayMatchesDeviceLocale() {
+        #expect(SchedulerService.weekBoundaryCal.firstWeekday == Calendar.current.firstWeekday)
+    }
+}
+
 // MARK: - currentWeekCache(from:)
 
 @Suite("SchedulerService — currentWeekCache")
@@ -383,7 +411,7 @@ struct MultiWeekSchedulerServiceTests {
 
         try SchedulerService.regenerate(context: context, events: events, weekOffset: 0)
         let beforeAll = try context.fetch(FetchDescriptor<WeekCache>())
-        let thisWeekBefore = beforeAll.first { SchedulerService.mondayCal.isDate($0.weekStartDate, equalTo: SchedulerService.weekStart(offsetWeeks: 0), toGranularity: .weekOfYear) }
+        let thisWeekBefore = beforeAll.first { SchedulerService.weekBoundaryCal.isDate($0.weekStartDate, equalTo: SchedulerService.weekStart(offsetWeeks: 0), toGranularity: .weekOfYear) }
         let jsonBefore = thisWeekBefore?.placementsJSON
 
         // Rebuild next week — this week's cache must be untouched (regression test for
@@ -391,7 +419,7 @@ struct MultiWeekSchedulerServiceTests {
         try SchedulerService.regenerate(context: context, events: events, weekOffset: 1)
 
         let afterAll = try context.fetch(FetchDescriptor<WeekCache>())
-        let thisWeekAfter = afterAll.first { SchedulerService.mondayCal.isDate($0.weekStartDate, equalTo: SchedulerService.weekStart(offsetWeeks: 0), toGranularity: .weekOfYear) }
+        let thisWeekAfter = afterAll.first { SchedulerService.weekBoundaryCal.isDate($0.weekStartDate, equalTo: SchedulerService.weekStart(offsetWeeks: 0), toGranularity: .weekOfYear) }
         #expect(afterAll.count == 2)
         #expect(thisWeekAfter?.placementsJSON == jsonBefore)
     }
@@ -496,7 +524,7 @@ struct MultiWeekSchedulerServiceTests {
 
         let all = try context.fetch(FetchDescriptor<WeekCache>())
         #expect(all.count == 1)
-        #expect(SchedulerService.mondayCal.isDate(
+        #expect(SchedulerService.weekBoundaryCal.isDate(
             all.first!.weekStartDate, equalTo: SchedulerService.weekStart(), toGranularity: .weekOfYear
         ))
     }
