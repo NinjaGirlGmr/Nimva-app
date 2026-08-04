@@ -133,6 +133,7 @@ struct WeekGenerationView: View {
                     .frame(width: 36, height: 36)
                     .background(NimvaColors.purplePrimary.opacity(0.12))
                     .clipShape(Circle())
+                    .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
             }
             .accessibilityLabel("Add event")
         }
@@ -187,7 +188,7 @@ struct WeekGenerationView: View {
                 let dayFixed = fixedEvents.filter {
                     $0.fixedDay == day
                         && SchedulerService.isEventVisible($0, inWeekStarting: SchedulerService.weekStart(offsetWeeks: weekOffset))
-                }
+                } + loggedEventsOn(day)
                 let dayFlex = placedFlexibleOn(day)
                 // Compact-mode bars are color-only with no text — tappable so a day's
                 // actual events are still reachable, here and for future weeks Home
@@ -224,13 +225,23 @@ struct WeekGenerationView: View {
         return events.filter { ids.contains($0.id) }
     }
 
+    // Logged (retroactive) events aren't in fixedEvents (isFixed == false) and are never a
+    // placement candidate (see SchedulerService.regenerate), so neither dayFixed nor
+    // placedFlexibleOn would ever surface them — they need their own lookup, same as
+    // SchedulerService.events(for:cache:from:) does for Home.
+    private func loggedEventsOn(_ day: DayOfWeek) -> [Event] {
+        events.filter {
+            SchedulerService.isLoggedEventVisible($0, onDay: day, inWeekStarting: SchedulerService.weekStart(offsetWeeks: weekOffset))
+        }
+    }
+
     // Full event list for a day — same fixed+flexible union as dayGrid's columns use,
     // just sorted for detail display (fixed events by start time, flex events last).
     private func eventsForDay(_ day: DayOfWeek) -> [Event] {
         let fixed = fixedEvents.filter {
             $0.fixedDay == day
                 && SchedulerService.isEventVisible($0, inWeekStarting: SchedulerService.weekStart(offsetWeeks: weekOffset))
-        }
+        } + loggedEventsOn(day)
         let flex = placedFlexibleOn(day)
         return (fixed + flex).sorted { a, b in
             switch (a.startTime, b.startTime) {
@@ -313,11 +324,11 @@ struct WeekGenerationView: View {
             let deferrable = schedule.placedFlexibleEvents.filter { !$0.event.isPriority }
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("What can I cut?")
+                    Text("What can I remove?")
                         .font(NimvaFont.bodySemi)
                         .foregroundStyle(NimvaColors.textPrimary)
                     Spacer()
-                    Button { withAnimation { showCutSuggestion = false } } label: {
+                    Button { withAnimation(reduceMotion ? .none : .default) { showCutSuggestion = false } } label: {
                         Image(systemName: "xmark")
                             .font(NimvaFont.micro)
                             .foregroundStyle(NimvaColors.textMuted)
@@ -330,11 +341,11 @@ struct WeekGenerationView: View {
                 }
 
                 if deferrable.isEmpty {
-                    Text("All your flexible events are marked must-do — nothing to cut, but a small protected gap still helps.")
+                    Text("All your flexible events are marked must-do — nothing to remove, but a small protected gap still helps.")
                         .font(.system(.caption))
                         .foregroundStyle(NimvaColors.textSecondary)
                 } else {
-                    Text("These could wait if you're already stretched:")
+                    Text("These could wait if your week is already full:")
                         .font(.system(.caption))
                         .foregroundStyle(NimvaColors.textSecondary)
                     VStack(alignment: .leading, spacing: 6) {
@@ -367,7 +378,7 @@ struct WeekGenerationView: View {
         HStack(spacing: 12) {
             EmberView(expression: .calm, size: .mini)
                 .frame(width: 28, height: 28)
-            Text("First week with Nimva — results get sharper as your patterns build up.")
+            Text("First week with Nimva — results get more accurate as your patterns build up.")
                 .font(.system(.caption))
                 .foregroundStyle(NimvaColors.textSecondary)
             Spacer()
@@ -430,6 +441,7 @@ struct WeekGenerationView: View {
                     .font(NimvaFont.micro)
                     .foregroundStyle(NimvaColors.textSecondary)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
@@ -452,11 +464,11 @@ struct WeekGenerationView: View {
         switch genState {
         case .ready:    return "Ready when you are"
         case .building: return "Finding the best slots..."
-        case .approved: return "Week is set"
+        case .approved: return "Week is finalized"
         case .done:
             switch userType {
-            case .optimizer:      return "Looks like a solid week"
-            case .overloadedFixed: return "Heavy week — I've worked around your fixed load"
+            case .optimizer:      return "Looks like a good week"
+            case .overloadedFixed: return "Heavy week — I've fit flexible time around your fixed events"
             case .patternLearner: return "Good mix — your patterns helped guide this"
             }
         }
@@ -468,7 +480,7 @@ struct WeekGenerationView: View {
             let n = flexibleEvents.count
             return n == 0 ? "Add flexible events first" : "\(n) flexible event\(n == 1 ? "" : "s") to place"
         case .building:
-            return "Working through your energy load..."
+            return "Calculating your energy load..."
         case .approved:
             return ""
         case .done:
@@ -479,13 +491,13 @@ struct WeekGenerationView: View {
                 switch score {
                 case ..<0.4:  return "Good spread across the week"
                 case ..<0.66: return "Some days are heavier than others"
-                default:      return "Load is concentrated — watch the heavy days"
+                default:      return "Load is concentrated — the heavy days need attention"
                 }
             case .overloadedFixed:
                 let flexPlaced = schedule?.placedFlexibleEvents.count ?? 0
                 return flexPlaced > 0
                     ? "Flex time placed in the lighter spots — approve when ready"
-                    : "Week mapped — knowing the load is the first step"
+                    : "Week planned — knowing the load is the first step"
             }
         }
     }
@@ -701,7 +713,7 @@ struct WeekGenerationView: View {
         NimvaHaptics.success()
         showStabilityNoteThisApproval = !hasSeenScheduleStabilityNote
         hasSeenScheduleStabilityNote = true
-        withAnimation(NimvaAnimation.cardAppear) { genState = .approved }
+        withAnimation(reduceMotion ? .none : NimvaAnimation.cardAppear) { genState = .approved }
     }
 
     // MARK: - Approved view
@@ -741,7 +753,7 @@ struct WeekGenerationView: View {
             Spacer()
 
             Button {
-                withAnimation { genState = .ready; progress = 0 }
+                withAnimation(reduceMotion ? .none : .default) { genState = .ready; progress = 0 }
                 weekOffset = 0
                 selectedTab = 0
             } label: {
@@ -761,24 +773,24 @@ struct WeekGenerationView: View {
     private var approvalTitle: String {
         switch schedule?.heavyDays.count ?? 0 {
         case 0:    return "Week is looking light."
-        case 1, 2: return "Week is set."
-        default:   return "Week mapped."
+        case 1, 2: return "Week is finalized."
+        default:   return "Week planned."
         }
     }
 
     private var approvalMessage: String {
         switch schedule?.heavyDays.count ?? 0 {
-        case 0:    return "Solid breathing room across the board — you've built yourself some space."
+        case 0:    return "A genuinely light week — you've got real free time this week."
         case 1, 2:
             let heavy = schedule?.heavyDays.sorted(by: { $0.rawValue < $1.rawValue }).first
             let dayName = heavy.map { $0.displayName } ?? "your heavier day"
-            return "Flex time is in the lighter spots — keep an eye on \(dayName)."
-        default:   return "It's a packed one — Nimva's placed flex tasks in the gaps. Protect them."
+            return "Flex time is in the lighter spots — \(dayName) is still worth checking on."
+        default:   return "It's a full week — Nimva's placed flex tasks in the gaps. Try to keep them free."
         }
     }
 
     private func redo() {
-        withAnimation {
+        withAnimation(reduceMotion ? .none : .default) {
             genState = .ready
             schedule = nil
             revealedDays = []
@@ -788,7 +800,8 @@ struct WeekGenerationView: View {
 }
 
 // MARK: - GenDayColumn
-// One column in the day grid. Shows fixed events as purple bars and placed
+// One column in the day grid. Shows fixed events as purple bars (a logged/retroactive
+// entry mixed into that same array shows in its own distinct color instead) and placed
 // flexible events as teal bars that animate in during the building phase.
 
 private struct GenDayColumn: View {
@@ -807,7 +820,7 @@ private struct GenDayColumn: View {
 
             VStack(spacing: 3) {
                 ForEach(fixedEvents) { event in
-                    eventBar(name: event.name, color: NimvaColors.purplePrimary)
+                    eventBar(name: event.name, color: event.wasLogged ? NimvaColors.logged : NimvaColors.purplePrimary)
                 }
 
                 if showFlexible {
@@ -830,22 +843,27 @@ private struct GenDayColumn: View {
 
     @ViewBuilder
     private func eventBar(name: String, color: Color) -> some View {
-        RoundedRectangle(cornerRadius: 3)
-            .fill(color.opacity(0.85))
-            .frame(maxWidth: .infinity)
-            .frame(height: isCompact ? 10 : 14)
-            .overlay(
-                // Only show the name label in the expanded (non-compact) state
-                Group {
-                    if !isCompact {
-                        Text(name)
-                            .font(NimvaFont.chip)
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                            .padding(.horizontal, 3)
-                    }
-                }
-            )
+        if isCompact {
+            // No text label at this size — a fixed thin bar is fine, nothing to clip.
+            RoundedRectangle(cornerRadius: 3)
+                .fill(color.opacity(0.85))
+                .frame(maxWidth: .infinity)
+                .frame(height: 10)
+        } else {
+            // Text drives the bar's height via .background() rather than a fixed-height
+            // bar with text overlaid on top — at large Dynamic Type sizes the old overlay
+            // approach clipped/overlapped neighboring bars since the shape couldn't grow
+            // to fit the text it was carrying.
+            Text(name)
+                .font(NimvaFont.chip)
+                .foregroundStyle(.white)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 3)
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, minHeight: 14, alignment: .center)
+                .background(RoundedRectangle(cornerRadius: 3).fill(color.opacity(0.85)))
+        }
     }
 }
 
@@ -863,7 +881,8 @@ private struct EventChip: View {
             Text(event.name)
                 .font(NimvaFont.chip)
                 .foregroundStyle(NimvaColors.textPrimary)
-                .lineLimit(1)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)

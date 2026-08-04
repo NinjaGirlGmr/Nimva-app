@@ -386,6 +386,68 @@ struct CurrentWeekCacheTests {
     }
 }
 
+@Suite("SchedulerService — logged (retroactive) events")
+@MainActor
+struct LoggedEventTests {
+
+    @Test func isLoggedEventVisibleMatchesItsOwnDay() {
+        let today = Date()
+        let day = CalendarImportService.nimvaDay(from: today)!
+        let event = Event(name: "Test", isFixed: false, specificDate: today, energyCost: 0.5, wasLogged: true)
+        #expect(SchedulerService.isLoggedEventVisible(event, onDay: day, inWeekStarting: SchedulerService.weekStart()))
+    }
+
+    @Test func isLoggedEventVisibleFalseForWrongDay() {
+        let today = Date()
+        let day = CalendarImportService.nimvaDay(from: today)!
+        let wrongDay = DayOfWeek(rawValue: day.rawValue % 7 + 1)!
+        let event = Event(name: "Test", isFixed: false, specificDate: today, energyCost: 0.5, wasLogged: true)
+        #expect(!SchedulerService.isLoggedEventVisible(event, onDay: wrongDay, inWeekStarting: SchedulerService.weekStart()))
+    }
+
+    @Test func isLoggedEventVisibleFalseWhenNotLogged() {
+        let today = Date()
+        let day = CalendarImportService.nimvaDay(from: today)!
+        // Same specificDate, but wasLogged is false — an ordinary "this week only" flexible event.
+        let event = Event(name: "Test", isFixed: false, specificDate: today, energyCost: 0.5, wasLogged: false)
+        #expect(!SchedulerService.isLoggedEventVisible(event, onDay: day, inWeekStarting: SchedulerService.weekStart()))
+    }
+
+    @Test func isLoggedEventVisibleFalseWithNoSpecificDate() {
+        let event = Event(name: "Test", isFixed: false, energyCost: 0.5, wasLogged: true)
+        #expect(!SchedulerService.isLoggedEventVisible(event, onDay: .monday, inWeekStarting: SchedulerService.weekStart()))
+    }
+
+    @Test func eventsForDayIncludesLoggedEventEvenWithoutAPlacement() {
+        let today = Date()
+        let day = CalendarImportService.nimvaDay(from: today)!
+        let logged = Event(name: "Officer duty emails", isFixed: false, specificDate: today, energyCost: 0.7, wasLogged: true)
+        let cache = WeekCache(weekStartDate: SchedulerService.weekStart(), placementsJSON: "[]", balanceScore: 0, heavyDayValues: [])
+
+        let result = SchedulerService.events(for: day, cache: cache, from: [logged])
+        #expect(result.map(\.id) == [logged.id])
+    }
+
+    @Test func regenerateCountsLoggedEventTowardDailyLoad() throws {
+        let context = try makeInMemoryContext()
+        let today = Date()
+        let day = CalendarImportService.nimvaDay(from: today)!
+        let logged = Event(name: "Officer duty emails", isFixed: false, specificDate: today, energyCost: 0.7, wasLogged: true)
+
+        let schedule = try SchedulerService.regenerate(context: context, events: [logged], weekOffset: 0)
+        #expect(abs((schedule.dailyLoads[day] ?? 0) - 0.7) < 0.0001)
+    }
+
+    @Test func regenerateNeverTreatsALoggedEventAsAPlacementCandidate() throws {
+        let context = try makeInMemoryContext()
+        let logged = Event(name: "Officer duty emails", isFixed: false, specificDate: Date(), energyCost: 0.7, wasLogged: true)
+
+        let schedule = try SchedulerService.regenerate(context: context, events: [logged], weekOffset: 0)
+        #expect(!schedule.placedFlexibleEvents.contains { $0.event.id == logged.id })
+        #expect(!schedule.overflowEvents.contains { $0.id == logged.id })
+    }
+}
+
 @Suite("SchedulerService — multi-week regenerate/load")
 @MainActor
 struct MultiWeekSchedulerServiceTests {

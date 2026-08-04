@@ -32,12 +32,18 @@ enum NimvaColors {
     static let cardDark      = Color(hex: "1a1648")
 
     static let purplePrimary = Color(hex: "6c50d0")  // 3.34:1 — UI components only (buttons, icons, tabs)
+    // Background-fill only (progress dots, unfilled bar segments, selected-chip backgrounds) —
+    // never used as a foreground/text color itself, so it isn't measured against the page
+    // background like the colors below. textPrimary on it is 11.12:1 (fine). textMuted on it
+    // is 3.74:1 solid / ~4.09:1 at the 0.5-opacity chip-background use in EventCard's Flex tag —
+    // under 4.5:1 for small text. Worth a follow-up look at that specific chip if it matters;
+    // not changed here since it's a visual-design call, not a copy fix.
     static let purpleMuted   = Color(hex: "2d2060")
 
     static let teal          = Color(hex: "1d9e75")  // 5.61:1 ✓ AA
     static let coral         = Color(hex: "e0825a")  // 6.79:1 ✓ AA — second flexible-event color (replaces blue)
     static let amber         = Color(hex: "ef9f27")  // 8.74:1 ✓ AA
-    static let amberWarm     = Color(hex: "e0a458")  // Ember glow / spark
+    static let amberWarm     = Color(hex: "e0a458")  // 8.70:1 ✓ AA — Ember glow / spark
 
     static let textPrimary   = Color(hex: "e8e0ff")  // 14.96:1 ✓ AA — all essential content
     static let textSecondary = Color(hex: "a090d0")  //  6.69:1 ✓ AA — supporting content users need to read
@@ -48,7 +54,7 @@ enum NimvaColors {
     static let textDecorative = Color(hex: "6050a0")
 
     // Heavy-day dot in the week strip — a load indicator, not an event color,
-    // so it's exempt from the coral replacement rule
+    // so it's exempt from the coral replacement rule. 5.29:1 ✓ AA
     static let heavyBlue     = Color(hex: "378add")
 
     // Alt energy palette — icon ring colours, all verified AA against background (#100c28)
@@ -62,6 +68,13 @@ enum NimvaColors {
     static func energyLight(_ alt: Bool) -> Color { alt ? altEnergyLight : teal }
     static func energyMixed(_ alt: Bool) -> Color { alt ? altEnergyMixed : amber }
     static func energyHeavy(_ alt: Bool) -> Color { alt ? altEnergyHeavy : coral }
+
+    // Logged/unplanned event marker — sits in the one genuinely open hue gap among all six
+    // Energy Colours palettes plus purple/teal (259°-307°, between Alt's mixed color and
+    // Dusk's heavy color), so it can't collide with any user's chosen severity palette or
+    // either existing event-type color. Sampled/reasoned from the app icon's real ring
+    // colors (teal/violet/coral) without reusing one of its three exact anchor hues.
+    static let logged = Color(hex: "b051d6")  // 4.52:1 ✓ AA
 
     // Ember's signature ring — echoes the app icon (teal → violet), used everywhere a
     // small Ember avatar gets a ring treatment (Home, Plan, Settings). One shared constant

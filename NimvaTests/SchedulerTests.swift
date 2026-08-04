@@ -377,6 +377,173 @@ struct BalanceBarFillTests {
     }
 }
 
+// MARK: - Recovery Windows (micro-recovery gap detection)
+
+@Suite("Recovery Windows")
+@MainActor
+struct RecoveryWindowsTests {
+
+    private func fixedEvent(startHour: Int, startMinute: Int = 0, endHour: Int, endMinute: Int = 0) -> Event {
+        let calendar = Calendar.current
+        let start = calendar.date(bySettingHour: startHour, minute: startMinute, second: 0, of: Date())!
+        let end = calendar.date(bySettingHour: endHour, minute: endMinute, second: 0, of: Date())!
+        return Event(name: "Test", isFixed: true, fixedDay: .monday, startTime: start, endTime: end, energyCost: 0.5)
+    }
+
+    @Test func noEventsProducesNoWindows() {
+        #expect(recoveryWindows(fixedEvents: []).isEmpty)
+    }
+
+    @Test func singleEventProducesNoWindows() {
+        let events = [fixedEvent(startHour: 9, endHour: 10)]
+        #expect(recoveryWindows(fixedEvents: events).isEmpty)
+    }
+
+    @Test func meaningfulGapIsDetected() {
+        let events = [
+            fixedEvent(startHour: 9, endHour: 10),
+            fixedEvent(startHour: 14, endHour: 15),
+        ]
+        let windows = recoveryWindows(fixedEvents: events)
+        #expect(windows.count == 1)
+        #expect(windows.first?.startMinuteOfDay == 10 * 60)
+        #expect(windows.first?.endMinuteOfDay == 14 * 60)
+        #expect(windows.first?.durationMinutes == 240)
+    }
+
+    @Test func gapShorterThanMinimumIsExcluded() {
+        // 10 minute gap, default minimum is 20
+        let events = [
+            fixedEvent(startHour: 9, endHour: 10),
+            fixedEvent(startHour: 10, startMinute: 10, endHour: 11),
+        ]
+        #expect(recoveryWindows(fixedEvents: events).isEmpty)
+    }
+
+    @Test func backToBackEventsProduceNoGap() {
+        let events = [
+            fixedEvent(startHour: 9, endHour: 10),
+            fixedEvent(startHour: 10, endHour: 11),
+        ]
+        #expect(recoveryWindows(fixedEvents: events).isEmpty)
+    }
+
+    @Test func overlappingEventsAreMergedNotTreatedAsAGap() {
+        // Second event starts before the first ends — should merge into one 9-11:30 block.
+        let events = [
+            fixedEvent(startHour: 9, endHour: 11),
+            fixedEvent(startHour: 10, endHour: 11, endMinute: 30),
+            fixedEvent(startHour: 12, endHour: 13),
+        ]
+        let windows = recoveryWindows(fixedEvents: events)
+        #expect(windows.count == 1)
+        #expect(windows.first?.startMinuteOfDay == 11 * 60 + 30)
+        #expect(windows.first?.endMinuteOfDay == 12 * 60)
+    }
+
+    @Test func onlyQualifyingGapsAmongMultipleAreReturned() {
+        let events = [
+            fixedEvent(startHour: 8, endHour: 9),
+            fixedEvent(startHour: 9, startMinute: 5, endHour: 10),   // 5 min gap before — excluded
+            fixedEvent(startHour: 11, endHour: 12),                  // 60 min gap before — included
+        ]
+        let windows = recoveryWindows(fixedEvents: events)
+        #expect(windows.count == 1)
+        #expect(windows.first?.startMinuteOfDay == 10 * 60)
+        #expect(windows.first?.endMinuteOfDay == 11 * 60)
+    }
+
+    @Test func customMinimumMinutesRespected() {
+        let events = [
+            fixedEvent(startHour: 9, endHour: 10),
+            fixedEvent(startHour: 10, startMinute: 25, endHour: 11),
+        ]
+        #expect(recoveryWindows(fixedEvents: events, minimumMinutes: 20).count == 1)
+        #expect(recoveryWindows(fixedEvents: events, minimumMinutes: 30).isEmpty)
+    }
+
+    @Test func flexibleEventsAreIgnored() {
+        let flex = Event(name: "Flex", isFixed: false, preferredWindow: .any, energyCost: 0.5)
+        let events = [
+            fixedEvent(startHour: 9, endHour: 10),
+            flex,
+            fixedEvent(startHour: 14, endHour: 15),
+        ]
+        // Same result as if the flexible event weren't in the list at all.
+        #expect(recoveryWindows(fixedEvents: events).count == 1)
+    }
+
+    @Test func formattedMinuteOfDayProducesShortTimeStyle() {
+        // 14:15 = 2:15 PM. Exact string is locale-dependent, so just check it contains the
+        // expected hour/minute digits rather than hardcoding "2:15 PM" verbatim.
+        let formatted = formattedMinuteOfDay(14 * 60 + 15)
+        #expect(formatted.contains("2") && formatted.contains("15"))
+    }
+}
+
+@Suite("Now Marker")
+@MainActor
+struct NowMarkerTests {
+
+    private func fixedEvent(startHour: Int, startMinute: Int = 0) -> Event {
+        let calendar = Calendar.current
+        let start = calendar.date(bySettingHour: startHour, minute: startMinute, second: 0, of: Date())!
+        let end = calendar.date(bySettingHour: startHour + 1, minute: startMinute, second: 0, of: Date())!
+        return Event(name: "Test", isFixed: true, fixedDay: .monday, startTime: start, endTime: end, energyCost: 0.5)
+    }
+
+    private func time(_ hour: Int, _ minute: Int = 0) -> Date {
+        Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date())!
+    }
+
+    @Test func noFixedEventsProducesNoMarker() {
+        #expect(nowMarkerPosition(fixedEvents: [], now: time(12)) == nil)
+    }
+
+    @Test func nowBeforeFirstEventPointsAtIt() {
+        let first = fixedEvent(startHour: 9)
+        let second = fixedEvent(startHour: 14)
+        let position = nowMarkerPosition(fixedEvents: [first, second], now: time(8))
+        #expect(position == .beforeEvent(first.id))
+    }
+
+    @Test func nowBetweenEventsPointsAtTheNextOne() {
+        let first = fixedEvent(startHour: 9)
+        let second = fixedEvent(startHour: 14)
+        let position = nowMarkerPosition(fixedEvents: [first, second], now: time(11))
+        #expect(position == .beforeEvent(second.id))
+    }
+
+    @Test func nowAfterLastEventStartIsAfterAll() {
+        let first = fixedEvent(startHour: 9)
+        let second = fixedEvent(startHour: 14)
+        let position = nowMarkerPosition(fixedEvents: [first, second], now: time(15))
+        #expect(position == .afterAll)
+    }
+
+    @Test func nowExactlyAtAnEventStartIsNotConsideredBeforeIt() {
+        // A marker sitting exactly on an event's start reads as "that event is starting
+        // now," not "coming up next," so it shouldn't render before it.
+        let only = fixedEvent(startHour: 9)
+        let position = nowMarkerPosition(fixedEvents: [only], now: time(9))
+        #expect(position == .afterAll)
+    }
+
+    @Test func unsortedInputIsHandledCorrectly() {
+        let second = fixedEvent(startHour: 14)
+        let first = fixedEvent(startHour: 9)
+        let position = nowMarkerPosition(fixedEvents: [second, first], now: time(11))
+        #expect(position == .beforeEvent(second.id))
+    }
+
+    @Test func flexibleEventsAreIgnored() {
+        let flex = Event(name: "Flex", isFixed: false, preferredWindow: .any, energyCost: 0.5)
+        let fixed = fixedEvent(startHour: 14)
+        let position = nowMarkerPosition(fixedEvents: [flex, fixed], now: time(11))
+        #expect(position == .beforeEvent(fixed.id))
+    }
+}
+
 // MARK: - Category Patterns (Insights)
 
 @Suite("Category Patterns")

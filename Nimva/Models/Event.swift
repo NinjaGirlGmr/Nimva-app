@@ -42,6 +42,13 @@ final class Event {
     // Priority flex events are scheduled before nice-to-do ones.
     var isPriority: Bool = false
 
+    // True for a retroactive "log something that happened" entry rather than something
+    // scheduled ahead of time — an unplanned burst of draining work, logged after the fact.
+    // Never a placement candidate for SchedulerService.regenerate (it already happened, on
+    // a specific day, and isn't "to be scheduled"), but still counts toward that day's real
+    // load — see SchedulerService's toLoggedFixedEvent/isLoggedEventVisible.
+    var wasLogged: Bool = false
+
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
 
@@ -62,7 +69,8 @@ final class Event {
         recurrenceFrequency: String? = nil,
         totalDuration: TimeInterval? = nil,
         deadline: Date? = nil,
-        isPriority: Bool = false
+        isPriority: Bool = false,
+        wasLogged: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -81,6 +89,7 @@ final class Event {
         self.totalDuration = totalDuration
         self.deadline = deadline
         self.isPriority = isPriority
+        self.wasLogged = wasLogged
         self.createdAt = Date()
         self.updatedAt = Date()
     }
