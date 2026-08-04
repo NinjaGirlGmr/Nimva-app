@@ -94,9 +94,9 @@ enum IntelligenceService {
                 .sorted { $0.endTime! > $1.endTime! }
                 .first?.endTime
             if let end = lastDrainingEnd {
-                return "\(streak) draining events back to back — no real gap until \(fmt.string(from: end))."
+                return "\(streak) consecutive draining events — no real gap until \(fmt.string(from: end))."
             }
-            return "\(streak) draining events back to back with no meaningful gap."
+            return "\(streak) consecutive draining events with no meaningful gap."
         }
 
         // Recovery window + at least one draining event — surface the gap specifically
@@ -128,10 +128,10 @@ enum IntelligenceService {
             return "Light week overall."
         case ..<5.0:
             let name = heaviest?.displayName ?? "one day"
-            return "Moderate week — \(name) carries the most load."
+            return "Moderate week — \(name) has the most load."
         default:
             let name = heaviest?.displayName ?? "one day"
-            return "Heavy week — \(name) is the hardest day."
+            return "Heavy week — \(name) has the heaviest load."
         }
     }
 
@@ -165,7 +165,7 @@ enum IntelligenceService {
             let day = heavy.first?.key.displayName ?? "one day"
             return "Heavily fixed week — \(day) carries most of the load. Worth protecting a recovery window around it if you can."
         default:
-            return "Most of your week is fixed — limited room to shift things around."
+            return "Most of your week is fixed — limited flexibility to move things."
         }
     }
 
@@ -177,7 +177,7 @@ enum IntelligenceService {
     /// Returns "" on Sunday (no next day in the week).
     static func forwardWarning(today: DayOfWeek, tomorrowDrainingCount: Int) -> String {
         guard let tomorrow = today.next, tomorrowDrainingCount >= 3 else { return "" }
-        return "\(tomorrow.displayName) has \(tomorrowDrainingCount) draining events. How you spend tonight matters."
+        return "\(tomorrow.displayName) has \(tomorrowDrainingCount) draining events. What you do tonight matters."
     }
 
     // MARK: - Category breakdown (#61)

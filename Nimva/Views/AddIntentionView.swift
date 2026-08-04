@@ -20,7 +20,7 @@ struct AddIntentionView: View {
                     .background(NimvaColors.cardDark)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                Text("Intentions aren't tasks — just a gentle direction for your open time.")
+                Text("Intentions aren't tasks — just a loose idea of what you'd like to do with your open time.")
                     .font(NimvaFont.micro)
                     .foregroundStyle(NimvaColors.textMuted)
 

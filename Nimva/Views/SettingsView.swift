@@ -77,7 +77,7 @@ struct SettingsView: View {
             }
         }
         // Energy anchor editor
-        .alert("Pretty draining anchor", isPresented: $showingAnchorEditor) {
+        .alert("Pretty Draining example", isPresented: $showingAnchorEditor) {
             TextField("e.g. back-to-back classes", text: $anchorEditDraft)
             Button("Save") {
                 energyAnchorLabel = anchorEditDraft.trimmingCharacters(in: .whitespaces)
@@ -107,7 +107,7 @@ struct SettingsView: View {
             Button("Reset patterns", role: .destructive) { resetPatterns() }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Nimva will start learning your energy patterns from scratch. Your events and schedule are not affected.")
+            Text("Nimva will start learning your energy patterns again, from the beginning. Your events and schedule are not affected.")
         }
         .confirmationDialog("Clear all data?", isPresented: $showingClearDataConfirm, titleVisibility: .visible) {
             Button("Clear all data", role: .destructive) { clearAllData() }
@@ -332,7 +332,7 @@ struct SettingsView: View {
             } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Pretty draining anchor")
+                        Text("Pretty Draining example")
                             .font(NimvaFont.callout)
                             .foregroundStyle(NimvaColors.textPrimary)
                         Text(energyAnchorLabel.isEmpty ? "Not set — tap to add" : "\"\(energyAnchorLabel)\"")
@@ -430,7 +430,7 @@ struct SettingsView: View {
                                     .font(NimvaFont.micro)
                                     .foregroundStyle(NimvaColors.textMuted)
                             } else {
-                                Text("Pull this week's events into Nimva")
+                                Text("Import this week's events into Nimva")
                                     .font(NimvaFont.micro)
                                     .foregroundStyle(NimvaColors.textMuted)
                             }
