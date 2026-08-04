@@ -165,6 +165,7 @@ private struct WeeklyTrendCard: View {
     @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
     @AppStorage("customEnergyMixedHex") private var energyMixedHex = "ef9f27"
     @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Oldest → newest so the chart reads left to right naturally
     private var chartData: [WeekDatum] {
@@ -191,7 +192,7 @@ private struct WeeklyTrendCard: View {
                         barChart
                     }
                 }
-                .animation(.easeInOut(duration: 0.25), value: trendStyle)
+                .animation(reduceMotion ? .none : .easeInOut(duration: 0.25), value: trendStyle)
 
                 legendRow
             }
@@ -235,6 +236,7 @@ private struct WeeklyTrendCard: View {
                 .frame(width: 32, height: 28)
                 .background(isSelected ? NimvaColors.purpleMuted : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
         }
         .buttonStyle(.plain)
         // Accessibility: announce which view this switches to, not just the icon
@@ -454,7 +456,7 @@ private func detectPatterns(from caches: [WeekCache]) -> [PatternCallout] {
         .map { day, count in
             PatternCallout(
                 headline: "\(day.displayName)s have been consistently heavy",
-                detail: "That's \(count) of your last \(caches.count) weeks. If something is anchored there, this might be worth a conversation — with a coach, advisor, or just yourself.",
+                detail: "That's \(count) of your last \(caches.count) weeks. If something is fixed in place there, this might be worth a conversation — with a coach, advisor, or just yourself.",
                 coaching: coachingSentence(for: day, count: count, totalWeeks: caches.count)
             )
         }
@@ -467,14 +469,14 @@ private func detectPatterns(from caches: [WeekCache]) -> [PatternCallout] {
         if ratio >= 0.6 {
             patterns.append(PatternCallout(
                 headline: "Your lighter weeks aren't feeling like rest",
-                detail: "\(notRecovered) of your last \(recoveryWeeks.count) lighter weeks still felt draining. A lighter schedule doesn't automatically mean recovery — what happens in that space matters.",
+                detail: "\(notRecovered) of your last \(recoveryWeeks.count) lighter weeks still felt draining. A lighter schedule doesn't automatically mean recovery — what happens during that time matters.",
                 coaching: "A lighter week is only recovery if it's actually used that way. Worth thinking about what fills that time — and whether it's actually restoring you."
             ))
         } else if ratio <= 0.25 && recoveryWeeks.count >= 3 {
             patterns.append(PatternCallout(
                 headline: "Your lighter weeks are actually recharging you",
-                detail: "\(recoveryWeeks.count - notRecovered) of your last \(recoveryWeeks.count) lighter weeks felt like real rest. That's a pattern worth protecting.",
-                coaching: "You're using your lighter weeks well. That kind of deliberate recovery is harder than it looks — keep it."
+                detail: "\(recoveryWeeks.count - notRecovered) of your last \(recoveryWeeks.count) lighter weeks felt like real rest. That's a pattern worth keeping up.",
+                coaching: "You're using your lighter weeks well. That kind of deliberate recovery takes more effort than people usually realize — keep it up."
             ))
         }
     }
@@ -485,11 +487,11 @@ private func detectPatterns(from caches: [WeekCache]) -> [PatternCallout] {
 private func coachingSentence(for day: DayOfWeek, count: Int, totalWeeks: Int) -> String {
     switch count {
     case 2...3:
-        return "\(day.displayName) is starting to look like a pattern. If there's a fixed commitment anchored there, it might be worth thinking about whether anything around it can shift — even small things."
+        return "\(day.displayName) is starting to look like a pattern. If there's a fixed commitment set there, it might be worth thinking about whether anything around it can shift — even small things."
     case 4...5:
-        return "\(day.displayName) has been heavy \(count) weeks in a row. Something is likely anchored there. That kind of sustained load is worth a real conversation — with a coach, advisor, or even just yourself. You're not imagining it."
+        return "\(day.displayName) has been heavy for \(count) consecutive weeks. Something is likely fixed there. That kind of sustained load is worth a real conversation — with a coach, advisor, or even just yourself. You're not imagining it."
     default:
-        return "\(count) heavy \(day.displayName)s in a row is a significant signal. This isn't just a rough stretch — it's a structural pattern. If the load can't move, naming that clearly is still useful. It's data you can bring to someone."
+        return "\(count) heavy \(day.displayName)s in \(count) consecutive weeks is a significant signal. This isn't just a difficult few weeks — it's a structural pattern. If the load can't move, naming that clearly is still useful. It's data you can bring to someone."
     }
 }
 
@@ -588,7 +590,7 @@ private struct BuildingDataCard: View {
                 .font(.system(.title))
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Building your picture")
+                Text("Still gathering data")
                     .font(NimvaFont.cardTitle)
                     .foregroundStyle(NimvaColors.textPrimary)
                 Text("Generate a few more weeks and your energy patterns will start to appear here.")
@@ -658,30 +660,37 @@ private struct InsightsLockedContent: View {
                     .background(NimvaColors.cardDark)
                     .clipShape(Circle())
                     .offset(x: 4, y: 4)
+                    .accessibilityHidden(true)
             }
 
-            VStack(spacing: 8) {
-                Text("Your energy patterns, over time")
-                    .font(NimvaFont.pageTitle)
-                    .foregroundStyle(NimvaColors.textPrimary)
+            // Grouped into one VoiceOver stop instead of 7+ fragmented reads (title,
+            // subtitle, 3 bullet icons + text, fine print) — this is explanatory content
+            // read in order, not individually interactive.
+            VStack(spacing: 20) {
+                VStack(spacing: 8) {
+                    Text("Your energy patterns, over time")
+                        .font(NimvaFont.pageTitle)
+                        .foregroundStyle(NimvaColors.textPrimary)
+                        .multilineTextAlignment(.center)
+                    Text("See why certain weeks keep feeling heavy — and bring that data to a conversation that matters.")
+                        .font(NimvaFont.body)
+                        .foregroundStyle(NimvaColors.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    bullet("5-week energy trend in one view")
+                    bullet("Pattern callouts — why Tuesdays keep being hard")
+                    bullet("Evidence you can bring to a coach or counselor")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text("Free for 2 weeks. No charge until day 15. Cancel anytime.")
+                    .font(NimvaFont.micro)
+                    .foregroundStyle(NimvaColors.textMuted)
                     .multilineTextAlignment(.center)
-                Text("See why certain weeks keep feeling heavy — and bring that data to a conversation that matters.")
-                    .font(NimvaFont.body)
-                    .foregroundStyle(NimvaColors.textSecondary)
-                    .multilineTextAlignment(.center)
             }
-
-            VStack(alignment: .leading, spacing: 10) {
-                bullet("5-week energy trend at a glance")
-                bullet("Pattern callouts — why Tuesdays keep being hard")
-                bullet("Evidence you can bring to a coach or counselor")
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Text("Free for 2 weeks. No charge until day 15. Cancel anytime.")
-                .font(NimvaFont.micro)
-                .foregroundStyle(NimvaColors.textMuted)
-                .multilineTextAlignment(.center)
+            .accessibilityElement(children: .combine)
 
             VStack(spacing: 12) {
                 Button {
@@ -732,6 +741,7 @@ private struct InsightsLockedContent: View {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(NimvaColors.teal)
                 .font(NimvaFont.body)
+                .accessibilityHidden(true)
             Text(text)
                 .font(NimvaFont.body)
                 .foregroundStyle(NimvaColors.textSecondary)

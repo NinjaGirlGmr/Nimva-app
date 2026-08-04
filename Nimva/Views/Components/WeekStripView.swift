@@ -40,10 +40,15 @@ private struct DayColumn: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            // 3-letter day abbreviation — teal when today, bright when selected
+            // 3-letter day abbreviation — teal when today, bright when selected.
+            // 7 equal-width columns share the screen with no scroll fallback, so this one
+            // label is capped below the largest accessibility sizes (still grows meaningfully,
+            // just not to the point of crowding/wrapping against its neighbors) — the load
+            // dot below it stays uncapped since it's a shape, not text.
             Text(day.shortName.uppercased())
                 .font(NimvaFont.chip)
                 .foregroundStyle(isSelected ? NimvaColors.textPrimary : isToday ? NimvaColors.teal : NimvaColors.textMuted)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
 
             // Load dot: hidden when empty, scales up and glows on heavy days
             ZStack {
