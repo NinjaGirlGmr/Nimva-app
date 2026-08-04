@@ -19,6 +19,7 @@ struct OnboardingView: View {
     // works by flipping hasCompletedOnboarding, which swaps the whole root view over to
     // ContentView; dismiss() in that context is a documented no-op, safe to call regardless.
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -56,7 +57,7 @@ struct OnboardingView: View {
                     }
                 }
             }
-            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: step)
+            .animation(reduceMotion ? .none : .spring(response: 0.35, dampingFraction: 0.7), value: step)
             .padding(.top, 60)
         }
         // Full-screen cover so the trial prompt feels like its own moment,
@@ -70,7 +71,7 @@ struct OnboardingView: View {
     }
 
     private func advance() {
-        withAnimation(.easeInOut(duration: 0.35)) { step = min(step + 1, 4) }
+        withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.35)) { step = min(step + 1, 4) }
     }
 
     private func finish(addEvent: Bool) {
@@ -89,7 +90,7 @@ struct OnboardingView: View {
     // extra/inert there. Replayed from Settings, hasCompletedOnboarding is already true, so
     // flipping it again does nothing visible — dismiss() is what actually closes the sheet.
     private func completeOnboarding() {
-        withAnimation { hasCompletedOnboarding = true }
+        withAnimation(reduceMotion ? .none : .default) { hasCompletedOnboarding = true }
         dismiss()
     }
 }
@@ -232,7 +233,7 @@ private struct ConceptScreen: View {
                         MiniWeekGrid(label: "With Nimva", loads: after, accentColor: NimvaColors.teal)
                     }
 
-                    Text("Same events — distributed around your energy, not just around the clock.")
+                    Text("Same events — placed by your energy, not just by the time of day.")
                         .font(NimvaFont.body)
                         .foregroundStyle(NimvaColors.textSecondary)
                         .multilineTextAlignment(.center)
@@ -294,7 +295,10 @@ private struct MiniWeekGrid: View {
                     }
                 }
             }
-            .frame(height: maxHeight + 16, alignment: .bottom)
+            // No fixed frame here — the bars are already capped at maxHeight individually,
+            // so the HStack can size itself to fit the day-letter labels underneath at
+            // whatever Dynamic Type size is active, instead of a hardcoded height guess
+            // that only had room for the labels at the default text size.
         }
         .padding(14)
         .background(NimvaColors.cardDark)
@@ -312,6 +316,7 @@ private struct EnergyTagScreen: View {
     let onNext: () -> Void
 
     @State private var selectedChip: ChipOption? = nil
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     enum ChipOption: String, CaseIterable {
         case noEnergy = "No energy"
@@ -339,7 +344,7 @@ private struct EnergyTagScreen: View {
                     VStack(spacing: 10) {
                         EmberView(expression: selectedChip == nil ? .calm : .happy, size: .big)
                             .frame(width: 88, height: 88)
-                            .animation(.easeInOut(duration: 0.2), value: selectedChip != nil)
+                            .animation(reduceMotion ? .none : .easeInOut(duration: 0.2), value: selectedChip != nil)
 
                         Text("One quick thing")
                             .font(NimvaFont.greeting)
@@ -350,7 +355,7 @@ private struct EnergyTagScreen: View {
                             .foregroundStyle(NimvaColors.textPrimary)
                             .multilineTextAlignment(.center)
 
-                        Text("You tag each event once, and Nimva learns your patterns from there.")
+                        Text("You tag each event once, and Nimva learns your patterns after that.")
                             .font(NimvaFont.body)
                             .foregroundStyle(NimvaColors.textSecondary)
                             .multilineTextAlignment(.center)
@@ -379,7 +384,7 @@ private struct EnergyTagScreen: View {
                         VStack(spacing: 8) {
                             ForEach(ChipOption.allCases, id: \.self) { chip in
                                 Button {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.7)) {
                                         selectedChip = chip
                                     }
                                 } label: {
@@ -480,7 +485,7 @@ private struct EnergyAnchorScreen: View {
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Think of one thing that leaves you spent. What is it?")
+                        Text("Think of one thing that leaves you exhausted. What is it?")
                             .font(NimvaFont.bodyMedium)
                             .foregroundStyle(NimvaColors.textSecondary)
 
@@ -650,7 +655,7 @@ private struct ReadyScreen: View {
                             .frame(width: 88, height: 88)
                             .padding(.top, 100)
 
-                        Text("You're all set")
+                        Text("You're ready")
                             .font(NimvaFont.display)
                             .foregroundStyle(NimvaColors.textPrimary)
 
@@ -709,12 +714,12 @@ private struct ReadyScreen: View {
                 if let eventName = justAddedEventName {
                     // A real event was actually saved — quiet, honest confirmation using
                     // their own data, not a generic illustration. No new screen, no extra
-                    // required step; "Let's go" reuses onSkip since its job (proceed without
+                    // required step; "Continue" reuses onSkip since its job (proceed without
                     // forcing the add-event sheet open again on Home) is exactly right here.
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
                             .font(NimvaFont.body)
-                        Text("\"\(eventName)\" is on your week.")
+                        Text("\"\(eventName)\" has been added.")
                             .font(NimvaFont.body)
                     }
                     .foregroundStyle(NimvaColors.teal)
@@ -726,7 +731,7 @@ private struct ReadyScreen: View {
                         saveName()
                         onSkip()
                     } label: {
-                        Text("Let's go")
+                        Text("Continue")
                             .font(NimvaFont.button)
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)

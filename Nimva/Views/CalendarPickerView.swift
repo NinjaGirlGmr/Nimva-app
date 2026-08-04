@@ -47,6 +47,7 @@ struct CalendarPickerView: View {
                                             Image(systemName: "checkmark")
                                                 .font(NimvaFont.bodySemi)
                                                 .foregroundStyle(NimvaColors.purplePrimary)
+                                                .accessibilityHidden(true)
                                         }
                                     }
                                     .padding(.vertical, 2)
@@ -54,9 +55,10 @@ struct CalendarPickerView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .frame(minHeight: 44)
+                                .accessibilityAddTraits(selectedIDs.contains(calendar.id) ? .isSelected : [])
                             }
                         } header: {
-                            Text("Nimva will only pull timed events from the calendars you select.")
+                            Text("Nimva will only import timed events from the calendars you select.")
                                 .font(.system(.caption))
                                 .foregroundStyle(NimvaColors.textMuted)
                                 .textCase(nil)

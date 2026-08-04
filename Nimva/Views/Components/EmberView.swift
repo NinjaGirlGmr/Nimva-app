@@ -123,7 +123,7 @@ struct EmberView: View {
                     .blur(radius: 28)
                     .opacity(0.3)
                     .scaleEffect(1.4)
-                    .animation(.easeInOut(duration: 0.5), value: displayed)
+                    .animation(reduceMotion ? .none : .easeInOut(duration: 0.5), value: displayed)
 
                 // Echoes the app icon's gradient ring — a defined stroke, not just a soft
                 // glow, so Ember reads as "framed" rather than just backlit.

@@ -118,6 +118,7 @@ struct CalendarImportView: View {
                         Image(systemName: "checkmark")
                             .font(NimvaFont.chip)
                             .foregroundStyle(.white)
+                            .accessibilityHidden(true)
                     }
                 }
 
@@ -125,7 +126,8 @@ struct CalendarImportView: View {
                     Text(candidate.title)
                         .font(NimvaFont.calloutMed)
                         .foregroundStyle(NimvaColors.textPrimary)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text("\(timeLabel(for: candidate)) · \(recurrenceLabel(for: candidate))")
                         .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted)
@@ -151,6 +153,7 @@ struct CalendarImportView: View {
         }
         .buttonStyle(.plain)
         .frame(minHeight: 44)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
     private func timeLabel(for candidate: CalendarImportService.ImportCandidate) -> String {
