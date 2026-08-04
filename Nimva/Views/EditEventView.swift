@@ -137,7 +137,7 @@ struct EditEventView: View {
                                     Text("Must do this week")
                                         .font(NimvaFont.callout)
                                         .foregroundStyle(NimvaColors.textPrimary)
-                                    Text("Scheduled before nice-to-do events")
+                                    Text("Scheduled before other flexible events")
                                         .font(NimvaFont.micro)
                                         .foregroundStyle(NimvaColors.textMuted)
                                 }
@@ -154,8 +154,8 @@ struct EditEventView: View {
                                         .font(NimvaFont.callout)
                                         .foregroundStyle(NimvaColors.textPrimary)
                                     Text(event.specificDate == nil
-                                        ? "A candidate for every week you build"
-                                        : "Won't carry over to future weeks")
+                                        ? "Included in every week you build"
+                                        : "Won't be included in future weeks")
                                         .font(NimvaFont.micro)
                                         .foregroundStyle(NimvaColors.textMuted)
                                 }
@@ -328,7 +328,7 @@ struct EditEventView: View {
             return
         }
         let label = EnergyLabel.closest(to: baseline)
-        categorySuggestionHint = "Your past \(newCategory) entries tend to run \"\(label.displayName)\""
+        categorySuggestionHint = "Your past \(newCategory) entries are usually \"\(label.displayName)\""
     }
 
 

@@ -158,10 +158,10 @@ struct WeeklyCheckInView: View {
     private var step2: some View {
         let question = cache.wasRecoveryWeek
             ? "Did any day feel heavier than expected?"
-            : "Which day hit hardest?"
+            : "Which day was hardest?"
         let noStandoutLabel = cache.wasRecoveryWeek
             ? "No, it all felt light"
-            : "No single standout"
+            : "No day was worse than the others"
         return VStack(spacing: 28) {
             emberSpeech(
                 expression: .thinking,
@@ -233,7 +233,7 @@ struct WeeklyCheckInView: View {
 
             VStack(spacing: 10) {
                 matchChip(isLight ? "Yes, exactly"  : "Yes, mostly",  match: .yes,   color: NimvaColors.teal)
-                matchChip(isLight ? "Mostly"        : "Hit and miss", match: .mixed, color: NimvaColors.amber)
+                matchChip(isLight ? "Mostly"        : "Inconsistent", match: .mixed, color: NimvaColors.amber)
                 matchChip(isLight ? "Not quite"     : "Not really",   match: .no,    color: NimvaColors.coral)
             }
         }
@@ -283,7 +283,7 @@ struct WeeklyCheckInView: View {
             VStack(spacing: 10) {
                 experimentChip("Yes — and I noticed a difference", result: .yesHelped,   color: NimvaColors.teal)
                 experimentChip("Tried it, not sure yet",           result: .triedUnsure, color: NimvaColors.amber)
-                experimentChip("Didn't get to it this week",       result: .didntTry,    color: NimvaColors.textMuted)
+                experimentChip("Didn't try it this week",           result: .didntTry,    color: NimvaColors.textMuted)
             }
         }
     }
@@ -376,7 +376,7 @@ struct WeeklyCheckInView: View {
                 if let day = hardestDay {
                     let dayNote = cache.wasRecoveryWeek
                         ? "\(day.displayName) felt heavier than the rest — worth noting for next week."
-                        : "\(day.displayName) was the rough one — I'll keep that in mind when planning next week."
+                        : "\(day.displayName) was the hardest day — I'll remember that when planning next week."
                     Text(dayNote)
                         .font(.system(.caption))
                         .foregroundStyle(NimvaColors.textMuted)
@@ -415,10 +415,10 @@ struct WeeklyCheckInView: View {
     // Headline varies by how the week actually felt — the ending should match the mood.
     private var closingTitle: String {
         switch overallRating ?? 0.5 {
-        case ..<0.2: return "Strong week."
-        case ..<0.5: return "Solid week."
-        case ..<0.8: return "You got through it."
-        default:     return "That was a tough one."
+        case ..<0.2: return "A great week."
+        case ..<0.5: return "A good week."
+        case ..<0.8: return "That was hard, and it's over now."
+        default:     return "That was a hard week."
         }
     }
 
@@ -433,7 +433,7 @@ struct WeeklyCheckInView: View {
         // Light-week framing is specific — "heavy week" copy is wrong when the schedule was open.
         if cache.wasRecoveryWeek {
             if scheduleMatch == .yes && gotRest != .no {
-                return "A week that actually felt like space. Those matter."
+                return "A week that actually gave you free time. Those matter."
             }
             if noRest {
                 return "The week was lighter, but it still didn't feel like rest. Sometimes what fills the gaps matters as much as the gaps themselves."
@@ -444,13 +444,13 @@ struct WeeklyCheckInView: View {
         }
 
         if rough && noRest {
-            return "A heavy week without much rest — that compounds. Let's make next week a bit lighter."
+            return "A heavy week without much rest adds up over time. Let's make next week a bit lighter."
         } else if rough {
             return "That sounds genuinely hard. You don't have to pretend it wasn't."
         } else if noRest && badFit {
-            return "The schedule didn't quite fit, and rest was hard to come by. That's real — not a failing on your part."
+            return "The schedule didn't quite fit, and rest was hard to find. That's real — not a failing on your part."
         } else if badFit {
-            return "Sometimes the plan and the reality don't match. Nimva will get better at reading that over time."
+            return "Sometimes the plan and the reality don't match. Nimva will get better at understanding that over time."
         } else if (overallRating ?? 0) <= 0.25 {
             return "A good week. Those are worth noticing."
         } else {

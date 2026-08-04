@@ -165,7 +165,7 @@ struct AddEventView: View {
                                     Text("Must do this week")
                                         .font(NimvaFont.callout)
                                         .foregroundStyle(NimvaColors.textPrimary)
-                                    Text("Scheduled before nice-to-do events")
+                                    Text("Scheduled before other flexible events")
                                         .font(NimvaFont.micro)
                                         .foregroundStyle(NimvaColors.textMuted)
                                 }
@@ -182,8 +182,8 @@ struct AddEventView: View {
                                         .font(NimvaFont.callout)
                                         .foregroundStyle(NimvaColors.textPrimary)
                                     Text(isThisWeekOnly
-                                        ? "Won't carry over to future weeks"
-                                        : "A candidate for every week you build")
+                                        ? "Won't be included in future weeks"
+                                        : "Included in every week you build")
                                         .font(NimvaFont.micro)
                                         .foregroundStyle(NimvaColors.textMuted)
                                 }
@@ -281,7 +281,7 @@ struct AddEventView: View {
                     dismiss()
                 }
             } message: {
-                Text("You've added \"\(pendingRecurringEvent?.name ?? "this")\" for 3 weeks in a row. Want it to repeat automatically from now on?")
+                Text("You've added \"\(pendingRecurringEvent?.name ?? "this")\" every week for the last 3 weeks. Want it to repeat automatically starting now?")
             }
             .alert("New category", isPresented: $showingAddCategory) {
                 TextField("e.g. Volunteering", text: $newCategoryText)

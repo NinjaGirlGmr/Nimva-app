@@ -104,13 +104,13 @@ struct EnergyZoneCard: View {
             switch selectedLoad {
             case ..<0.5: return "Feeling light"
             case ..<1.0: return "Looking steady"
-            case ..<2.0: return "Getting there"
-            default:     return "Heads up"
+            case ..<2.0: return "Moderate day"
+            default:     return "Heavier day"
             }
         case .overloadedFixed:
             switch selectedLoad {
             case ..<0.5: return "Clear window"
-            case ..<1.0: return "Some breathing room"
+            case ..<1.0: return "Some open time"
             case ..<2.0: return "Packed day"
             default:     return "Heavy load"
             }
@@ -119,7 +119,7 @@ struct EnergyZoneCard: View {
             case ..<0.5: return "Lighter day"
             case ..<1.0: return "Looking manageable"
             case ..<2.0: return "Busy day"
-            default:     return "Heads up"
+            default:     return "Heavier day"
             }
         }
     }
@@ -127,15 +127,15 @@ struct EnergyZoneCard: View {
     private var dayNote: String {
         // Recovery week overrides everything — the whole week is light, not just today.
         if isRecoveryWeek {
-            return "A good window to actually rest — no pressure to fill the space"
+            return "A good window to actually rest — no pressure to plan something for it"
         }
 
         // Forward warning takes priority when tomorrow is the heavy day.
         if tomorrowIsHeavy {
             switch userType {
-            case .optimizer:      return "Tomorrow's your heaviest day — take it easy tonight"
-            case .overloadedFixed: return "Tomorrow looks heavy — how you spend today matters"
-            case .patternLearner: return "Heavy day ahead — a good night to wind down early"
+            case .optimizer:      return "Tomorrow's your heaviest day — rest tonight if you can"
+            case .overloadedFixed: return "Tomorrow looks heavy — what you do today matters"
+            case .patternLearner: return "Heavy day ahead — a good night to rest early"
             }
         }
 
@@ -144,16 +144,16 @@ struct EnergyZoneCard: View {
         case .optimizer:
             switch selectedLoad {
             case ..<0.5: return "Easy \(selectedDay.displayName) — a good time to rest"
-            case ..<1.0: return "Manageable day — you've got this"
-            case ..<2.0: return "Moderate load — pace yourself today"
+            case ..<1.0: return "Manageable day — you can handle this"
+            case ..<2.0: return "Moderate load — spread your effort through the day"
             default:     return "Heavy \(selectedDay.displayName) — take it one thing at a time"
             }
         case .overloadedFixed:
             switch selectedLoad {
             case ..<0.5: return "No big events on \(selectedDay.displayName) — this is your recovery time"
-            case ..<1.0: return "Lighter load here — protect this time if you can"
-            case ..<2.0: return "Back-to-back today — the load is real, not just in your head"
-            default:     return "A lot on \(selectedDay.displayName) — Nimva can't move these, but naming it helps"
+            case ..<1.0: return "Lighter load here — try to keep this time free"
+            case ..<2.0: return "Consecutive events today — this is a real amount of load, not an overreaction"
+            default:     return "A lot on \(selectedDay.displayName) — Nimva can't move these, but knowing this can help"
             }
         case .patternLearner:
             switch selectedLoad {

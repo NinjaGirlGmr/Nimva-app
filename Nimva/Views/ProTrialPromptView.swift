@@ -58,14 +58,14 @@ struct ProTrialPromptView: View {
                 icon: "text.bubble.fill",
                 color: NimvaColors.teal,
                 title: "Pattern coaching",
-                detail: "Plain language explaining what's behind the pattern and what might help."
+                detail: "Plain language explaining what's causing the pattern and what might help."
             )
             Divider().background(NimvaColors.border)
             bullet(
                 icon: "bell.badge.fill",
                 color: NimvaColors.amber,
                 title: "Capacity alerts",
-                detail: "Know your lighter windows before they pass — especially useful for ADHD."
+                detail: "See when you have more energy available, in time to use it — especially useful for ADHD."
             )
         }
         .padding(18)

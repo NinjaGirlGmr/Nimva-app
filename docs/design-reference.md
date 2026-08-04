@@ -333,7 +333,7 @@ This groups everything Ember-related into one cohesive unit rather than scattere
 - Full week shown in narrow columns
 - Amber warning chip: "Wednesday looks heavy — tap to lighten it"
 - Teal balance chip: "Energy spread across 5 days — nice"
-- Character: 😊 "looks like a solid week"
+- Character: 😊 "looks like a good week"
 - Verdict text: plain language explanation of what Nimva did
 - Progress bar shows energy balance score
 - Two buttons: "Approve week" (teal) + "Redo" (muted)

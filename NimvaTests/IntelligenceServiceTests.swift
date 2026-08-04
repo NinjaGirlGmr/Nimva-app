@@ -363,7 +363,7 @@ struct DailyNoteTests {
         let c = makeEvent(energyCost: 0.75, startHour: 11, startMinute: 10, endHour: 12, endMinute: 10)
         let note = IntelligenceService.dailyNote(events: [a, b, c])
         #expect(note.contains("3"))
-        #expect(note.contains("back to back"))
+        #expect(note.contains("consecutive"))
     }
 
     @Test func recoveryWindowWithDrainingMentionsGap() {
