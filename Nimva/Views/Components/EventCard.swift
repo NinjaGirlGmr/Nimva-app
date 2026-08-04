@@ -24,17 +24,28 @@ struct EventCard: View {
     var body: some View {
         Button { onTap?() } label: {
             HStack(spacing: 0) {
-                // Left accent bar — purple for fixed, teal for flexible
+                // Left accent bar — purple for fixed, teal for flexible, a distinct violet
+                // for a logged (retroactive) entry. Never color-only, though — the symbol
+                // next to the name is the reliable signal, since this color could still
+                // resemble someone's chosen severity palette in a way purple/teal don't.
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(event.isFixed ? NimvaColors.purplePrimary : NimvaColors.teal)
+                    .fill(event.wasLogged ? NimvaColors.logged : (event.isFixed ? NimvaColors.purplePrimary : NimvaColors.teal))
                     .frame(width: 3)
 
                 HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(event.name)
-                            .font(NimvaFont.bodyMedium)
-                            .foregroundStyle(isCompleted ? NimvaColors.textMuted : NimvaColors.textPrimary)
-                            .strikethrough(isCompleted, color: NimvaColors.textMuted)
+                        HStack(spacing: 4) {
+                            if event.wasLogged {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(NimvaColors.logged)
+                                    .accessibilityHidden(true)
+                            }
+                            Text(event.name)
+                                .font(NimvaFont.bodyMedium)
+                                .foregroundStyle(isCompleted ? NimvaColors.textMuted : NimvaColors.textPrimary)
+                                .strikethrough(isCompleted, color: NimvaColors.textMuted)
+                        }
                         Text(subtitleText)
                             .font(NimvaFont.micro)
                             .foregroundStyle(NimvaColors.textSecondary)
@@ -89,7 +100,7 @@ struct EventCard: View {
                                 .font(.system(.title3))
                                 .foregroundStyle(completionIconColor)
                                 .frame(width: 36, height: 36)
-                                .contentShape(Rectangle())
+                                .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(completionAccessibilityLabel)
@@ -156,16 +167,19 @@ struct EventCard: View {
     }
 
     private var typeTagLabel: String {
+        if event.wasLogged { return "Logged" }
         if event.isFixed { return "Fixed" }
         return event.isPriority ? "Must do" : "Flex"
     }
 
     private var typeTagColor: Color {
-        !event.isFixed && event.isPriority ? NimvaColors.amber : NimvaColors.textMuted
+        if event.wasLogged { return NimvaColors.logged }
+        return !event.isFixed && event.isPriority ? NimvaColors.amber : NimvaColors.textMuted
     }
 
     private var typeTagBackground: Color {
-        !event.isFixed && event.isPriority ? NimvaColors.amber.opacity(0.12) : NimvaColors.purpleMuted.opacity(0.5)
+        if event.wasLogged { return NimvaColors.logged.opacity(0.12) }
+        return !event.isFixed && event.isPriority ? NimvaColors.amber.opacity(0.12) : NimvaColors.purpleMuted.opacity(0.5)
     }
 
     private var subtitleText: String {

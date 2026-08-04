@@ -33,11 +33,18 @@ enum SchedulerService {
         let targetStart = weekStart(offsetWeeks: weekOffset)
         let todayWeekStart = weekStart()
 
+        // Logged events count toward that day's real load the same way fixed events do —
+        // they already happened, on a specific day, so they're folded into the same `fixed`
+        // array rather than the placement algorithm treating them as something to schedule.
         let fixed = events.compactMap { toFixedEvent($0, weekStart: targetStart) }
+            + events.compactMap { toLoggedFixedEvent($0, weekStart: targetStart) }
         // Same visibility rule as fixed events: a "this week only" flexible event
         // (Event.specificDate set) is only ever a placement candidate for its own week.
+        // wasLogged events are excluded here — they're never a placement candidate at all,
+        // since they already happened on a known day, not something the algorithm should
+        // be free to move.
         let flexible = events
-            .filter { !$0.isFixed && isEventVisible($0, inWeekStarting: targetStart) }
+            .filter { !$0.isFixed && !$0.wasLogged && isEventVisible($0, inWeekStarting: targetStart) }
             .compactMap { toFlexibleEvent($0) }
         let isCurrentWeek = weekBoundaryCal.isDate(targetStart, equalTo: todayWeekStart, toGranularity: .weekOfYear)
         // Future weeks have no "past days" yet, so always start from Monday — this also
@@ -216,9 +223,23 @@ enum SchedulerService {
         let fixed = events.filter {
             $0.isFixed && $0.fixedDay == day && isEventVisible($0, inWeekStarting: cache.weekStartDate)
         }
+        let logged = events.filter { isLoggedEventVisible($0, onDay: day, inWeekStarting: cache.weekStartDate) }
         let placedIds = flexibleIds(for: day, in: cache.placementsJSON)
-        let flexible = events.filter { !$0.isFixed && placedIds.contains($0.id) }
-        return fixed + flexible
+        // wasLogged is excluded here even though placedIds would never contain one (they're
+        // never fed to regenerate) — explicit for the same reason the flexible filter in
+        // regenerate() is explicit: it shouldn't depend on that invariant holding elsewhere.
+        let flexible = events.filter { !$0.isFixed && !$0.wasLogged && placedIds.contains($0.id) }
+        return fixed + logged + flexible
+    }
+
+    /// A logged event's visibility isn't placement-dependent (it's never in a cache's
+    /// placementsJSON — see toLoggedFixedEvent) — it's visible on whichever day its
+    /// specificDate actually falls on, the same way a date-anchored fixed event is.
+    static func isLoggedEventVisible(_ event: Event, onDay day: DayOfWeek, inWeekStarting weekStart: Date) -> Bool {
+        guard event.wasLogged, let specific = event.specificDate,
+              CalendarImportService.nimvaDay(from: specific) == day
+        else { return false }
+        return isEventVisible(event, inWeekStarting: weekStart)
     }
 
     // MARK: - Date-specific fixed events (multi-week calendar import)
@@ -318,17 +339,9 @@ enum SchedulerService {
         if selectedDay.rawValue > today.rawValue { return true }
         if selectedDay.rawValue < today.rawValue { return false }
         guard event.isFixed, let start = event.startTime else { return false }
-        // startTime only carries a meaningful time-of-day for a recurring fixed event — its
-        // date component is just whichever day it happened to be created or last edited on,
-        // never "today" for an event set up in the past. Comparing full Dates here would
-        // silently never flag anything as premature once even a single day has passed since
-        // creation, since the stale date always sorts before `now`. Compare hour/minute only.
-        let startParts = calendar.dateComponents([.hour, .minute], from: start)
-        let nowParts = calendar.dateComponents([.hour, .minute], from: now)
-        guard let startHour = startParts.hour, let nowHour = nowParts.hour else { return false }
-        let startMinuteOfDay = startHour * 60 + (startParts.minute ?? 0)
-        let nowMinuteOfDay = nowHour * 60 + (nowParts.minute ?? 0)
-        return startMinuteOfDay > nowMinuteOfDay
+        // startTime only carries a meaningful time-of-day for a recurring fixed event (see
+        // minuteOfDay in RecoveryWindows.swift) — compare minute-of-day, never full Dates.
+        return minuteOfDay(start, calendar: calendar) > minuteOfDay(now, calendar: calendar)
     }
 
     private static func idSet(from json: String) -> Set<UUID> {
@@ -349,6 +362,18 @@ enum SchedulerService {
 
     private static func toFixedEvent(_ event: Event, weekStart: Date) -> FixedEvent? {
         guard event.isFixed, let day = event.fixedDay, isEventVisible(event, inWeekStarting: weekStart)
+        else { return nil }
+        return FixedEvent(id: event.id, name: event.name, day: day, energyCost: event.energyCost)
+    }
+
+    /// A logged (retroactive) event contributes to its day's load exactly like a fixed
+    /// event does — it's certain, already happened, and isn't a placement candidate — so it
+    /// gets folded into the same `[FixedEvent]` array the algorithm already sums by day,
+    /// rather than needing a separate load-summing path.
+    private static func toLoggedFixedEvent(_ event: Event, weekStart: Date) -> FixedEvent? {
+        guard event.wasLogged, let specific = event.specificDate,
+              let day = CalendarImportService.nimvaDay(from: specific),
+              isEventVisible(event, inWeekStarting: weekStart)
         else { return nil }
         return FixedEvent(id: event.id, name: event.name, day: day, energyCost: event.energyCost)
     }

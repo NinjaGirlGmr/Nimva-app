@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Combine
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
@@ -17,6 +18,13 @@ struct HomeView: View {
 
     @State private var selectedDay: DayOfWeek = Self.todayDayOfWeek()
     @State private var showingAddEvent = false
+    // Single tap on "+" asks which flow first — avoids hiding "log something that happened"
+    // behind a long-press, which needs precise sustained timing that's a real accessibility
+    // barrier for anyone with limited motor control. Costs one extra tap on the more common
+    // "add an event" path in exchange for that, and for not needing a second floating button
+    // that would add to a Home screen already fairly dense.
+    @State private var showingAddChoice = false
+    @State private var showingLogEntry = false
     @State private var showingCheckIn = false
     @State private var eventToEdit: Event?
     @State private var showingScheduleError = false
@@ -26,6 +34,10 @@ struct HomeView: View {
     @State private var undoTask: Task<Void, Never>? = nil
     @State private var showingAddIntention = false
     @State private var pendingPrematureCompletion: Event? = nil
+    // Drives the "now" marker (#82) — refreshed on a minute-granularity timer rather than
+    // read live from Date() in the view body, since a computed property alone wouldn't
+    // trigger a re-render as time passes with nothing else prompting one.
+    @State private var nowTick: Date = Date()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -50,6 +62,15 @@ struct HomeView: View {
         let referenceWeekStart = cache?.weekStartDate ?? SchedulerService.weekStart()
         for event in events where event.isFixed {
             if let day = event.fixedDay, SchedulerService.isEventVisible(event, inWeekStarting: referenceWeekStart) {
+                loads[day, default: 0] += event.energyCost
+            }
+        }
+        // Logged events count toward real load too, same reasoning as toLoggedFixedEvent —
+        // they already happened, on a known day, so a day shouldn't look artificially light
+        // just because the load came from an unplanned burst instead of a scheduled event.
+        for event in events where event.wasLogged {
+            for day in DayOfWeek.allCases
+            where SchedulerService.isLoggedEventVisible(event, onDay: day, inWeekStarting: referenceWeekStart) {
                 loads[day, default: 0] += event.energyCost
             }
         }
@@ -81,8 +102,9 @@ struct HomeView: View {
             raw = SchedulerService.events(for: selectedDay, cache: cache, from: events)
         } else {
             raw = events.filter {
-                $0.isFixed && $0.fixedDay == selectedDay
-                    && SchedulerService.isEventVisible($0, inWeekStarting: SchedulerService.weekStart())
+                ($0.isFixed && $0.fixedDay == selectedDay
+                    && SchedulerService.isEventVisible($0, inWeekStarting: SchedulerService.weekStart()))
+                || SchedulerService.isLoggedEventVisible($0, onDay: selectedDay, inWeekStarting: SchedulerService.weekStart())
             }
         }
         // Fixed events sort by start time; flex events (no startTime) fall to the end.
@@ -94,6 +116,22 @@ struct HomeView: View {
             case (.none, .none):                 return false
             }
         }
+    }
+
+    private var recoveryWindowsForSelectedDay: [RecoveryWindow] {
+        recoveryWindows(fixedEvents: eventsForSelectedDay.filter(\.isFixed))
+    }
+
+    // "You are here" marker (#82, ADHD time-blindness aid) — only meaningful when looking
+    // at today, and only positioned against fixed events (see NowIndicator.swift for why).
+    private var nowMarker: NowMarkerPosition? {
+        guard selectedDay == Self.todayDayOfWeek() else { return nil }
+        return nowMarkerPosition(fixedEvents: eventsForSelectedDay.filter(\.isFixed), now: nowTick)
+    }
+
+    private var nowMarkerBeforeEventId: UUID? {
+        if case .beforeEvent(let id) = nowMarker { return id }
+        return nil
     }
 
     private var completedEventIds: Set<UUID> {
@@ -267,7 +305,7 @@ struct HomeView: View {
                                         .foregroundStyle(NimvaColors.purplePrimary)
                                         .frame(width: 32)
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Keep going")
+                                        Text("Add more events")
                                             .font(NimvaFont.cardTitle)
                                             .foregroundStyle(NimvaColors.textPrimary)
                                         Text("Add \(remaining) more event\(remaining == 1 ? "" : "s") and Nimva will be ready to build your week")
@@ -389,6 +427,25 @@ struct HomeView: View {
                             .padding(.bottom, 10)
                             .nimvaAnimation(NimvaAnimation.stateChange, value: selectedDay)
 
+                            // Micro-recovery window (Product Philosophy: "even packed schedules
+                            // have small gaps — identify them"). Only between fixed events —
+                            // flexible events don't have a real time slot yet, so including them
+                            // would mean guessing where they'll land. Shows the next one only,
+                            // to stay a quick observation, not another card to parse.
+                            if let window = recoveryWindowsForSelectedDay.first {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "leaf.fill")
+                                        .font(NimvaFont.micro)
+                                        .foregroundStyle(NimvaColors.teal)
+                                    Text("\(window.durationMinutes) min free at \(formattedMinuteOfDay(window.startMinuteOfDay)) — nothing scheduled")
+                                        .font(NimvaFont.micro)
+                                        .foregroundStyle(NimvaColors.textSecondary)
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 10)
+                                .accessibilityElement(children: .combine)
+                            }
+
                             Group {
                                 if eventsForSelectedDay.isEmpty {
                                     VStack(spacing: 6) {
@@ -404,6 +461,9 @@ struct HomeView: View {
                                 } else {
                                     VStack(spacing: 8) {
                                         ForEach(Array(eventsForSelectedDay.enumerated()), id: \.element.id) { index, event in
+                                            if event.id == nowMarkerBeforeEventId {
+                                                nowMarkerRow
+                                            }
                                             EventCard(
                                                 event: event,
                                                 index: index,
@@ -423,6 +483,9 @@ struct HomeView: View {
                                                         Label("Delete", systemImage: "trash")
                                                     }
                                                 }
+                                            if index == eventsForSelectedDay.count - 1, nowMarker == .afterAll {
+                                                nowMarkerRow
+                                            }
                                         }
                                     }
                                 }
@@ -453,6 +516,12 @@ struct HomeView: View {
                     .animation(reduceMotion ? .none : NimvaAnimation.cardAppear, value: cache != nil)
                 }
                 .transition(.opacity)
+                // Minute-granularity is plenty for a "you are here" marker (#82) — no need
+                // for anything finer, and no explicit animation here so the marker just
+                // appears in its new position rather than sliding, per Reduce Motion.
+                .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { tick in
+                    nowTick = tick
+                }
             }
 
             // ── Floating add button ──
@@ -460,7 +529,7 @@ struct HomeView: View {
             if !events.isEmpty {
                 Button {
                     NimvaHaptics.medium()
-                    showingAddEvent = true
+                    showingAddChoice = true
                 } label: {
                     Image(systemName: "plus")
                         .font(NimvaFont.pageTitle)
@@ -487,8 +556,16 @@ struct HomeView: View {
         // No onDismiss recompute — adding/editing an event no longer auto-rebuilds the
         // schedule. New/edited flexible events sit as "unscheduled" (Plan tab already
         // supports this) until the user explicitly taps "Build my week" or "Redo".
+        .confirmationDialog("Add to your week", isPresented: $showingAddChoice, titleVisibility: .visible) {
+            Button("Add an event") { showingAddEvent = true }
+            Button("Log something that happened") { showingLogEntry = true }
+            Button("Cancel", role: .cancel) {}
+        }
         .sheet(isPresented: $showingAddEvent) {
             AddEventView(defaultDay: selectedDay)
+        }
+        .sheet(isPresented: $showingLogEntry) {
+            LogEntryView()
         }
         .sheet(item: $eventToEdit) { event in
             EditEventView(event: event)
@@ -522,7 +599,7 @@ struct HomeView: View {
         .alert("Couldn't update your schedule", isPresented: $showingScheduleError) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Something went wrong saving your week. Try again or restart the app if the problem persists.")
+            Text("There was a problem saving your week. Try again or restart the app if the problem persists.")
         }
         .alert(
             "This hasn't happened yet",
@@ -537,7 +614,7 @@ struct HomeView: View {
             }
             Button("Not yet", role: .cancel) { pendingPrematureCompletion = nil }
         } message: {
-            Text("\(pendingPrematureCompletion?.name ?? "This event") is still ahead of you. Mark it done anyway?")
+            Text("\(pendingPrematureCompletion?.name ?? "This event") hasn't happened yet. Mark it done anyway?")
         }
     }
 
@@ -562,10 +639,10 @@ struct HomeView: View {
                     .frame(width: 28, height: 28)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(isRecovery ? "A lighter week" : "Your week looks open")
+                    Text(isRecovery ? "A lighter week" : "Your week has free time")
                         .font(NimvaFont.cardTitle)
                         .foregroundStyle(NimvaColors.textPrimary)
-                    Text(isRecovery ? "A good window to actually rest — or do something low-stakes." : "Anything you'd like to do with this time?")
+                    Text(isRecovery ? "A good time to actually rest — or do something that doesn't require much effort." : "Anything you'd like to do with this time?")
                         .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted)
                 }
@@ -580,7 +657,7 @@ struct HomeView: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 20)
-        .accessibilityLabel(isRecovery ? "A lighter week. Tap to add an intention." : "Your week looks open. Tap to add an intention.")
+        .accessibilityLabel(isRecovery ? "A lighter week. Tap to add an intention." : "Your week has free time. Tap to add an intention.")
         .accessibilityAddTraits(.isButton)
     }
 
@@ -594,7 +671,7 @@ struct HomeView: View {
                         .foregroundStyle(NimvaColors.textMuted)
                         .textCase(.uppercase)
                         .kerning(0.7)
-                    Text(isRecovery ? "A lighter week — open time to use how you want." : "Your week looks open.")
+                    Text(isRecovery ? "A lighter week — free time to use how you want." : "Your week has free time.")
                         .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted.opacity(0.7))
                 }
@@ -643,6 +720,26 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    // "You are here" marker (#82) — a thin rule with a dot and label, not an animated
+    // sweep, per Reduce Motion guidance in the issue: present and correctly positioned,
+    // not something that draws attention to itself moving.
+    private var nowMarkerRow: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(NimvaColors.teal)
+                .frame(width: 6, height: 6)
+            Rectangle()
+                .fill(NimvaColors.teal.opacity(0.35))
+                .frame(height: 1)
+            Text("Now")
+                .font(NimvaFont.chip)
+                .foregroundStyle(NimvaColors.teal)
+        }
+        .padding(.horizontal, 20)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Current time")
     }
 
     private func experimentCard(text: String) -> some View {
@@ -764,7 +861,7 @@ struct HomeView: View {
         let newIdx = idx + offset
         guard days.indices.contains(newIdx) else { return }
         NimvaHaptics.selection()
-        withAnimation(NimvaAnimation.stateChange) { selectedDay = days[newIdx] }
+        withAnimation(reduceMotion ? .none : NimvaAnimation.stateChange) { selectedDay = days[newIdx] }
     }
 
     // Map of flexible event UUID → placement reason, decoded once per cache (#62)
@@ -811,13 +908,13 @@ struct HomeView: View {
         }()
 
         if isWeekend {
-            return ("A day off.", "Hold onto it.")
+            return ("A day off.", "Enjoy it.")
         } else if prevDayHeavy && isToday {
-            return ("Light day after a tough one.", "Protect this space.")
+            return ("Light day after a hard one.", "Try to keep this time free.")
         } else if isToday {
-            return ("Open space today.", "A good thing.")
+            return ("Nothing scheduled today.", "That's free time for you.")
         } else {
-            return ("Nothing here.", "Protect this gap.")
+            return ("Nothing here.", "Try to keep this gap free.")
         }
     }
 

@@ -64,6 +64,33 @@ This log pairs naturally with GitHub Issues once development moves to a reposito
 
 ---
 
+### 2026-08-04 — Versioned schema crashed on every launch since it was introduced
+
+**Spark:** Building #82 (live now-indicator), launched the app in Simulator to eyeball it
+and it crashed on every single launch before rendering anything —
+`NSInvalidArgumentException: Duplicate version checksums detected`, thrown from
+`ModelContainer` init.
+
+**Chase:** Traced it to `NimvaSchema.swift`'s `NimvaSchemaV2` (added earlier this session
+for `Event.wasLogged`) — it followed the doc's "copy the enum, bump the number" instruction
+literally, so `NimvaSchemaV1.models` and `NimvaSchemaV2.models` both returned the exact same
+live `Event`/`WeekCache`/`Intention` classes. SwiftData computes each `VersionedSchema`'s
+checksum from its models' actual declared properties, so two "versions" pointing at the
+identical current class hash identically — the migration plan can't tell them apart. The
+app had apparently never actually been run since `NimvaSchemaV2` was added; the test suite
+stayed green throughout because tests build their `ModelContainer` from a plain `Schema(...)`
+directly, never through the versioned migration plan, so this gap was invisible to CI.
+
+**Catch:** Collapsed back to a single `NimvaSchemaV1` (nothing has shipped to a real device
+yet, so there's no real install to migrate from — `wasLogged` just ships as part of this
+version's current shape) and corrected `docs/schema-migrations.md`'s step 2, which had been
+telling future-me to do the exact thing that broke: a real second version needs its own
+frozen snapshot model type per version, not a second reference to the live class.
+
+**Tags:** #bug #testing-gap
+
+---
+
 ### 2026-06-28 — @ViewBuilder won't let you assign inside a switch
 
 **Spark:** `WeekGenerationView.swift` threw `Type '()' cannot conform to 'View'` at a `switch` statement that assigned a string variable (`warningText = "..."`) before returning a view. The error message points at the switch, not the assignment — confusing.

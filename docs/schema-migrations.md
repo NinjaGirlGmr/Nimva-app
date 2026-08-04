@@ -14,11 +14,35 @@ That fix only holds if every future model change goes through the steps below. S
 this for a "quick field add" recreates the exact bug it fixes — and after 1.0 ships, that's
 a real user's schedule getting wiped, not just your own test data.
 
+## Critical gotcha (caught 2026-08-04, see STRAY_SPARK_LOG.md)
+
+**Two `NimvaSchemaVN` enums must never point at the same live model class.** SwiftData
+computes each `VersionedSchema`'s checksum from its models' actual declared properties —
+if `NimvaSchemaV1.models` and `NimvaSchemaV2.models` both return `[Event.self, ...]` (the
+one real `Event` class, already in its current shape), the two "versions" hash identically
+and the app crashes on every launch with `NSInvalidArgumentException: Duplicate version
+checksums detected`. A real second version needs a **frozen snapshot** of the old shape —
+its own nested model type representing exactly what the fields looked like at that version
+— not a second reference to the live model. This is real, non-optional work, not a rename.
+
+Until a genuine migration is needed (an actual shipped build's data needs to carry forward),
+keep a single schema version and let new fields ship as part of its current shape — that's
+what happened 2026-08-04: a `NimvaSchemaV2` was added the "copy the enum" way described
+below, crashed on launch, and was collapsed back to one version since no real install
+existed yet to migrate from.
+
 ## Every time you add/remove/rename a field on `Event`, `WeekCache`, or `Intention`
 
+**Only do this once a real build with the old shape actually exists somewhere (TestFlight,
+a real device) — otherwise just change the model directly and skip versioning entirely.**
+
 1. Open `Nimva/Models/NimvaSchema.swift`.
-2. Copy the current highest `NimvaSchemaVN` enum, bump the number (e.g. `NimvaSchemaV1` →
-   `NimvaSchemaV2`), and bump `versionIdentifier` (e.g. `Schema.Version(2, 0, 0)`).
+2. Add a new `NimvaSchemaVN` enum with the next number and a bumped `versionIdentifier`
+   (e.g. `Schema.Version(2, 0, 0)`). Its `models` array must reference **frozen snapshot
+   types** representing the old pre-change shape — nest them inside the new version's own
+   enum (e.g. `NimvaSchemaV1.Event`, a `@Model` copy with just the fields as they were at
+   that version) — never the live `Event`/`WeekCache`/`Intention` classes from `Models/`.
+   The *live* models represent the newest version only.
 3. Add a `MigrationStage` to `NimvaMigrationPlan.stages` describing the move from the
    previous version to the new one:
    - **Lightweight** (adding an optional field, adding a field with an inline default,
