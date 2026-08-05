@@ -43,6 +43,9 @@ struct AddIntentionView: View {
             }
             .onAppear { focused = true }
         }
+        // See AddEventView's matching modifier — same reasoning: protect typed-in text
+        // from an accidental swipe-dismiss, while a deliberate "Cancel" tap still works.
+        .interactiveDismissDisabled(!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     private func save() {

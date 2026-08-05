@@ -295,6 +295,15 @@ struct AddEventView: View {
                 Button("Cancel", role: .cancel) {}
             }
         }
+        // Swiping a sheet away is easy to trigger by accident (a stray downward drag while
+        // scrolling the form) — once there's a name typed in, that's real, unsaved content
+        // worth protecting, so the swipe gesture is disabled and "Cancel" (a deliberate tap,
+        // not an accidental one) becomes the only way to leave without saving.
+        .interactiveDismissDisabled(hasUnsavedChanges)
+    }
+
+    private var hasUnsavedChanges: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     // MARK: Helpers

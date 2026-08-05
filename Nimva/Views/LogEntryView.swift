@@ -127,6 +127,13 @@ struct LogEntryView: View {
                 Button("Cancel", role: .cancel) {}
             }
         }
+        // See AddEventView's matching modifier — same reasoning: protect a typed-in name
+        // from an accidental swipe-dismiss, while a deliberate "Cancel" tap still works.
+        .interactiveDismissDisabled(hasUnsavedChanges)
+    }
+
+    private var hasUnsavedChanges: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     private func save() {
