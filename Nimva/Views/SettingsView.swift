@@ -40,7 +40,6 @@ struct SettingsView: View {
     @State private var anchorEditDraft = ""
     @State private var showingResetPatternsConfirm = false
     @State private var showingClearDataConfirm = false
-    @State private var showingExportInfo = false
     @State private var showingRecomputeError = false
     @State private var showingOnboarding = false
     #if DEBUG
@@ -95,12 +94,6 @@ struct SettingsView: View {
                 if !trimmed.isEmpty { displayName = trimmed }
             }
             Button("Cancel", role: .cancel) { }
-        }
-        // Info alerts for stubbed features
-        .alert("Export my data", isPresented: $showingExportInfo) {
-            Button("Got it", role: .cancel) { }
-        } message: {
-            Text("Data export is coming in a future update. Your events and schedule history will be downloadable as a file.")
         }
         // Destructive confirmations use confirmationDialog so the OS shows the action sheet
         .confirmationDialog("Reset learned patterns?", isPresented: $showingResetPatternsConfirm, titleVisibility: .visible) {
@@ -462,8 +455,6 @@ struct SettingsView: View {
 
     private var accountSection: some View {
         SettingsSection(title: "Account") {
-            ActionRow(label: "Export my data", style: .normal) { showingExportInfo = true }
-            SettingsDivider()
             // iCloud sync uses the device's iCloud account automatically via CloudKit.
             // No separate sign-in flow needed.
             HStack(spacing: 14) {
