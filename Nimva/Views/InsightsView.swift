@@ -75,6 +75,7 @@ private struct InsightsProContent: View {
     // Fetch up to 8 weeks, newest first. Insights caps at 8 because beyond that
     // the trend bar chart becomes unreadable on a phone screen.
     @Query(sort: \WeekCache.weekStartDate, order: .reverse) private var caches: [WeekCache]
+    @Query(sort: \Event.createdAt) private var events: [Event]
 
     // Excludes future (rolling-calendar) weeks — Insights trend/pattern data must only ever
     // reflect weeks that have actually happened, never one still being planned or redone.
@@ -82,6 +83,15 @@ private struct InsightsProContent: View {
         Array(caches.filter { $0.weekStartDate <= SchedulerService.weekStart() }.prefix(8))
     }
     private var hasEnoughForPatterns: Bool { recentCaches.count >= 2 }
+
+    // Every other screen (EnergyZoneCard, WeekGenerationView, HomeView) already shifts its
+    // framing by user type — Insights hadn't, even though "what should I actually do about
+    // this pattern" is exactly where an Optimizer (real flexibility to rearrange) and an
+    // Overloaded Fixed user (little to nothing movable) need genuinely different sentences,
+    // not the same one softened or sharpened. See detectPatterns/coachingSentence below.
+    private var userType: UserType {
+        SchedulerService.detectUserType(events: events)
+    }
 
     var body: some View {
         ScrollView {
@@ -95,8 +105,8 @@ private struct InsightsProContent: View {
                 WeeklyTrendCard(caches: recentCaches)
 
                 if hasEnoughForPatterns {
-                    PatternCalloutCard(caches: recentCaches)
-                    PatternCoachingCard(caches: recentCaches)
+                    PatternCalloutCard(caches: recentCaches, userType: userType)
+                    PatternCoachingCard(caches: recentCaches, userType: userType)
                 } else {
                     BuildingDataCard()
                 }
@@ -185,6 +195,10 @@ private struct WeeklyTrendCard: View {
             if chartData.isEmpty {
                 emptyState
             } else {
+                if let text = weekOverWeekText {
+                    weekOverWeekRow(text)
+                }
+
                 Group {
                     if trendStyle == .wave {
                         waveChart
@@ -300,7 +314,12 @@ private struct WeeklyTrendCard: View {
                     .font(NimvaFont.micro)
             }
         }
-        .frame(height: 180)
+        // Chart canvases don't reflow the way stacks do — the plot area is a fixed frame,
+        // not something axis labels/annotations can grow into. Capped at the same ceiling
+        // as WeekStripView's day labels for the same reason: legible and meaningfully
+        // larger, without letting axis text collide inside a frame that can't grow to match.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        .frame(height: 200)
     }
 
     // MARK: Bar chart
@@ -330,7 +349,10 @@ private struct WeeklyTrendCard: View {
                     .font(NimvaFont.micro)
             }
         }
-        .frame(height: 160)
+        // See waveChart's matching modifier above for why this is capped rather than left
+        // to scale freely.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        .frame(height: 180)
     }
 
     // MARK: Shared
@@ -358,6 +380,51 @@ private struct WeeklyTrendCard: View {
             Circle().fill(color).frame(width: 6, height: 6)
             Text(label)
         }
+    }
+
+    // MARK: Week-over-week
+
+    // `caches` is newest-first (order: .reverse) and already limited to the current week
+    // and earlier — [0] is this week's (possibly still-in-progress, but a built week's
+    // heavy-day count reflects the whole planned week, not just days elapsed so far) and
+    // [1] is the one directly before it. nil when there isn't yet a full pair to compare.
+    private var weekOverWeekDelta: (current: Int, previous: Int)? {
+        guard caches.count >= 2 else { return nil }
+        return (caches[0].heavyDayValues.count, caches[1].heavyDayValues.count)
+    }
+
+    private var weekOverWeekText: String? {
+        guard let delta = weekOverWeekDelta else { return nil }
+        let dayWord = "\(delta.current) heavy day\(delta.current == 1 ? "" : "s")"
+        switch delta.current - delta.previous {
+        case ..<0: return "\(dayWord) this week, down from \(delta.previous) last week."
+        case 0:    return "\(dayWord) this week — same as last week."
+        default:   return "\(dayWord) this week, up from \(delta.previous) last week."
+        }
+    }
+
+    private var weekOverWeekIcon: String {
+        guard let delta = weekOverWeekDelta else { return "minus" }
+        switch delta.current - delta.previous {
+        case ..<0: return "arrow.down.right"
+        case 0:    return "minus"
+        default:   return "arrow.up.right"
+        }
+    }
+
+    private func weekOverWeekRow(_ text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: weekOverWeekIcon)
+                .font(NimvaFont.micro)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(NimvaFont.micro)
+        }
+        // Reuses the same light/mixed/heavy color already used for the chart and legend
+        // below, so this isn't introducing a fourth color meaning into the same card —
+        // and the words "up"/"down"/"same" carry the actual meaning regardless of color.
+        .foregroundStyle(severityColor(for: weekOverWeekDelta?.current ?? 0))
+        .accessibilityElement(children: .combine)
     }
 
     // Thresholds: 0–1 = light week, 2–3 = mixed, 4+ = heavy
@@ -389,8 +456,9 @@ private struct WeekDatum: Identifiable {
 
 private struct PatternCalloutCard: View {
     let caches: [WeekCache]
+    let userType: UserType
 
-    private var patterns: [PatternCallout] { detectPatterns(from: caches) }
+    private var patterns: [PatternCallout] { detectPatterns(from: caches, userType: userType) }
 
     var body: some View {
         if !patterns.isEmpty {
@@ -436,7 +504,7 @@ private struct PatternCallout: Identifiable {
 // A day is a "pattern" when it appears as heavy in ≥50% of available weeks,
 // with a hard minimum of 2 weeks so we don't flag a single bad Tuesday as a pattern.
 // Returns at most 2 callouts — more than that clutters the card.
-private func detectPatterns(from caches: [WeekCache]) -> [PatternCallout] {
+private func detectPatterns(from caches: [WeekCache], userType: UserType) -> [PatternCallout] {
     guard caches.count >= 2 else { return [] }
 
     var dayCounts: [DayOfWeek: Int] = [:]
@@ -456,8 +524,8 @@ private func detectPatterns(from caches: [WeekCache]) -> [PatternCallout] {
         .map { day, count in
             PatternCallout(
                 headline: "\(day.displayName)s have been consistently heavy",
-                detail: "That's \(count) of your last \(caches.count) weeks. If something is fixed in place there, this might be worth a conversation — with a coach, advisor, or just yourself.",
-                coaching: coachingSentence(for: day, count: count, totalWeeks: caches.count)
+                detail: patternDetail(for: day, count: count, totalWeeks: caches.count, userType: userType),
+                coaching: coachingSentence(for: day, count: count, totalWeeks: caches.count, userType: userType)
             )
         }
 
@@ -484,14 +552,54 @@ private func detectPatterns(from caches: [WeekCache]) -> [PatternCallout] {
     return patterns
 }
 
-private func coachingSentence(for day: DayOfWeek, count: Int, totalWeeks: Int) -> String {
-    switch count {
-    case 2...3:
-        return "\(day.displayName) is starting to look like a pattern. If there's a fixed commitment set there, it might be worth thinking about whether anything around it can shift — even small things."
-    case 4...5:
-        return "\(day.displayName) has been heavy for \(count) consecutive weeks. Something is likely fixed there. That kind of sustained load is worth a real conversation — with a coach, advisor, or even just yourself. You're not imagining it."
-    default:
-        return "\(count) heavy \(day.displayName)s in \(count) consecutive weeks is a significant signal. This isn't just a difficult few weeks — it's a structural pattern. If the load can't move, naming that clearly is still useful. It's data you can bring to someone."
+// Same underlying pattern, three different "what should I actually do" answers — an
+// Optimizer has real flexibility to test against the pattern, an Overloaded Fixed user
+// mostly doesn't (so the honest answer is validation, not a suggestion to rearrange
+// something that can't move), and a Pattern Learner is still building enough weeks to
+// know which one they are yet. See CLAUDE.md's "User Types" section for the source of
+// this split — it's already applied everywhere else in the app except here.
+private func coachingSentence(for day: DayOfWeek, count: Int, totalWeeks: Int, userType: UserType) -> String {
+    switch userType {
+    case .optimizer:
+        switch count {
+        case 2...3:
+            return "\(day.displayName) is starting to look like a pattern. Worth checking whether flexible events keep landing there by default — if so, a different placement might be worth trying."
+        case 4...5:
+            return "\(day.displayName) has been heavy for \(count) consecutive weeks. If fixed commitments are driving that, there may not be much to move — but if flexible events keep stacking there too, that's worth rethinking."
+        default:
+            return "\(count) heavy \(day.displayName)s in \(count) consecutive weeks is a clear pattern. Worth a closer look at what's actually landing there each week, and whether it has to."
+        }
+    case .overloadedFixed:
+        switch count {
+        case 2...3:
+            return "\(day.displayName) is starting to look like a pattern. Worth noticing, even if nothing about it can change right now — that's still useful to know."
+        case 4...5:
+            return "\(day.displayName) has been heavy for \(count) consecutive weeks. Something is likely fixed there. That kind of sustained load is worth a real conversation — with a coach, advisor, or even just yourself. You're not imagining it."
+        default:
+            return "\(count) heavy \(day.displayName)s in \(count) consecutive weeks is a significant signal. This isn't just a difficult few weeks — it's a structural pattern. If the load can't move, naming that clearly is still useful. It's data you can bring to someone."
+        }
+    case .patternLearner:
+        switch count {
+        case 2...3:
+            return "\(day.displayName) is starting to look like a pattern. A couple more weeks will make it clearer whether this is really about that day, or something that tends to land on it."
+        case 4...5:
+            return "\(day.displayName) has been heavy for \(count) consecutive weeks. That's a real pattern worth understanding — is it the day itself, or what usually gets scheduled on it?"
+        default:
+            return "\(count) heavy \(day.displayName)s in \(count) consecutive weeks is a clear, established pattern. That's real data about how your energy actually moves through the week."
+        }
+    }
+}
+
+// The callout's factual line, right above the coaching sentence — same three-way split
+// and same reasoning (see coachingSentence above).
+private func patternDetail(for day: DayOfWeek, count: Int, totalWeeks: Int, userType: UserType) -> String {
+    switch userType {
+    case .optimizer:
+        return "That's \(count) of your last \(totalWeeks) weeks. Worth a look at what's actually being scheduled there — if it's flexible events, there may be room to rearrange."
+    case .overloadedFixed:
+        return "That's \(count) of your last \(totalWeeks) weeks. If something is fixed in place there, this might be worth a conversation — with a coach, advisor, or just yourself."
+    case .patternLearner:
+        return "That's \(count) of your last \(totalWeeks) weeks. Worth watching a few more weeks to see if this holds — patterns like this are exactly what Insights is for."
     }
 }
 
@@ -501,8 +609,9 @@ private func coachingSentence(for day: DayOfWeek, count: Int, totalWeeks: Int) -
 // Shown below PatternCalloutCard so the headline + detail land first, coaching follows.
 private struct PatternCoachingCard: View {
     let caches: [WeekCache]
+    let userType: UserType
 
-    private var patterns: [PatternCallout] { detectPatterns(from: caches) }
+    private var patterns: [PatternCallout] { detectPatterns(from: caches, userType: userType) }
 
     var body: some View {
         if !patterns.isEmpty {
