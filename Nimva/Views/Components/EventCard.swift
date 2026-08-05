@@ -27,13 +27,20 @@ struct EventCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var visible = false
 
-    // At normal-to-large (non-accessibility) text sizes, the badges (energy label, type
-    // tag, optional Now/Next pill, optional checkmark) sit trailing next to the name in a
-    // single row — the shipped, tested layout, unchanged here. Only at accessibility text
-    // sizes — where those badges' own text grows enough to crowd or push past the card's
-    // edge — do they move below the name instead, with a second-row fallback if even that
-    // single row doesn't fit (see badgesRow/twoRowBadges).
-    private var useStackedLayout: Bool { dynamicTypeSize >= .accessibility1 }
+    // Badges sit trailing next to the name in a single row when there are few enough of
+    // them to fit comfortably. Once the "more options" menu was added alongside the energy
+    // badge, type tag, and checkmark, Home's interactive cards sit at 4 badges as their
+    // *normal* count (5 when the Now/Next pill is also showing) — squeezing that many chips
+    // plus a name into one trailing row was producing exactly what it looks like: badge
+    // text getting compressed down to a couple of characters and wrapping vertically inside
+    // its own capsule. So this isn't just an accessibility-size fallback anymore — 4+
+    // badges moves to the stacked layout (name on top, badges in their own full-width row
+    // below) regardless of text size, with a second-row fallback if even that doesn't fit
+    // (see badgesRow/twoRowBadges). The read-only Plan tab day-detail view never has more
+    // than 2 badges (no checkmark, no delete menu there), so it's unaffected either way.
+    private var useStackedLayout: Bool {
+        dynamicTypeSize >= .accessibility1 || badgeList.count >= 4
+    }
 
     var body: some View {
         Button { onTap?() } label: {
@@ -165,10 +172,19 @@ struct EventCard: View {
         }
     }
 
-    // "Now" / "Next" pill — only on today's first uncompleted event
+    // "Now" / "Next" pill — only on today's first uncompleted event.
+    // lineLimit(1) + fixedSize on all three chip labels below: without them, a genuinely
+    // tight row compresses the Text down to whatever sliver of width is left, which makes
+    // it wrap into a couple of illegible vertical characters rather than staying one full
+    // word — the exact bug that motivated useStackedLayout's badge-count threshold above.
+    // Between the two, if a row is still too tight, it's the name/subtitle that wraps to a
+    // second line instead — a badge shrinking to 2 illegible letters is worse than a name
+    // taking an extra line, and useStackedLayout now keeps this from being needed often.
     private func nowNextPill(_ label: String) -> some View {
         Text(label)
             .font(NimvaFont.chip)
+            .lineLimit(1)
+            .fixedSize()
             .foregroundStyle(NimvaColors.teal)
             .padding(.horizontal, 7)
             .padding(.vertical, 4)
@@ -179,6 +195,8 @@ struct EventCard: View {
     private var energyBadge: some View {
         Text(energyLabel)
             .font(NimvaFont.chip)
+            .lineLimit(1)
+            .fixedSize()
             .foregroundStyle(energyColor)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -190,6 +208,8 @@ struct EventCard: View {
     private var typeTag: some View {
         Text(typeTagLabel)
             .font(NimvaFont.chip)
+            .lineLimit(1)
+            .fixedSize()
             .foregroundStyle(typeTagColor)
             .padding(.horizontal, 7)
             .padding(.vertical, 4)
