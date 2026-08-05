@@ -471,7 +471,8 @@ struct HomeView: View {
                                                 completionState: completionState(for: event),
                                                 nextUpLabel: nextUpLabel(for: event),
                                                 onTap: { eventToEdit = event },
-                                                onCheckmark: { requestCycleCompletion(event) }
+                                                onCheckmark: { requestCycleCompletion(event) },
+                                                onDelete: { deleteEvent(event) }
                                             )
                                                 .id("\(selectedDay.rawValue)-\(event.id)")
                                                 .padding(.horizontal, 20)

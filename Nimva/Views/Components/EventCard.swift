@@ -12,6 +12,11 @@ struct EventCard: View {
     var nextUpLabel: String? = nil
     var onTap: (() -> Void)? = nil
     var onCheckmark: (() -> Void)? = nil
+    // Optional so the Plan tab's read-only day-detail view (which never wires this up)
+    // stays exactly as it is today. Where it IS wired up (Home), it's a second path to the
+    // same delete flow the long-press context menu already offers — visible and reachable
+    // with a plain tap, not something that requires discovering or holding a gesture.
+    var onDelete: (() -> Void)? = nil
 
     private var isCompleted: Bool { completionState == .completed }
 
@@ -19,7 +24,16 @@ struct EventCard: View {
     @AppStorage("customEnergyMixedHex") private var energyMixedHex = "ef9f27"
     @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var visible = false
+
+    // At normal-to-large (non-accessibility) text sizes, the badges (energy label, type
+    // tag, optional Now/Next pill, optional checkmark) sit trailing next to the name in a
+    // single row — the shipped, tested layout, unchanged here. Only at accessibility text
+    // sizes — where those badges' own text grows enough to crowd or push past the card's
+    // edge — do they move below the name instead, with a second-row fallback if even that
+    // single row doesn't fit (see badgesRow/twoRowBadges).
+    private var useStackedLayout: Bool { dynamicTypeSize >= .accessibility1 }
 
     var body: some View {
         Button { onTap?() } label: {
@@ -32,83 +46,23 @@ struct EventCard: View {
                     .fill(event.wasLogged ? NimvaColors.logged : (event.isFixed ? NimvaColors.purplePrimary : NimvaColors.teal))
                     .frame(width: 3)
 
-                HStack(spacing: 8) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 4) {
-                            if event.wasLogged {
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(NimvaColors.logged)
-                                    .accessibilityHidden(true)
-                            }
-                            Text(event.name)
-                                .font(NimvaFont.bodyMedium)
-                                .foregroundStyle(isCompleted ? NimvaColors.textMuted : NimvaColors.textPrimary)
-                                .strikethrough(isCompleted, color: NimvaColors.textMuted)
+                Group {
+                    if useStackedLayout {
+                        VStack(alignment: .leading, spacing: 8) {
+                            nameAndSubtitleBlock
+                            badgesRow
                         }
-                        Text(subtitleText)
-                            .font(NimvaFont.micro)
-                            .foregroundStyle(NimvaColors.textSecondary)
-                        if let reason = placementReason, !event.isFixed {
-                            Text(reason)
-                                .font(NimvaFont.micro)
-                                .foregroundStyle(NimvaColors.textMuted)
+                    } else {
+                        HStack(spacing: 8) {
+                            nameAndSubtitleBlock
+                            Spacer(minLength: 8)
+                            badgesRow
                         }
-                    }
-
-                    Spacer()
-
-                    // "Now" / "Next" pill — only on today's first uncompleted event
-                    if let label = nextUpLabel {
-                        Text(label)
-                            .font(NimvaFont.chip)
-                            .foregroundStyle(NimvaColors.teal)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 4)
-                            .background(NimvaColors.teal.opacity(0.12))
-                            .clipShape(Capsule())
-                    }
-
-                    // Energy badge
-                    Text(energyLabel)
-                        .font(NimvaFont.chip)
-                        .foregroundStyle(energyColor)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(energyColor.opacity(0.12))
-                        .clipShape(Capsule())
-
-                    // Type tag — "Must do" with amber tint for priority flex events
-                    Text(typeTagLabel)
-                        .font(NimvaFont.chip)
-                        .foregroundStyle(typeTagColor)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 4)
-                        .background(typeTagBackground)
-                        .clipShape(Capsule())
-
-                    // Checkmark — nested Button intercepts its own tap, outer Button handles edit.
-                    // Cycles three states (#83): not started → in progress → completed, so a
-                    // half-finished task can be marked "started" without an all-or-nothing call.
-                    // Only shown when a checkmark action is actually wired up (Home) — a read-only
-                    // context (Plan tab day detail) passes onCheckmark: nil and just hides it.
-                    if onCheckmark != nil {
-                        Button {
-                            onCheckmark?()
-                        } label: {
-                            Image(systemName: completionIconName)
-                                .font(.system(.title3))
-                                .foregroundStyle(completionIconColor)
-                                .frame(width: 36, height: 36)
-                                .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(completionAccessibilityLabel)
                     }
                 }
                 .padding(.leading, 14)
                 .padding(.vertical, 14)
-                .padding(.trailing, 6)
+                .padding(.trailing, useStackedLayout ? 14 : 6)
             }
             .background(NimvaColors.cardDark)
             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -131,6 +85,162 @@ struct EventCard: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var nameAndSubtitleBlock: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                if event.wasLogged {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(NimvaColors.logged)
+                        .accessibilityHidden(true)
+                }
+                Text(event.name)
+                    .font(NimvaFont.bodyMedium)
+                    .foregroundStyle(isCompleted ? NimvaColors.textMuted : NimvaColors.textPrimary)
+                    .strikethrough(isCompleted, color: NimvaColors.textMuted)
+            }
+            Text(subtitleText)
+                .font(NimvaFont.micro)
+                .foregroundStyle(NimvaColors.textSecondary)
+            if let reason = placementReason, !event.isFixed {
+                Text(reason)
+                    .font(NimvaFont.micro)
+                    .foregroundStyle(NimvaColors.textMuted)
+            }
+        }
+    }
+
+    // Built as an array (not a plain @ViewBuilder HStack) so the accessibility-size path
+    // below can split it across rows without needing to know in advance which optional
+    // badges (Now/Next pill, checkmark) are actually present.
+    private var badgeList: [AnyView] {
+        var list: [AnyView] = []
+        if let label = nextUpLabel {
+            list.append(AnyView(nowNextPill(label)))
+        }
+        list.append(AnyView(energyBadge))
+        list.append(AnyView(typeTag))
+        if onCheckmark != nil {
+            list.append(AnyView(checkmarkButton))
+        }
+        if onDelete != nil {
+            list.append(AnyView(moreMenuButton))
+        }
+        return list
+    }
+
+    @ViewBuilder
+    private var badgesRow: some View {
+        if useStackedLayout {
+            // Single row first (matches the normal layout's look); if the badges' own text
+            // is too wide for that even on their own full-width row, ViewThatFits falls
+            // back to two shorter rows instead of letting them overflow the card.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) {
+                    ForEach(badgeList.indices, id: \.self) { badgeList[$0] }
+                }
+                twoRowBadges
+            }
+        } else {
+            HStack(spacing: 6) {
+                ForEach(badgeList.indices, id: \.self) { badgeList[$0] }
+            }
+        }
+    }
+
+    private var twoRowBadges: some View {
+        let mid = (badgeList.count + 1) / 2
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                ForEach(badgeList.prefix(mid).indices, id: \.self) { badgeList[$0] }
+            }
+            if badgeList.count > mid {
+                HStack(spacing: 6) {
+                    ForEach(mid..<badgeList.count, id: \.self) { badgeList[$0] }
+                }
+            }
+        }
+    }
+
+    // "Now" / "Next" pill — only on today's first uncompleted event
+    private func nowNextPill(_ label: String) -> some View {
+        Text(label)
+            .font(NimvaFont.chip)
+            .foregroundStyle(NimvaColors.teal)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(NimvaColors.teal.opacity(0.12))
+            .clipShape(Capsule())
+    }
+
+    private var energyBadge: some View {
+        Text(energyLabel)
+            .font(NimvaFont.chip)
+            .foregroundStyle(energyColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(energyColor.opacity(0.12))
+            .clipShape(Capsule())
+    }
+
+    // "Must do" with amber tint for priority flex events
+    private var typeTag: some View {
+        Text(typeTagLabel)
+            .font(NimvaFont.chip)
+            .foregroundStyle(typeTagColor)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(typeTagBackground)
+            .clipShape(Capsule())
+    }
+
+    // Nested Button intercepts its own tap, outer Button handles edit. Cycles three states
+    // (#83): not started → in progress → completed, so a half-finished task can be marked
+    // "started" without an all-or-nothing call. Only shown when a checkmark action is
+    // actually wired up (Home) — a read-only context (Plan tab day detail) passes
+    // onCheckmark: nil and just hides it (badgeList never includes it in that case).
+    private var checkmarkButton: some View {
+        Button {
+            onCheckmark?()
+        } label: {
+            Image(systemName: completionIconName)
+                .font(.system(.title3))
+                .foregroundStyle(completionIconColor)
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(completionAccessibilityLabel)
+    }
+
+    // A visible, plain-tap alternative to the long-press context menu Home also attaches
+    // to this card — the exact "single tap, then choose" pattern used for the "+" button,
+    // for the same reason: a sustained long-press is a real barrier for anyone with limited
+    // motor control, and this way Edit/Delete don't require discovering or holding one.
+    // Edit reuses onTap so there's one source of truth for what "edit this event" does.
+    private var moreMenuButton: some View {
+        Menu {
+            Button {
+                onTap?()
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                onDelete?()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(.title3))
+                .foregroundStyle(NimvaColors.textMuted)
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
+        }
+        .accessibilityLabel("More options")
     }
 
     private var cardAccessibilityLabel: String {
