@@ -49,7 +49,19 @@ struct WeekGenerationView: View {
     @Environment(ProService.self) private var proService
 
     private var fixedEvents: [Event]    { events.filter(\.isFixed) }
-    private var flexibleEvents: [Event] { events.filter { !$0.isFixed } }
+    // Unlike fixedEvents (a raw pre-filter — every actual use site applies isEventVisible
+    // itself, e.g. dayGrid's dayFixed), this feeds directly into the "To schedule" list and
+    // its count with no downstream filter, so it needs the same week-visibility + wasLogged
+    // exclusion regenerate() already applies. Without it: a "this week only" flexible event
+    // shows up (and inflates the count) for every week you view, not just the one it
+    // actually belongs to — the exact bug reported by testers. weekOffset makes this
+    // re-filter correctly as you navigate weeks with the arrows.
+    private var flexibleEvents: [Event] {
+        events.filter {
+            !$0.isFixed && !$0.wasLogged
+                && SchedulerService.isEventVisible($0, inWeekStarting: SchedulerService.weekStart(offsetWeeks: weekOffset))
+        }
+    }
     private var userType: UserType      { SchedulerService.detectUserType(events: events) }
 
     // Rolling calendar week (#13): how far ahead this user can currently navigate.
