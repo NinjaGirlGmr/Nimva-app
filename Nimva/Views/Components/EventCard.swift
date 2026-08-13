@@ -284,7 +284,12 @@ struct EventCard: View {
         switch completionState {
         case .completed:  return NimvaColors.teal
         case .inProgress: return NimvaColors.teal.opacity(0.6)
-        case .notStarted: return NimvaColors.border
+        // Was NimvaColors.border — a near-invisible structural-divider color, nearly
+        // identical to the card background it sits on. A tester reported not knowing this
+        // button existed until they tapped it by accident. textMuted is the app's
+        // established "visible but secondary" tone (5.04:1 contrast) — present without
+        // looking like it's already been interacted with.
+        case .notStarted: return NimvaColors.textMuted
         }
     }
 
