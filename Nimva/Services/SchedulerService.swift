@@ -91,6 +91,12 @@ enum SchedulerService {
         let json = String(data: mergedData, encoding: .utf8) ?? "[]"
 
         let heavyDayValues = result.heavyDays.map { $0.rawValue }
+        // Index 0 = Monday ... 6 = Sunday, matching DayOfWeek.rawValue (1...7) - 1. Was
+        // computed every build and discarded until now — Insights needs the full picture
+        // (light/mixed days too), not just which days crossed the heavy threshold.
+        let dailyLoadValues = DayOfWeek.allCases
+            .sorted { $0.rawValue < $1.rawValue }
+            .map { result.dailyLoads[$0, default: 0.0] }
 
         // Replace only this week's cache — older weeks are kept for Insights history
         existing
@@ -101,7 +107,8 @@ enum SchedulerService {
             weekStartDate: targetStart,
             placementsJSON: json,
             balanceScore: result.balanceScore,
-            heavyDayValues: heavyDayValues
+            heavyDayValues: heavyDayValues,
+            dailyLoadValues: dailyLoadValues
         )
         cache.wasRecoveryWeek = isLightWeek(events: events)
         // Carry forward user data that must survive event edits

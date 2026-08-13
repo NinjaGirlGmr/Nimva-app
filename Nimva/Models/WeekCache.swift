@@ -9,6 +9,12 @@ final class WeekCache {
     var placementsJSON: String = "[]"      // JSON-encoded [{eventId, dayRawValue}]
     var balanceScore: Double = 0.0
     var heavyDayValues: [Int] = []       // DayOfWeek.rawValue for each flagged day
+    // Full per-day load, indexed by DayOfWeek.rawValue - 1 (index 0 = Monday ... 6 = Sunday).
+    // The scheduler already computes this every build (WeekSchedule.dailyLoads) — this just
+    // stops throwing it away. heavyDayValues alone couldn't tell light days from mixed ones,
+    // which is what Insights needs for a real light/mixed/heavy breakdown, not just a heavy
+    // count. Empty for any WeekCache built before this field existed — render defensively.
+    var dailyLoadValues: [Double] = []
     var generatedAt: Date = Date()
 
     // Written by the weekly check-in flow. nil means the user hasn't checked in yet.
@@ -41,11 +47,12 @@ final class WeekCache {
     // 1 = tried it and it helped, 2 = tried it but unsure, 3 = didn't get to it
     var experimentTriedRaw: Int? = nil
 
-    init(weekStartDate: Date, placementsJSON: String, balanceScore: Double, heavyDayValues: [Int]) {
+    init(weekStartDate: Date, placementsJSON: String, balanceScore: Double, heavyDayValues: [Int], dailyLoadValues: [Double] = []) {
         self.weekStartDate = weekStartDate
         self.placementsJSON = placementsJSON
         self.balanceScore = balanceScore
         self.heavyDayValues = heavyDayValues
+        self.dailyLoadValues = dailyLoadValues
         self.generatedAt = Date()
     }
 }

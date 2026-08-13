@@ -817,3 +817,53 @@ struct RecoveryWeekCacheTests {
     }
 }
 
+// MARK: - WeekCache.dailyLoadValues persistence
+
+// regenerate() already computed the full per-day load every build (WeekSchedule.dailyLoads)
+// but only ever persisted the heavy subset — these confirm the fuller picture actually
+// makes it into the saved WeekCache now, which Insights' day-breakdown chart and
+// day-pattern grid both depend on.
+@Suite("SchedulerService — dailyLoadValues persistence")
+@MainActor
+struct DailyLoadValuesPersistenceTests {
+
+    @Test func regeneratePersistsDailyLoadValuesOnTheSavedCache() throws {
+        let context = try makeInMemoryContext()
+        let event = Event(name: "Math Class", isFixed: true, fixedDay: .monday, energyCost: 0.75)
+
+        try SchedulerService.regenerate(context: context, events: [event], weekOffset: 0)
+
+        let all = try context.fetch(FetchDescriptor<WeekCache>())
+        let cache = try #require(all.first)
+        // Index 0 = Monday
+        #expect(cache.dailyLoadValues.count == 7)
+        #expect(abs(cache.dailyLoadValues[0] - 0.75) < 0.0001)
+        // Every other day has no load — should persist as 0, not be silently dropped/missing
+        for i in 1..<7 {
+            #expect(abs(cache.dailyLoadValues[i]) < 0.0001)
+        }
+    }
+
+    @Test func dailyLoadValuesOrderedMondayThroughSunday() throws {
+        let context = try makeInMemoryContext()
+        let events = [
+            Event(name: "Mon", isFixed: true, fixedDay: .monday, energyCost: 0.2),
+            Event(name: "Sun", isFixed: true, fixedDay: .sunday, energyCost: 0.9),
+        ]
+
+        try SchedulerService.regenerate(context: context, events: events, weekOffset: 0)
+
+        let all = try context.fetch(FetchDescriptor<WeekCache>())
+        let cache = try #require(all.first)
+        #expect(abs(cache.dailyLoadValues[0] - 0.2) < 0.0001)  // Monday
+        #expect(abs(cache.dailyLoadValues[6] - 0.9) < 0.0001)  // Sunday
+    }
+
+    @Test func emptyDailyLoadValuesDefaultsGracefullyForOlderCaches() {
+        // A WeekCache built before this field existed — must not crash callers that index
+        // into it (e.g. Insights' cellColor/daySeverities), just read as "no data."
+        let cache = WeekCache(weekStartDate: Date(), placementsJSON: "[]", balanceScore: 0, heavyDayValues: [])
+        #expect(cache.dailyLoadValues.isEmpty)
+    }
+}
+
