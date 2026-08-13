@@ -104,6 +104,10 @@ private struct InsightsProContent: View {
 
                 WeeklyTrendCard(caches: recentCaches)
 
+                if !recentCaches.isEmpty {
+                    AdvancedInsightsSection(caches: recentCaches)
+                }
+
                 if hasEnoughForPatterns {
                     PatternCalloutCard(caches: recentCaches, userType: userType)
                     PatternCoachingCard(caches: recentCaches, userType: userType)
@@ -177,16 +181,9 @@ private struct WeeklyTrendCard: View {
     @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    // Oldest → newest so the chart reads left to right naturally
-    private var chartData: [WeekDatum] {
-        caches.reversed().map {
-            WeekDatum(
-                label: shortDateLabel($0.weekStartDate),
-                heavyDayCount: $0.heavyDayValues.count,
-                weekStartDate: $0.weekStartDate
-            )
-        }
-    }
+    // Oldest → newest so the chart reads left to right naturally. weekData(from:) is shared
+    // with DayBreakdownChart — see its definition for why.
+    private var chartData: [WeekDatum] { weekData(from: caches) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -324,6 +321,11 @@ private struct WeeklyTrendCard: View {
 
     // MARK: Bar chart
 
+    // Deliberately the SAME metric as waveChart (heavy-day count per week) — just as bars
+    // instead of a line. This card stays the simple, glanceable overview either way; the
+    // real light/mixed/heavy-per-day breakdown lives in AdvancedInsightsSection below,
+    // opt-in rather than always visible, so this default view never requires comparing
+    // more than one number per week to read at a glance.
     private var barChart: some View {
         Chart(chartData) { datum in
             BarMark(
@@ -365,6 +367,9 @@ private struct WeeklyTrendCard: View {
             .padding(.vertical, 32)
     }
 
+    // Both wave and bar show the same metric (heavy-day count per week), so the numeric
+    // ranges here are accurate again — they describe how many heavy days make a week
+    // "Light/Mixed/Heavy" overall, matching severityColor(for:)'s own boundaries exactly.
     private var legendRow: some View {
         HStack(spacing: 16) {
             legendItem(Color(hex: energyLightHex), "Light (0–1)")
@@ -436,10 +441,28 @@ private struct WeeklyTrendCard: View {
         }
     }
 
-    private func shortDateLabel(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "M/d"
-        return f.string(from: date)
+}
+
+// Shared "M/d" short date label — used by WeeklyTrendCard, DayBreakdownChart, and
+// DayPatternGrid, all of which label a week by its start date the same way. One copy
+// instead of three so a format change can't accidentally land in only some of them.
+private func shortDateLabel(_ date: Date) -> String {
+    let f = DateFormatter()
+    f.dateFormat = "M/d"
+    return f.string(from: date)
+}
+
+// Shared week → WeekDatum mapping (oldest to newest, so charts read left to right
+// naturally) — used by both WeeklyTrendCard and DayBreakdownChart. One copy so a change to
+// what a WeekDatum carries doesn't require remembering to update two independent copies.
+private func weekData(from caches: [WeekCache]) -> [WeekDatum] {
+    caches.reversed().map {
+        WeekDatum(
+            label: shortDateLabel($0.weekStartDate),
+            heavyDayCount: $0.heavyDayValues.count,
+            weekStartDate: $0.weekStartDate,
+            dailyLoadValues: $0.dailyLoadValues
+        )
     }
 }
 
@@ -450,6 +473,212 @@ private struct WeekDatum: Identifiable {
     let label: String
     let heavyDayCount: Int
     let weekStartDate: Date
+    // Index 0 = Monday ... 6 = Sunday. Empty for any WeekCache built before this field
+    // existed — daySeverities/lightCount/etc. all degrade to empty/zero gracefully rather
+    // than crashing on a missing index.
+    let dailyLoadValues: [Double]
+
+    // Reuses the exact boundary every other load display in the app already uses
+    // (WeekStripView's day dots, EnergyZoneCard) — never a second copy that can drift.
+    var daySeverities: [LoadSeverity] { dailyLoadValues.map { LoadSeverity.forLoad($0) } }
+    var lightCount: Int    { daySeverities.filter { $0 == .light }.count }
+    var moderateCount: Int { daySeverities.filter { $0 == .moderate }.count }
+    var heavyCount: Int    { daySeverities.filter { $0 == .heavy }.count }
+}
+
+// MARK: - Advanced Insights Section
+
+// Opt-in home for the detailed, comparison-heavy views (the stacked day breakdown and the
+// day-pattern grid) — collapsed by default so the main screen stays a quick scan (trend,
+// pattern callouts, category card) and nobody has to parse a grid before getting to the
+// easy stuff. Matches the DisclosureGroup "Advanced" pattern already used in
+// AddEventView/EditEventView, for the same reason: occasional-use depth, not front-loaded.
+private struct AdvancedInsightsSection: View {
+    let caches: [WeekCache]
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DisclosureGroup(isExpanded: $isExpanded) {
+                VStack(alignment: .leading, spacing: 20) {
+                    DayBreakdownChart(caches: caches)
+                    DayPatternGrid(caches: caches)
+                }
+                .padding(.top, 16)
+            } label: {
+                Label("Advanced view", systemImage: "chart.bar.doc.horizontal")
+                    .font(NimvaFont.sectionLabel)
+                    .foregroundStyle(NimvaColors.textMuted)
+                    .tracking(1.0)
+            }
+            .tint(NimvaColors.textMuted)
+        }
+        .padding(NimvaLayout.cardPadding)
+        .background(NimvaColors.cardDark)
+        .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.cardRadius))
+    }
+}
+
+// Same underlying data as WeeklyTrendCard's barChart used to show inline — light/mixed/heavy
+// DAY counts stacked per week, not just a heavy-day count. Colors match legendRow's meaning
+// (a single day's own severity, same vocabulary as WeekStripView's day dots), which is why
+// this couldn't just stay merged into the simple card: it measures something genuinely
+// different from "how many heavy days," and conflating the two in one legend was the
+// original tester confusion this whole redesign started from.
+private struct DayBreakdownChart: View {
+    let caches: [WeekCache]
+
+    @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
+    @AppStorage("customEnergyMixedHex") private var energyMixedHex = "ef9f27"
+    @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
+
+    private var chartData: [WeekDatum] { weekData(from: caches) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Light / mixed / heavy days per week")
+                .font(NimvaFont.micro)
+                .foregroundStyle(NimvaColors.textMuted)
+
+            Chart {
+                ForEach(chartData) { datum in
+                    ForEach(severityBreakdown(for: datum), id: \.label) { entry in
+                        BarMark(
+                            x: .value("Week", datum.label),
+                            y: .value("Days", entry.count)
+                        )
+                        .foregroundStyle(by: .value("Severity", entry.label))
+                        .cornerRadius(2)
+                    }
+                }
+            }
+            .chartForegroundStyleScale([
+                "Light": Color(hex: energyLightHex),
+                "Mixed": Color(hex: energyMixedHex),
+                "Heavy": Color(hex: energyHeavyHex)
+            ])
+            // The outer card's legendRow describes the simple wave/bar meaning, not this
+            // chart's — Charts' own per-series legend here avoids implying they're the same.
+            .chartYScale(domain: 0...7)
+            .chartYAxis {
+                AxisMarks(values: [0, 7]) { _ in
+                    AxisGridLine().foregroundStyle(NimvaColors.border.opacity(0.4))
+                    AxisValueLabel()
+                        .foregroundStyle(NimvaColors.textMuted)
+                        .font(NimvaFont.micro)
+                }
+            }
+            .chartXAxis {
+                AxisMarks { _ in
+                    AxisValueLabel()
+                        .foregroundStyle(NimvaColors.textMuted)
+                        .font(NimvaFont.micro)
+                }
+            }
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            .frame(height: 180)
+        }
+    }
+
+}
+
+private func severityBreakdown(for datum: WeekDatum) -> [(label: String, count: Int)] {
+    [
+        (label: "Light", count: datum.lightCount),
+        (label: "Mixed", count: datum.moderateCount),
+        (label: "Heavy", count: datum.heavyCount)
+    ]
+}
+
+// MARK: - Day Pattern Grid
+
+// The literal "breakdown of trends for each day" — a day-of-week × week grid, newest week
+// at top (matches `caches`' own order, no reversal needed). Reading down a column shows one
+// weekday's history across weeks at a glance; reading across a row shows that week's shape.
+// Complements WeeklyTrendCard (which reads left-to-right through time) rather than
+// duplicating it — this is about a specific weekday's pattern, not the week-over-week trend.
+private struct DayPatternGrid: View {
+    let caches: [WeekCache]
+
+    @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
+    @AppStorage("customEnergyMixedHex") private var energyMixedHex = "ef9f27"
+    @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
+
+    private var orderedDays: [DayOfWeek] { DayOfWeek.orderedForLocale }
+    private let rowLabelWidth: CGFloat = 36
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("By day of week", systemImage: "square.grid.3x3")
+                .font(NimvaFont.sectionLabel)
+                .foregroundStyle(NimvaColors.textMuted)
+                .tracking(1.0)
+
+            VStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    Color.clear.frame(width: rowLabelWidth, height: 1)
+                    ForEach(orderedDays, id: \.self) { day in
+                        Text(day.shortName.prefix(1))
+                            .font(NimvaFont.micro)
+                            .foregroundStyle(NimvaColors.textMuted)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .accessibilityHidden(true)   // the per-row accessibility label already
+                                              // names each day; this header is visual-only
+
+                ForEach(caches) { cache in
+                    HStack(spacing: 6) {
+                        Text(shortDateLabel(cache.weekStartDate))
+                            .font(NimvaFont.micro)
+                            .foregroundStyle(NimvaColors.textMuted)
+                            .frame(width: rowLabelWidth, alignment: .leading)
+
+                        ForEach(orderedDays, id: \.self) { day in
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(cellColor(for: day, in: cache))
+                                .aspectRatio(1, contentMode: .fit)
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(accessibilityLabel(for: cache))
+                }
+            }
+        }
+        .padding(NimvaLayout.cardPadding)
+        .background(NimvaColors.cardDark)
+        .clipShape(RoundedRectangle(cornerRadius: NimvaLayout.cardRadius))
+    }
+
+    // Empty (not a severity color) when this WeekCache predates dailyLoadValues, or that
+    // day just isn't in range yet — surfaceDeep reads as "no data," not as a fourth
+    // severity tier, so it can't be mistaken for an especially-light day.
+    private func cellColor(for day: DayOfWeek, in cache: WeekCache) -> Color {
+        let index = day.rawValue - 1
+        guard cache.dailyLoadValues.indices.contains(index) else {
+            return NimvaColors.surfaceDeep
+        }
+        let severity = LoadSeverity.forLoad(cache.dailyLoadValues[index])
+        return Color(hex: severity.hex(light: energyLightHex, mixed: energyMixedHex, heavy: energyHeavyHex))
+    }
+
+    private func accessibilityLabel(for cache: WeekCache) -> String {
+        let parts = orderedDays.map { day -> String in
+            let index = day.rawValue - 1
+            guard cache.dailyLoadValues.indices.contains(index) else {
+                return "\(day.displayName) no data"
+            }
+            let severity = LoadSeverity.forLoad(cache.dailyLoadValues[index])
+            let word = switch severity {
+            case .light: "light"
+            case .moderate: "mixed"
+            case .heavy: "heavy"
+            }
+            return "\(day.displayName) \(word)"
+        }
+        return "Week of \(shortDateLabel(cache.weekStartDate)): " + parts.joined(separator: ", ")
+    }
 }
 
 // MARK: - Pattern Callout Card
