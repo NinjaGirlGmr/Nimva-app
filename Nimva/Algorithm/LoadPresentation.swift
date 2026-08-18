@@ -42,6 +42,15 @@ enum LoadSeverity {
     }
 }
 
+// Mean of a week's daily loads, or 0 for an empty array — the "how loaded was this week"
+// number used by Insights' weekly trend chart. Plotting this instead of a heavy-day count
+// means a week of all-moderate days reads as genuinely different from a week of all-light
+// days, rather than both reading as "0" until a day actually crosses the heavy threshold.
+func averageLoad(_ dailyLoadValues: [Double]) -> Double {
+    guard !dailyLoadValues.isEmpty else { return 0 }
+    return dailyLoadValues.reduce(0, +) / Double(dailyLoadValues.count)
+}
+
 // Smooth 0...1 fill for the "Energy balance" bar once a week is built — higher variance
 // (less balanced) yields a smaller fill instead of the bar always sitting at 100% regardless
 // of whether the week is actually balanced. Asymptotic rather than hard-clamped to 0, so even
