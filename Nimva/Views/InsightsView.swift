@@ -262,7 +262,7 @@ private struct WeeklyTrendCard: View {
             // Soft gradient fill under the curve — adds depth without competing with the line
             AreaMark(
                 x: .value("Week", datum.label),
-                y: .value("Heavy days", datum.heavyDayCount)
+                y: .value("Average load", datum.averageLoad)
             )
             .foregroundStyle(
                 LinearGradient(
@@ -275,7 +275,7 @@ private struct WeeklyTrendCard: View {
 
             LineMark(
                 x: .value("Week", datum.label),
-                y: .value("Heavy days", datum.heavyDayCount)
+                y: .value("Average load", datum.averageLoad)
             )
             .foregroundStyle(NimvaColors.purplePrimary)
             .interpolationMethod(.catmullRom)
@@ -285,19 +285,19 @@ private struct WeeklyTrendCard: View {
             // is available without needing to read the y-axis
             PointMark(
                 x: .value("Week", datum.label),
-                y: .value("Heavy days", datum.heavyDayCount)
+                y: .value("Average load", datum.averageLoad)
             )
-            .foregroundStyle(severityColor(for: datum.heavyDayCount))
+            .foregroundStyle(severityColor(for: datum.averageLoad))
             .symbolSize(64)
             .annotation(position: .bottom, spacing: 4) {
-                Text("\(datum.heavyDayCount)")
+                Text(formatLoad(datum.averageLoad))
                     .font(NimvaFont.micro)
                     .foregroundStyle(NimvaColors.textMuted)
             }
         }
-        .chartYScale(domain: 0...7)
+        .chartYScale(domain: 0...yAxisUpperBound)
         .chartYAxis {
-            AxisMarks(values: [0, 7]) { _ in
+            AxisMarks(values: [0, Scheduler.heavyDayThreshold * 0.5, Scheduler.heavyDayThreshold]) { _ in
                 AxisGridLine().foregroundStyle(NimvaColors.border.opacity(0.3))
                 AxisValueLabel()
                     .foregroundStyle(NimvaColors.textMuted)
@@ -321,8 +321,8 @@ private struct WeeklyTrendCard: View {
 
     // MARK: Bar chart
 
-    // Deliberately the SAME metric as waveChart (heavy-day count per week) — just as bars
-    // instead of a line. This card stays the simple, glanceable overview either way; the
+    // Deliberately the SAME metric as waveChart (mean daily load across the week) — just as
+    // bars instead of a line. This card stays the simple, glanceable overview either way; the
     // real light/mixed/heavy-per-day breakdown lives in AdvancedInsightsSection below,
     // opt-in rather than always visible, so this default view never requires comparing
     // more than one number per week to read at a glance.
@@ -330,14 +330,14 @@ private struct WeeklyTrendCard: View {
         Chart(chartData) { datum in
             BarMark(
                 x: .value("Week", datum.label),
-                y: .value("Heavy days", datum.heavyDayCount)
+                y: .value("Average load", datum.averageLoad)
             )
-            .foregroundStyle(severityColor(for: datum.heavyDayCount))
+            .foregroundStyle(severityColor(for: datum.averageLoad))
             .cornerRadius(4)
         }
-        .chartYScale(domain: 0...7)
+        .chartYScale(domain: 0...yAxisUpperBound)
         .chartYAxis {
-            AxisMarks(values: [0, 2, 4, 7]) { _ in
+            AxisMarks(values: [0, Scheduler.heavyDayThreshold * 0.5, Scheduler.heavyDayThreshold]) { _ in
                 AxisGridLine().foregroundStyle(NimvaColors.border.opacity(0.4))
                 AxisValueLabel()
                     .foregroundStyle(NimvaColors.textMuted)
@@ -357,6 +357,13 @@ private struct WeeklyTrendCard: View {
         .frame(height: 180)
     }
 
+    // Domain ceiling for both charts — at least 1.5x the heavy threshold (so a week sitting
+    // right at "heavy" isn't jammed against the top edge), but stretches further if any
+    // week's actual average genuinely exceeds that.
+    private var yAxisUpperBound: Double {
+        max(Scheduler.heavyDayThreshold * 1.5, (chartData.map(\.averageLoad).max() ?? 0) * 1.15)
+    }
+
     // MARK: Shared
 
     private var emptyState: some View {
@@ -367,17 +374,25 @@ private struct WeeklyTrendCard: View {
             .padding(.vertical, 32)
     }
 
-    // Both wave and bar show the same metric (heavy-day count per week), so the numeric
-    // ranges here are accurate again — they describe how many heavy days make a week
-    // "Light/Mixed/Heavy" overall, matching severityColor(for:)'s own boundaries exactly.
+    // Both wave and bar show the same metric (mean daily load per week), so these ranges
+    // describe that average directly, using the exact same boundaries LoadSeverity.forLoad
+    // applies to a single day — a "moderate" week here means its typical day was moderate,
+    // not that it merely avoided crossing the heavy threshold outright.
     private var legendRow: some View {
         HStack(spacing: 16) {
-            legendItem(Color(hex: energyLightHex), "Light (0–1)")
-            legendItem(Color(hex: energyMixedHex), "Mixed (2–3)")
-            legendItem(Color(hex: energyHeavyHex), "Heavy (4+)")
+            legendItem(Color(hex: energyLightHex), "Light (avg <\(lightBoundLabel))")
+            legendItem(Color(hex: energyMixedHex), "Mixed (avg \(lightBoundLabel)–\(heavyBoundLabel))")
+            legendItem(Color(hex: energyHeavyHex), "Heavy (avg \(heavyBoundLabel)+)")
         }
         .font(NimvaFont.micro)
         .foregroundStyle(NimvaColors.textSecondary)
+    }
+
+    private var lightBoundLabel: String { formatLoad(Scheduler.heavyDayThreshold * 0.5) }
+    private var heavyBoundLabel: String { formatLoad(Scheduler.heavyDayThreshold) }
+
+    private func formatLoad(_ value: Double) -> String {
+        String(format: "%.1f", value)
     }
 
     private func legendItem(_ color: Color, _ label: String) -> some View {
@@ -389,32 +404,37 @@ private struct WeeklyTrendCard: View {
 
     // MARK: Week-over-week
 
-    // `caches` is newest-first (order: .reverse) and already limited to the current week
-    // and earlier — [0] is this week's (possibly still-in-progress, but a built week's
-    // heavy-day count reflects the whole planned week, not just days elapsed so far) and
-    // [1] is the one directly before it. nil when there isn't yet a full pair to compare.
-    private var weekOverWeekDelta: (current: Int, previous: Int)? {
-        guard caches.count >= 2 else { return nil }
-        return (caches[0].heavyDayValues.count, caches[1].heavyDayValues.count)
+    // chartData is oldest→newest (see weekData(from:)), so the last two entries are this
+    // week and the one directly before it. nil when there isn't yet a full pair to compare.
+    private var weekOverWeekDelta: (current: Double, previous: Double)? {
+        guard chartData.count >= 2 else { return nil }
+        return (chartData[chartData.count - 1].averageLoad, chartData[chartData.count - 2].averageLoad)
     }
+
+    // Doubles rarely land on the exact same value week to week — anything closer than this
+    // reads as "about the same" rather than a misleadingly precise up/down.
+    private static let sameWeekEpsilon = 0.05
 
     private var weekOverWeekText: String? {
         guard let delta = weekOverWeekDelta else { return nil }
-        let dayWord = "\(delta.current) heavy day\(delta.current == 1 ? "" : "s")"
-        switch delta.current - delta.previous {
-        case ..<0: return "\(dayWord) this week, down from \(delta.previous) last week."
-        case 0:    return "\(dayWord) this week — same as last week."
-        default:   return "\(dayWord) this week, up from \(delta.previous) last week."
+        let currentLabel = formatLoad(delta.current)
+        let previousLabel = formatLoad(delta.previous)
+        let diff = delta.current - delta.previous
+        if diff < -Self.sameWeekEpsilon {
+            return "Average day load \(currentLabel) this week, down from \(previousLabel) last week."
+        } else if diff > Self.sameWeekEpsilon {
+            return "Average day load \(currentLabel) this week, up from \(previousLabel) last week."
+        } else {
+            return "Average day load \(currentLabel) this week — about the same as last week."
         }
     }
 
     private var weekOverWeekIcon: String {
         guard let delta = weekOverWeekDelta else { return "minus" }
-        switch delta.current - delta.previous {
-        case ..<0: return "arrow.down.right"
-        case 0:    return "minus"
-        default:   return "arrow.up.right"
-        }
+        let diff = delta.current - delta.previous
+        if diff < -Self.sameWeekEpsilon { return "arrow.down.right" }
+        if diff > Self.sameWeekEpsilon { return "arrow.up.right" }
+        return "minus"
     }
 
     private func weekOverWeekRow(_ text: String) -> some View {
@@ -432,13 +452,14 @@ private struct WeeklyTrendCard: View {
         .accessibilityElement(children: .combine)
     }
 
-    // Thresholds: 0–1 = light week, 2–3 = mixed, 4+ = heavy
-    private func severityColor(for heavyDayCount: Int) -> Color {
-        switch heavyDayCount {
-        case 0...1: return Color(hex: energyLightHex)
-        case 2...3: return Color(hex: energyMixedHex)
-        default:    return Color(hex: energyHeavyHex)
-        }
+    // Reuses the exact per-day boundary LoadSeverity.forLoad applies everywhere else
+    // (WeekStripView's day dots, the day-pattern grid) instead of a second copy of the
+    // thresholds — the earlier version of this card hardcoded its own heavy-day-count
+    // buckets here, which is what let the legend and the chart quietly disagree in the
+    // first place.
+    private func severityColor(for load: Double) -> Color {
+        let severity = LoadSeverity.forLoad(load)
+        return Color(hex: severity.hex(light: energyLightHex, mixed: energyMixedHex, heavy: energyHeavyHex))
     }
 
 }
@@ -459,7 +480,6 @@ private func weekData(from caches: [WeekCache]) -> [WeekDatum] {
     caches.reversed().map {
         WeekDatum(
             label: shortDateLabel($0.weekStartDate),
-            heavyDayCount: $0.heavyDayValues.count,
             weekStartDate: $0.weekStartDate,
             dailyLoadValues: $0.dailyLoadValues
         )
@@ -471,7 +491,6 @@ private func weekData(from caches: [WeekCache]) -> [WeekDatum] {
 private struct WeekDatum: Identifiable {
     let id = UUID()
     let label: String
-    let heavyDayCount: Int
     let weekStartDate: Date
     // Index 0 = Monday ... 6 = Sunday. Empty for any WeekCache built before this field
     // existed — daySeverities/lightCount/etc. all degrade to empty/zero gracefully rather
@@ -484,6 +503,11 @@ private struct WeekDatum: Identifiable {
     var lightCount: Int    { daySeverities.filter { $0 == .light }.count }
     var moderateCount: Int { daySeverities.filter { $0 == .moderate }.count }
     var heavyCount: Int    { daySeverities.filter { $0 == .heavy }.count }
+
+    // The card used to plot a count of days that crossed the heavy threshold, which read
+    // as a flat 0 for any week that was entirely light/moderate (the bug testers reported).
+    // averageLoad(_:) (LoadPresentation.swift) is tested directly there.
+    var averageLoad: Double { Nimva.averageLoad(dailyLoadValues) }
 }
 
 // MARK: - Advanced Insights Section

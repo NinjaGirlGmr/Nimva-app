@@ -377,6 +377,36 @@ struct BalanceBarFillTests {
     }
 }
 
+@Suite("Average Load")
+struct AverageLoadTests {
+
+    @Test func emptyArrayReturnsZero() {
+        #expect(averageLoad([]) == 0)
+    }
+
+    @Test func meansAcrossAllSevenDays() {
+        // 3.5 total / 7 days = 0.5 — a week of moderate/light days averages above zero
+        // even though none of these individually cross the heavy threshold (2.0).
+        let week = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+        #expect(abs(averageLoad(week) - 0.5) < 0.0001)
+    }
+
+    @Test func distinguishesAllLightFromAllModerateWeeks() {
+        // The bug this replaces: both of these weeks previously read as "0" on the trend
+        // chart because neither has a day that crosses the heavy threshold. Averaging
+        // instead of counting heavy days makes them visibly different.
+        let allLight = [0.2, 0.3, 0.1, 0.4, 0.2, 0.0, 0.1]
+        let allModerate = [1.2, 1.5, 1.0, 1.8, 1.3, 1.1, 1.4]
+        #expect(averageLoad(allLight) < averageLoad(allModerate))
+        #expect(averageLoad(allLight) > 0)
+        #expect(averageLoad(allModerate) > 0)
+    }
+
+    @Test func singleValueReturnsItself() {
+        #expect(abs(averageLoad([2.4]) - 2.4) < 0.0001)
+    }
+}
+
 // MARK: - Recovery Windows (micro-recovery gap detection)
 
 @Suite("Recovery Windows")
