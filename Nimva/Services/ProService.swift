@@ -80,8 +80,12 @@ final class ProService {
     }
 
     private func checkEntitlement() async -> Bool {
-        for await result in Transaction.currentEntitlements(for: Self.productId) {
-            guard let transaction = try? checkVerified(result) else { continue }
+        // The product-scoped currentEntitlements(for:) overload needs iOS 18.4+ — this is
+        // the unfiltered form (available since iOS 15) with the same product-ID check done
+        // manually, so PRO status can still be checked on older devices without losing
+        // anything: there's only ever one product to filter for anyway.
+        for await result in Transaction.currentEntitlements {
+            guard let transaction = try? checkVerified(result), transaction.productID == Self.productId else { continue }
             if transaction.revocationDate == nil { return true }
         }
         return false
