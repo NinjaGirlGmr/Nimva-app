@@ -254,9 +254,14 @@ struct EventCard: View {
                 .frame(width: 36, height: 36)
                 .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
         }
-        .buttonStyle(.plain)
-        .pressScale()
-        .nimvaAnimation(NimvaAnimation.stateChange, value: completionState)
+        // .scalePress, not .plain + pressScale(): this button is nested inside EventCard's
+        // own outer Button, inside HomeView's ScrollView — precisely the setup
+        // EventCardStyle (below) already exists to avoid pressScale()'s DragGesture
+        // suppressing tap recognition. Dropped the separate .nimvaAnimation(stateChange:)
+        // that stacked here too — contentTransition's symbolEffect above already carries
+        // the state-change motion for this button; a second, differently-timed animation
+        // over the same state change is redundant motion, not an additional improvement.
+        .buttonStyle(.scalePress)
         .accessibilityLabel(completionAccessibilityLabel)
     }
 

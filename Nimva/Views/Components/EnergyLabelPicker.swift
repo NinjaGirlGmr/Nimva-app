@@ -39,8 +39,11 @@ struct EnergyLabelPicker: View {
                                     .stroke(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.border, lineWidth: 1)
                             )
                     }
-                    .buttonStyle(.plain)
-                    .pressScale()
+                    // .scalePress, not .plain + pressScale() — this sits inside a Form
+                    // (AddEventView/EditEventView/QuickAddEventsView), and pressScale()'s
+                    // extra DragGesture can suppress tap recognition inside a scrolling
+                    // container (see NimvaMotion.swift's caution on pressScale()).
+                    .buttonStyle(.scalePress)
                     .frame(minHeight: 44)
                     .accessibilityAddTraits(selectedLabel == label ? .isSelected : [])
 

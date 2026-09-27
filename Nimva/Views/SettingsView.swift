@@ -216,7 +216,10 @@ struct SettingsView: View {
                     .background(NimvaColors.purplePrimary.opacity(0.12))
                     .clipShape(Capsule())
             }
-            .pressScale()
+            // .scalePress, not pressScale(): every button on this screen sits inside
+            // SettingsView's ScrollView, where pressScale()'s extra DragGesture can
+            // suppress tap recognition (see NimvaMotion.swift's caution on pressScale()).
+            .buttonStyle(.scalePress)
         }
         .padding(16)
         .background(NimvaColors.cardDark)
@@ -301,8 +304,8 @@ struct SettingsView: View {
                     .stroke(isActive ? NimvaColors.purplePrimary.opacity(0.5) : Color.clear, lineWidth: 1.5)
             )
         }
-        .buttonStyle(.plain)
-        .pressScale()
+        // .scalePress: this swatch grid sits inside SettingsView's ScrollView.
+        .buttonStyle(.scalePress)
         .nimvaAnimation(NimvaAnimation.stateChange, value: isActive)
         .accessibilityLabel("\(palette.name) palette")
         .accessibilityAddTraits(isActive ? .isSelected : [])
@@ -360,8 +363,7 @@ struct SettingsView: View {
                 .padding(.vertical, 14)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .pressScale()
+            .buttonStyle(.scalePress)
             SettingsDivider()
             ActionRow(label: "Reset learned patterns", style: .destructive) {
                 showingResetPatternsConfirm = true
@@ -397,8 +399,7 @@ struct SettingsView: View {
                     .padding(.vertical, 14)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .pressScale()
+                .buttonStyle(.scalePress)
             } else {
                 // Calendar picker row
                 Button { openCalendarPicker() } label: {
@@ -424,8 +425,7 @@ struct SettingsView: View {
                     .padding(.vertical, 14)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .pressScale()
+                .buttonStyle(.scalePress)
 
                 SettingsDivider()
 
@@ -459,8 +459,7 @@ struct SettingsView: View {
                     .padding(.vertical, 14)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .pressScale()
+                .buttonStyle(.scalePress)
             }
         }
     }
@@ -729,6 +728,10 @@ private struct ActionRow: View {
             // contentShape makes the whole row tappable, not just the text
             .contentShape(Rectangle())
         }
+        // The one shared row component in this file — every ad-hoc row button elsewhere on
+        // this screen got press feedback individually, so this needed it too rather than
+        // being the one row style left feeling unresponsive by comparison.
+        .buttonStyle(.scalePress)
     }
 }
 

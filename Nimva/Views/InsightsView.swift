@@ -93,11 +93,14 @@ private struct InsightsProContent: View {
         SchedulerService.detectUserType(events: events)
     }
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // Insights was the one main tab with essentially no entrance motion at all (a single
     // .animation() call on the wave/bar toggle was it) — everywhere else in the app
     // (Home, EventCard, the Plan tab's build reveal) settles in with a fade + slight rise
     // rather than just snapping fully rendered onto the screen the instant the tab loads.
+    // .nimvaAnimation already self-guards on Reduce Motion, so this doesn't need its own
+    // reduceMotion + if/else the way EventCard's older, hand-written version does — that
+    // manual branching predates .nimvaAnimation existing at all; new call sites should
+    // just use the modifier.
     @State private var contentVisible = false
 
     var body: some View {
@@ -128,15 +131,10 @@ private struct InsightsProContent: View {
             .padding(NimvaLayout.screenPadding)
             .opacity(contentVisible ? 1 : 0)
             .offset(y: contentVisible ? 0 : 10)
+            .nimvaAnimation(NimvaAnimation.cardAppear, value: contentVisible)
         }
         .scrollIndicators(.hidden)
-        .onAppear {
-            if reduceMotion {
-                contentVisible = true
-            } else {
-                withAnimation(NimvaAnimation.cardAppear) { contentVisible = true }
-            }
-        }
+        .onAppear { contentVisible = true }
     }
 
     private var betaBanner: some View {

@@ -118,8 +118,13 @@ struct QuickAddEventsView: View {
                                         : NimvaColors.teal
                                 )
                         }
+                        // .scalePress, not pressScale(): inside this Form, and specifically
+                        // here it also fixes a real bug pressScale() had — its DragGesture is
+                        // attached independently of .disabled(), so the disabled button still
+                        // visibly scaled down on a press that did nothing. ButtonStyle's
+                        // isPressed only reflects genuine (enabled) button presses.
+                        .buttonStyle(.scalePress)
                         .disabled(draftText.trimmingCharacters(in: .whitespaces).isEmpty)
-                        .pressScale()
                         .accessibilityLabel("Add item")
                     }
                 }
@@ -136,11 +141,16 @@ struct QuickAddEventsView: View {
                                     .font(NimvaFont.micro)
                                     .foregroundStyle(NimvaColors.textMuted)
                             }
-                            // Each queued item drops in from the top as it's added, rather
-                            // than just appearing — the whole point of this flow is rapid
-                            // repeated adds, so this is the single moment most worth making
-                            // feel alive rather than static.
-                            .transition(.move(edge: .top).combined(with: .opacity))
+                            // Asymmetric: dropping in from the top reads as "added" (the
+                            // moment most worth making feel alive, since the whole point of
+                            // this flow is rapid repeated adds), but that same motion applied
+                            // to a swipe-to-delete removal would fly the row upward regardless
+                            // of which direction the swipe actually went — a plain fade reads
+                            // as "removed" without implying a direction the gesture didn't have.
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .top).combined(with: .opacity),
+                                removal: .opacity
+                            ))
                         }
                         .onDelete { offsets in
                             withAnimation(reduceMotion ? .none : NimvaAnimation.cardAppear) {

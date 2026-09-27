@@ -19,7 +19,6 @@ struct EditEventView: View {
     @State private var showingAdvanced = false
     @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
     @FocusState private var nameFieldFocused: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Same derivation as AddEventView — built-in presets, then whatever custom categories
     // are already in use, always including this event's own current category.
