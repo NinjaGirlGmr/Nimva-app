@@ -56,6 +56,81 @@ struct SchedulerPlacementTests {
     }
 }
 
+// MARK: - Due Date Constraint (#95)
+
+@Suite("Scheduler — Due Date Constraint")
+struct SchedulerDueDateTests {
+
+    @Test func deadlineConstrainedDaysSlicesToOnOrBeforeDeadline() {
+        let eligible: [DayOfWeek] = [.monday, .tuesday, .wednesday, .thursday, .friday]
+        let event = FlexibleEvent(name: "HW", energyCost: 0.5, deadlineDay: .wednesday)
+        let result = Scheduler.deadlineConstrainedDays(for: event, within: eligible)
+        #expect(result == [.monday, .tuesday, .wednesday])
+    }
+
+    @Test func noDeadlineReturnsFullEligibleList() {
+        let eligible: [DayOfWeek] = [.monday, .tuesday, .wednesday]
+        let event = FlexibleEvent(name: "HW", energyCost: 0.5)
+        #expect(Scheduler.deadlineConstrainedDays(for: event, within: eligible) == eligible)
+    }
+
+    @Test func deadlineAlreadyPassedFallsBackToFullEligibleList() {
+        // Deadline was Monday, but eligibleDays (from "today" onward) starts at Thursday —
+        // the deadline is already unmeetable by the time this build ran. Rather than treat
+        // the event as unplaceable, fall back to the full eligible range so it still gets
+        // scheduled as soon as possible instead of silently overflowing.
+        let eligible: [DayOfWeek] = [.thursday, .friday, .saturday, .sunday]
+        let event = FlexibleEvent(name: "HW", energyCost: 0.5, deadlineDay: .monday)
+        #expect(Scheduler.deadlineConstrainedDays(for: event, within: eligible) == eligible)
+    }
+
+    @Test func eventWithDeadlineNeverPlacedAfterDueDay() {
+        // Thursday and Friday are deliberately the lightest days, but a Wednesday deadline
+        // must still win over "pick the lightest day" for this event.
+        let fixed = [
+            FixedEvent(name: "A", day: .monday, energyCost: 1.5),
+            FixedEvent(name: "B", day: .tuesday, energyCost: 1.5),
+            FixedEvent(name: "C", day: .wednesday, energyCost: 1.5),
+        ]
+        let flexible = [FlexibleEvent(name: "Essay", energyCost: 0.5, deadlineDay: .wednesday)]
+
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible, startingFrom: .monday)
+
+        let placed = try! #require(schedule.placedFlexibleEvents.first)
+        #expect([.monday, .tuesday, .wednesday].contains(placed.day))
+        #expect(!["thursday", "friday", "saturday", "sunday"].contains(placed.day.displayName.lowercased()))
+    }
+
+    @Test func eventWithNoDeadlineCanLandAfterAnotherEventsDeadline() {
+        // Regression guard: adding a deadline to one event must not accidentally constrain
+        // every other flexible event in the same build.
+        let flexible = [
+            FlexibleEvent(name: "Due soon", energyCost: 0.9, deadlineDay: .monday),
+            FlexibleEvent(name: "Whenever", energyCost: 0.1),
+        ]
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: .monday)
+        #expect(schedule.placedFlexibleEvents.count == 2)
+        // "Whenever" should be free to land anywhere in Mon...Sun, unconstrained.
+        let whereverPlaced = schedule.placedFlexibleEvents.first { $0.event.name == "Whenever" }
+        #expect(whereverPlaced != nil)
+    }
+
+    @Test func placementReasonNamesTheDueDayWhenThatsTheOnlyOption() {
+        // Force the event's only eligible day to be its own deadline day, so the "no more
+        // room to move this one" reason is the one that must fire.
+        let fixed = [
+            FixedEvent(name: "A", day: .monday, energyCost: 0.5),
+        ]
+        let flexible = [FlexibleEvent(name: "Worksheet", energyCost: 0.3, deadlineDay: .monday)]
+
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible, startingFrom: .monday)
+
+        let placed = try! #require(schedule.placedFlexibleEvents.first)
+        #expect(placed.day == .monday)
+        #expect(placed.reason.contains("due day"))
+    }
+}
+
 @Suite("Scheduler — Edge Cases")
 struct SchedulerEdgeCaseTests {
 

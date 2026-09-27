@@ -114,13 +114,20 @@ struct FlexibleEvent {
     let preferredWindow: TimePreference
     let energyCost: Double
     let isPriority: Bool
+    // Must be placed on or before this day, if set (issue #95). Resolved from Event.deadline
+    // for the specific week being built — nil either because the event has no deadline, or
+    // because its deadline date doesn't fall in the week currently being scheduled (a
+    // deadline only ever constrains the single week it was set for — see
+    // SchedulerService.deadlineDay).
+    let deadlineDay: DayOfWeek?
 
-    init(id: UUID = UUID(), name: String, preferredWindow: TimePreference = .any, energyCost: Double, isPriority: Bool = false) {
+    init(id: UUID = UUID(), name: String, preferredWindow: TimePreference = .any, energyCost: Double, isPriority: Bool = false, deadlineDay: DayOfWeek? = nil) {
         self.id = id
         self.name = name
         self.preferredWindow = preferredWindow
         self.energyCost = min(max(energyCost, 0.0), 1.0)
         self.isPriority = isPriority
+        self.deadlineDay = deadlineDay
     }
 }
 
