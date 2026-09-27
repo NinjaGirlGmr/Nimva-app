@@ -58,12 +58,16 @@ enum SchedulerService {
         // Extract placements from days that have already passed so they survive the rebuild.
         // Only applies when called from background rebuilds (event edits), not explicit Plan-tab builds.
         //
-        // Use rawValue (Mon=1 … Sun=7) for the "is this day past?" check, NOT orderedForLocale.
-        // In US locale, orderedForLocale puts Sunday at index 0 (before Monday), which would
-        // cause Sunday (rawValue 7) to be treated as "past" on any Mon–Sat day — but Sunday is
-        // the LAST day of the internal Mon–Sun week and is always future until Sunday itself.
-        // rawValue comparison gives the correct temporal order for both US and ISO locales:
-        //   today = Wednesday (rawValue 3) → past = Mon(1), Tue(2); Sun(7) is NOT past.
+        // Uses isDayPast (locale-aware ordering), NOT rawValue comparison — see its doc
+        // comment. (Corrected 2026-09-27: this used to compare raw Mon=1…Sun=7 values
+        // directly, on the reasoning that Sunday is always the last, still-future day of an
+        // internal Mon–Sun week. That was true when weekStart(for:) was hardcoded to Monday
+        // regardless of locale, but weekStart(for:) was later fixed to follow the real device
+        // locale instead — for a US-locale week that means Sunday is the actual calendar
+        // *first* day, which can genuinely already be past by Wednesday. The rawValue check
+        // never got updated to match, so it could leave a real past Sunday placement
+        // unfrozen — eligible to silently get reshuffled onto a different day next rebuild,
+        // even though that Sunday already happened. See the Stray Spark Log.)
         var pastRecords: [PlacementRecord] = []
         var idsInPast: Set<UUID> = []
         if preservePastPlacements,
@@ -72,7 +76,7 @@ enum SchedulerService {
            let decoded = try? JSONDecoder().decode([PlacementRecord].self, from: data) {
             for record in decoded {
                 if let day = DayOfWeek(rawValue: record.dayRawValue),
-                   day.rawValue < today.rawValue {
+                   isDayPast(day, relativeToToday: today) {
                     pastRecords.append(record)
                     idsInPast.insert(record.eventId)
                 }
@@ -611,5 +615,18 @@ enum SchedulerService {
         case 7: return .saturday
         default: return .monday
         }
+    }
+
+    /// True when `day` chronologically precedes `today` within the same real calendar week —
+    /// locale-aware (see DayOfWeek.orderedForLocale's doc comment), since which day starts the
+    /// week depends on device locale: a US week runs Sun...Sat (Sunday can be past by
+    /// Wednesday), an ISO week runs Mon...Sun (Sunday is always last/future until it arrives).
+    /// `firstWeekday` defaults to the real device locale; overridable for deterministic tests.
+    static func isDayPast(_ day: DayOfWeek, relativeToToday today: DayOfWeek, firstWeekday: Int = Calendar.current.firstWeekday) -> Bool {
+        let ordered = DayOfWeek.orderedForLocale(firstWeekday: firstWeekday)
+        guard let dayIndex = ordered.firstIndex(of: day), let todayIndex = ordered.firstIndex(of: today) else {
+            return false
+        }
+        return dayIndex < todayIndex
     }
 }

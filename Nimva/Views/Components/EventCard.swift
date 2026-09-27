@@ -343,14 +343,20 @@ struct EventCard: View {
             }
             return event.fixedDay?.displayName ?? ""
         } else {
-            let window = event.preferredWindow?.displayName ?? "Any time"
+            // Built as parts rather than nested ternaries so a due date (#95) can layer
+            // onto the existing "window · duration" text without a new badge slot — EventCard
+            // already sits at 4-5 badges as its normal count (see useStackedLayout's doc
+            // comment on the crowding that caused), so this reuses the subtitle line instead.
+            var parts = [event.preferredWindow?.displayName ?? "Any time"]
             if let dur = event.duration {
                 let mins = Int(dur / 60)
                 let h = mins / 60; let m = mins % 60
-                let s = h == 0 ? "\(m)m" : (m == 0 ? "\(h)h" : "\(h)h \(m)m")
-                return "\(window) · \(s)"
+                parts.append(h == 0 ? "\(m)m" : (m == 0 ? "\(h)h" : "\(h)h \(m)m"))
             }
-            return window
+            if let deadline = event.deadline, let day = CalendarImportService.nimvaDay(from: deadline) {
+                parts.append("Due \(day.shortName)")
+            }
+            return parts.joined(separator: " · ")
         }
     }
 

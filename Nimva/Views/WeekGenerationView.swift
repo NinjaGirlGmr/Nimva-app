@@ -898,7 +898,7 @@ private struct EventChip: View {
             Circle()
                 .fill(NimvaColors.teal)
                 .frame(width: 6, height: 6)
-            Text(event.name)
+            Text(chipText)
                 .font(NimvaFont.chip)
                 .foregroundStyle(NimvaColors.textPrimary)
                 .lineLimit(2)
@@ -909,6 +909,16 @@ private struct EventChip: View {
         .background(NimvaColors.teal.opacity(0.12))
         .clipShape(Capsule())
         .overlay(Capsule().stroke(NimvaColors.teal.opacity(0.3), lineWidth: 1))
+    }
+
+    // Appends "Due <day>" (#95) when this unscheduled event has a deadline — the one other
+    // place (besides EventCard's subtitle) a flexible event is visible before it's placed,
+    // so it should be just as honest about a looming due date here.
+    private var chipText: String {
+        guard let deadline = event.deadline, let day = CalendarImportService.nimvaDay(from: deadline) else {
+            return event.name
+        }
+        return "\(event.name) · Due \(day.shortName)"
     }
 }
 

@@ -161,6 +161,50 @@ struct EditEventView: View {
                                 }
                             }
                             .tint(NimvaColors.teal)
+
+                            // Due date (#95) — mirrors AddEventView, gated the same way:
+                            // a deadline is a one-time calendar date, so it doesn't compose
+                            // with "every week" (see SchedulerService.deadlineDay's doc
+                            // comment). Splitting into multiple sessions isn't offered here —
+                            // TaskSplitService is a creation-time decision (see its own doc
+                            // comment); an already-placed single event doesn't turn into N
+                            // sessions on edit.
+                            if event.specificDate != nil {
+                                Divider().padding(.vertical, 2)
+
+                                Toggle(isOn: Binding(
+                                    get: { event.deadline != nil },
+                                    set: { hasDeadline in
+                                        event.deadline = hasDeadline
+                                            ? SchedulerService.date(for: currentDueDay, weekStart: SchedulerService.weekStart())
+                                            : nil
+                                    }
+                                )) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Due by a specific day")
+                                            .font(NimvaFont.callout)
+                                            .foregroundStyle(NimvaColors.textPrimary)
+                                        Text("Won't be placed any later than this day")
+                                            .font(NimvaFont.micro)
+                                            .foregroundStyle(NimvaColors.textMuted)
+                                    }
+                                }
+                                .tint(NimvaColors.teal)
+
+                                if event.deadline != nil {
+                                    Picker("Due by", selection: Binding(
+                                        get: { currentDueDay },
+                                        set: { newDay in
+                                            event.deadline = SchedulerService.date(for: newDay, weekStart: SchedulerService.weekStart())
+                                        }
+                                    )) {
+                                        ForEach(availableDueDays, id: \.self) { day in
+                                            Text(day.displayName).tag(day)
+                                        }
+                                    }
+                                    .foregroundStyle(NimvaColors.textPrimary)
+                                }
+                            }
                         } label: {
                             Label("Advanced", systemImage: "slider.horizontal.3")
                                 .font(NimvaFont.callout)
@@ -281,6 +325,9 @@ struct EditEventView: View {
                         // Switching to fixed resets to the normal recurring-fixed-event
                         // convention (manually-added fixed events never carry specificDate).
                         event.specificDate = nil
+                        // A due date is a flexible-event-only concept (fixed events already
+                        // have a locked time, so "due by" doesn't mean anything for them).
+                        event.deadline = nil
                     } else {
                         event.fixedDay = nil
                         event.startTime = nil
@@ -300,7 +347,7 @@ struct EditEventView: View {
                 initialEnergyCost = event.energyCost
                 // Start expanded if either setting is already non-default, so an existing
                 // priority/recurring event's state isn't hidden behind a collapsed section.
-                showingAdvanced = event.isPriority || event.specificDate == nil
+                showingAdvanced = event.isPriority || event.specificDate == nil || event.deadline != nil
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -331,6 +378,26 @@ struct EditEventView: View {
         categorySuggestionHint = "Your past \(newCategory) entries are usually \"\(label.displayName)\""
     }
 
+
+    // Which day event.deadline currently falls on, for display — falls back to today only
+    // in the (shouldn't-happen) case of a corrupt/unreadable date, never silently crashes.
+    private var currentDueDay: DayOfWeek {
+        guard let deadline = event.deadline else { return SchedulerService.todayAsDayOfWeek() }
+        return CalendarImportService.nimvaDay(from: deadline) ?? SchedulerService.todayAsDayOfWeek()
+    }
+
+    // Days from today through Sunday, plus the event's own already-set due day if it's
+    // somehow outside that range (e.g. edited a few days after creation) — so opening this
+    // picker never makes an existing selection just disappear from the list.
+    private var availableDueDays: [DayOfWeek] {
+        let today = SchedulerService.todayAsDayOfWeek()
+        var days = DayOfWeek.allCases.filter { $0.rawValue >= today.rawValue }
+        if event.deadline != nil, !days.contains(currentDueDay) {
+            days.append(currentDueDay)
+            days.sort { $0.rawValue < $1.rawValue }
+        }
+        return days
+    }
 
     private var hasTimeError: Bool {
         guard event.isFixed, let start = event.startTime, let end = event.endTime else { return false }
