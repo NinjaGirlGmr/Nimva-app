@@ -229,6 +229,24 @@ struct EventCard: View {
             Image(systemName: completionIconName)
                 .font(.system(.title3))
                 .foregroundStyle(completionIconColor)
+                .frame(width: 30, height: 30)
+                // notStarted-only: the textMuted contrast fix (see completionIconColor)
+                // still reads as generic UI chrome sitting right next to the identically
+                // muted "..." menu button — a tester didn't realize it was tappable until
+                // an accidental tap. A faint tinted "chip" backing (same opacity.1/opacity.25
+                // convention as StatusChip elsewhere) gives the not-yet-interacted state its
+                // own visual weight without needing a louder color. completed/inProgress
+                // already carry enough weight from their filled icon glyphs on their own.
+                .background(
+                    Circle()
+                        .fill(completionState == .notStarted ? completionIconColor.opacity(0.12) : .clear)
+                        .overlay(
+                            Circle().stroke(
+                                completionState == .notStarted ? completionIconColor.opacity(0.3) : .clear,
+                                lineWidth: 1
+                            )
+                        )
+                )
                 .frame(width: 36, height: 36)
                 .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
         }
