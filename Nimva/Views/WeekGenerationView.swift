@@ -687,6 +687,12 @@ struct WeekGenerationView: View {
             showingScheduleError = true
             return
         }
+        // Notifications reason about the *current* week's actual heavy/light days — a
+        // rebuild of a future rolling-calendar week doesn't have "today" context to warn
+        // about yet, so only reschedule when this build is for the current week.
+        if weekOffset == 0 {
+            NotificationScheduler.rescheduleForCurrentWeek(context: modelContext)
+        }
 
         withAnimation(reduceMotion ? .none : NimvaAnimation.stateChange) { genState = .building }
         revealedDays = []

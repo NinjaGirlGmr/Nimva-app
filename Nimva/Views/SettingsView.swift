@@ -10,6 +10,8 @@ struct SettingsView: View {
     @AppStorage("displayName") private var displayName = "Your Name"
     @AppStorage("lastCalendarImportDate") private var lastCalendarImportDate: Double = 0
     @AppStorage("checkInReminderEnabled") private var checkInReminderEnabled = true
+    @AppStorage(NotificationPreferences.dailyNudgesKey) private var dailyNudgesEnabled = true
+    @AppStorage(NotificationPreferences.newWeekReminderKey) private var newWeekReminderEnabled = true
     @AppStorage("soundsHapticsEnabled") private var soundsHapticsEnabled = true
     @AppStorage("globalPatternLearning") private var globalPatternLearning = true
     @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
@@ -307,10 +309,24 @@ struct SettingsView: View {
 
     private var notificationsSection: some View {
         SettingsSection(title: "Notifications") {
+            ToggleRow(label: "Daily energy nudges", subtitle: "A heads-up before a heavy day, a nudge to rest on a light one", isOn: $dailyNudgesEnabled)
+                .onChange(of: dailyNudgesEnabled) { _, _ in rescheduleNotifications() }
+            SettingsDivider()
             ToggleRow(label: "Weekly check-in reminder", subtitle: "Sunday evenings", isOn: $checkInReminderEnabled)
+                .onChange(of: checkInReminderEnabled) { _, _ in rescheduleNotifications() }
+            SettingsDivider()
+            ToggleRow(label: "New week reminder", subtitle: "Monday mornings", isOn: $newWeekReminderEnabled)
+                .onChange(of: newWeekReminderEnabled) { _, _ in rescheduleNotifications() }
             SettingsDivider()
             ToggleRow(label: "Sounds & haptics", subtitle: "In-app feedback on interactions", isOn: $soundsHapticsEnabled)
         }
+    }
+
+    // Applies a toggle change immediately rather than waiting for the next "Build my week" —
+    // reschedules against whatever the current week's cache already is, or cancels everything
+    // this week if that flips every toggle off.
+    private func rescheduleNotifications() {
+        NotificationScheduler.rescheduleForCurrentWeek(context: modelContext)
     }
 
     // MARK: - Energy & Learning
@@ -545,6 +561,7 @@ struct SettingsView: View {
         do {
             let all = try modelContext.fetch(FetchDescriptor<Event>())
             try SchedulerService.regenerate(context: modelContext, events: all)
+            NotificationScheduler.rescheduleForCurrentWeek(context: modelContext)
         } catch {
             showingRecomputeError = true
         }

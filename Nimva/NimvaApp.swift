@@ -8,6 +8,10 @@ struct NimvaApp: App {
     // Created here so subscription state survives tab switches.
     @State private var proService = ProService()
 
+    init() {
+        NotificationScheduler.shared.registerAsDelegate()
+    }
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema(versionedSchema: NimvaSchemaV1.self)
 
