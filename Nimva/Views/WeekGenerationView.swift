@@ -288,17 +288,23 @@ struct WeekGenerationView: View {
                     .font(NimvaFont.body)
                     .foregroundStyle(NimvaColors.textMuted)
                     .padding(.vertical, 8)
+                    .transition(.opacity)
             } else {
                 // Wrapping chip layout using a LazyVGrid with adaptive columns
                 let columns = [GridItem(.adaptive(minimum: 100, maximum: 180), spacing: 8)]
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
                     ForEach(flexibleEvents) { event in
                         EventChip(event: event)
+                            .transition(.scale.combined(with: .opacity))
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Keyed to the actual set of ids, not just isEmpty — so a chip that gets scheduled
+        // away (or a new one added elsewhere and returned to) animates in/out here too, not
+        // just the empty↔populated transition.
+        .nimvaAnimation(NimvaAnimation.cardAppear, value: flexibleEvents.map(\.id))
     }
 
     // MARK: - Insight chips (done state only)

@@ -24,6 +24,7 @@ struct QuickAddEventsView: View {
     @State private var showingAddCategory = false
     @State private var newCategoryText = ""
     @FocusState private var draftFieldFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var categoryOptions: [String] {
         let custom = Set(events.map(\.category)).union([category]).subtracting(EventCategory.presets)
@@ -69,35 +70,16 @@ struct QuickAddEventsView: View {
                         Label(hint, systemImage: "sparkles")
                             .font(NimvaFont.micro)
                             .foregroundStyle(NimvaColors.textMuted)
+                            .transition(.opacity)
                     }
                     Text("Applies to items you add from here on — change it partway through if something's different from the rest.")
                         .font(NimvaFont.micro)
                         .foregroundStyle(NimvaColors.textMuted)
-                    VStack(spacing: 8) {
-                        ForEach(EnergyLabel.allCases, id: \.self) { label in
-                            Button {
-                                selectedLabel = label
-                                energyCost = label.cost
-                                energyManuallySet = true
-                            } label: {
-                                Text(label.displayName)
-                                    .font(NimvaFont.calloutMed)
-                                    .foregroundStyle(selectedLabel == label ? .white : NimvaColors.textSecondary)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-                                    .background(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.surfaceDeep)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .stroke(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.border, lineWidth: 1)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .frame(minHeight: 44)
-                            .accessibilityAddTraits(selectedLabel == label ? .isSelected : [])
-                        }
-                    }
-                    .padding(.vertical, 4)
+                    EnergyLabelPicker(
+                        selectedLabel: $selectedLabel,
+                        energyCost: $energyCost,
+                        onSelect: { energyManuallySet = true }
+                    )
 
                     Toggle(isOn: Binding(
                         get: { !isThisWeekOnly },
@@ -137,6 +119,7 @@ struct QuickAddEventsView: View {
                                 )
                         }
                         .disabled(draftText.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .pressScale()
                         .accessibilityLabel("Add item")
                     }
                 }
@@ -153,12 +136,22 @@ struct QuickAddEventsView: View {
                                     .font(NimvaFont.micro)
                                     .foregroundStyle(NimvaColors.textMuted)
                             }
+                            // Each queued item drops in from the top as it's added, rather
+                            // than just appearing — the whole point of this flow is rapid
+                            // repeated adds, so this is the single moment most worth making
+                            // feel alive rather than static.
+                            .transition(.move(edge: .top).combined(with: .opacity))
                         }
-                        .onDelete { offsets in items.remove(atOffsets: offsets) }
+                        .onDelete { offsets in
+                            withAnimation(reduceMotion ? .none : NimvaAnimation.cardAppear) {
+                                items.remove(atOffsets: offsets)
+                            }
+                        }
                     }
                     .listRowBackground(NimvaColors.cardDark)
                 }
             }
+            .nimvaAnimation(NimvaAnimation.transition, value: categorySuggestionHint)
             .scrollContentBackground(.hidden)
             .background(NimvaColors.background)
             .navigationTitle("Quick add")
@@ -213,7 +206,9 @@ struct QuickAddEventsView: View {
 
     private func addDraft() {
         guard let item = QuickAddService.makeItem(rawName: draftText, energyCost: energyCost) else { return }
-        items.append(item)
+        withAnimation(reduceMotion ? .none : NimvaAnimation.cardAppear) {
+            items.append(item)
+        }
         draftText = ""
         // Keep focus so the next name can be typed immediately — the whole point of a quick
         // add flow is never having to re-tap the text field between items.
