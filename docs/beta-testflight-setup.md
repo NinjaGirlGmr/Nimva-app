@@ -27,6 +27,8 @@ These block the upload/review and should already be done (or in progress) before
   - Privacy Policy URL: `https://ninjagirlgmr.github.io/Nimva-app/privacy.html`
   - Category: pick something like Productivity or Health & Fitness
 - [ ] Under **App Privacy** (privacy "nutrition label"): fill this out now even though you're still pre-listing — TestFlight review checks it. Since there's no backend and no analytics, most categories should be "Data Not Collected." CloudKit sync counts as user content stored, but it's in the user's own private database, not shared with you — reflect that honestly.
+- [ ] **Age Rating questionnaire**: all violence/sexual content/profanity/substance/gambling categories are No — Nimva has none of it. Under "Medical or Wellness": **Health or Wellness Topics = Yes** (the day notes and pattern coaching are genuinely self-care/lifestyle recommendations, e.g. "a good time to rest," "protect this time"), **Medical or Treatment Information = Infrequent** (recurring but never clinical/diagnostic — mild rest/recovery suggestions, not medical guidance; None would understate it, Frequent would overstate it).
+- [x] **Export Compliance / encryption**: already resolved — `ITSAppUsesNonExemptEncryption` is set to `false` in `Nimva/Info.plist`. Correct because there's no proprietary/custom encryption and no encryption library used beyond Apple's own OS-level HTTPS/TLS (CloudKit, `URLSession`). Nothing to redo per build unless that changes.
 
 ## 3. CloudKit — production container
 
