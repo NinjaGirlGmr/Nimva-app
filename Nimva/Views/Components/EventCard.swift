@@ -229,6 +229,10 @@ struct EventCard: View {
             Image(systemName: completionIconName)
                 .font(.system(.title3))
                 .foregroundStyle(completionIconColor)
+                // Morphs between circle/half-filled/checkmark.fill as a genuine SF Symbol
+                // transition rather than an instant cut — reduceMotion disables it
+                // automatically (contentTransition already respects the environment value).
+                .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
                 .frame(width: 30, height: 30)
                 // notStarted-only: the textMuted contrast fix (see completionIconColor)
                 // still reads as generic UI chrome sitting right next to the identically
@@ -251,6 +255,8 @@ struct EventCard: View {
                 .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
         }
         .buttonStyle(.plain)
+        .pressScale()
+        .nimvaAnimation(NimvaAnimation.stateChange, value: completionState)
         .accessibilityLabel(completionAccessibilityLabel)
     }
 

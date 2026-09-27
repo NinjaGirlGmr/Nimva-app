@@ -53,6 +53,8 @@ struct AddEventView: View {
     @State private var wantsSplit = false
     @State private var splitSessionCount = 2
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     // Built-in presets first, then any custom categories already in use across real events —
     // self-cleaning, since nothing separately persists a custom category once every event
     // using it is deleted. Always includes the currently-selected category so a just-typed
@@ -279,43 +281,25 @@ struct AddEventView: View {
                             .font(NimvaFont.micro)
                             .foregroundStyle(NimvaColors.textMuted)
                     }
-                    VStack(spacing: 8) {
-                        ForEach(EnergyLabel.allCases, id: \.self) { label in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Button {
-                                    selectedLabel = label
-                                    energyCost = label.cost
-                                    energyManuallySet = true
-                                } label: {
-                                    Text(label.displayName)
-                                        .font(NimvaFont.calloutMed)
-                                        .foregroundStyle(selectedLabel == label ? .white : NimvaColors.textSecondary)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 10)
-                                        .background(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.surfaceDeep)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .stroke(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.border, lineWidth: 1)
-                                        )
-                                }
-                                .buttonStyle(.plain)
-                                .frame(minHeight: 44)
-                                .accessibilityAddTraits(selectedLabel == label ? .isSelected : [])
-
-                                if label == .prettyDraining && !energyAnchorLabel.isEmpty {
-                                    Text("Like: \(energyAnchorLabel)")
-                                        .font(NimvaFont.micro)
-                                        .foregroundStyle(NimvaColors.textMuted)
-                                        .padding(.horizontal, 4)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
+                    EnergyLabelPicker(
+                        selectedLabel: $selectedLabel,
+                        energyCost: $energyCost,
+                        onSelect: { energyManuallySet = true },
+                        anchorLabel: energyAnchorLabel
+                    )
                 }
                 .listRowBackground(NimvaColors.cardDark)
             }
+            // Each conditionally-revealed section (Fixed↔Flexible swap, due-date fields,
+            // split fields) gets its own value-keyed animation rather than one blanket
+            // `.animation(_:)` on the Form — that would also catch every keystroke in the
+            // name field and re-trigger the spring on every character typed, which reads as
+            // jittery rather than dynamic. Keying to specific values means only an actual
+            // state change animates.
+            .nimvaAnimation(NimvaAnimation.transition, value: isFixed)
+            .nimvaAnimation(NimvaAnimation.transition, value: hasDueDate)
+            .nimvaAnimation(NimvaAnimation.transition, value: wantsSplit)
+            .nimvaAnimation(NimvaAnimation.transition, value: categorySuggestionHint)
             .scrollContentBackground(.hidden)
             .background(NimvaColors.background)
             .navigationTitle("Add Event")

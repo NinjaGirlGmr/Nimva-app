@@ -216,6 +216,7 @@ struct SettingsView: View {
                     .background(NimvaColors.purplePrimary.opacity(0.12))
                     .clipShape(Capsule())
             }
+            .pressScale()
         }
         .padding(16)
         .background(NimvaColors.cardDark)
@@ -301,6 +302,8 @@ struct SettingsView: View {
             )
         }
         .buttonStyle(.plain)
+        .pressScale()
+        .nimvaAnimation(NimvaAnimation.stateChange, value: isActive)
         .accessibilityLabel("\(palette.name) palette")
         .accessibilityAddTraits(isActive ? .isSelected : [])
     }
@@ -358,6 +361,7 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .pressScale()
             SettingsDivider()
             ActionRow(label: "Reset learned patterns", style: .destructive) {
                 showingResetPatternsConfirm = true
@@ -394,6 +398,7 @@ struct SettingsView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .pressScale()
             } else {
                 // Calendar picker row
                 Button { openCalendarPicker() } label: {
@@ -420,6 +425,7 @@ struct SettingsView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .pressScale()
 
                 SettingsDivider()
 
@@ -454,6 +460,7 @@ struct SettingsView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .pressScale()
             }
         }
     }

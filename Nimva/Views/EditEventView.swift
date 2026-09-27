@@ -19,6 +19,7 @@ struct EditEventView: View {
     @State private var showingAdvanced = false
     @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
     @FocusState private var nameFieldFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Same derivation as AddEventView — built-in presets, then whatever custom categories
     // are already in use, always including this event's own current category.
@@ -233,43 +234,20 @@ struct EditEventView: View {
                             .font(NimvaFont.micro)
                             .foregroundStyle(NimvaColors.textMuted)
                     }
-                    VStack(spacing: 8) {
-                        ForEach(EnergyLabel.allCases, id: \.self) { label in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Button {
-                                    selectedLabel = label
-                                    event.energyCost = label.cost
-                                } label: {
-                                    Text(label.displayName)
-                                        .font(NimvaFont.calloutMed)
-                                        .foregroundStyle(selectedLabel == label ? .white : NimvaColors.textSecondary)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 10)
-                                        .background(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.surfaceDeep)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .stroke(selectedLabel == label ? NimvaColors.purplePrimary : NimvaColors.border, lineWidth: 1)
-                                        )
-                                }
-                                .buttonStyle(.plain)
-                                .frame(minHeight: 44)
-                                .accessibilityAddTraits(selectedLabel == label ? .isSelected : [])
-
-                                if label == .prettyDraining && !energyAnchorLabel.isEmpty {
-                                    Text("Like: \(energyAnchorLabel)")
-                                        .font(NimvaFont.micro)
-                                        .foregroundStyle(NimvaColors.textMuted)
-                                        .padding(.horizontal, 4)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
+                    EnergyLabelPicker(
+                        selectedLabel: $selectedLabel,
+                        energyCost: $event.energyCost,
+                        anchorLabel: energyAnchorLabel
+                    )
                 }
                 .listRowBackground(NimvaColors.cardDark)
 
             }
+            // Value-keyed, not a blanket Form-wide animation — see AddEventView's matching
+            // modifier for why (typing in the name field shouldn't retrigger a spring).
+            .nimvaAnimation(NimvaAnimation.transition, value: event.isFixed)
+            .nimvaAnimation(NimvaAnimation.transition, value: event.deadline != nil)
+            .nimvaAnimation(NimvaAnimation.transition, value: categorySuggestionHint)
             .scrollContentBackground(.hidden)
             .background(NimvaColors.background)
             .navigationTitle("Edit Event")
