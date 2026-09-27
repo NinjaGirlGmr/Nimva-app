@@ -797,6 +797,7 @@ struct HomeView: View {
     func recomputeSchedule() {
         do {
             try SchedulerService.regenerate(context: modelContext, events: events)
+            NotificationScheduler.rescheduleForCurrentWeek(context: modelContext)
         } catch {
             showingScheduleError = true
         }
