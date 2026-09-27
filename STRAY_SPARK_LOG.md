@@ -258,3 +258,15 @@ frozen snapshot model type per version, not a second reference to the live class
 **Tags:** #bug #decision #open-question
 
 **Tags:** #bug #decision #swift-gotcha
+
+---
+
+### 2026-09-27 — Two different mental models of "which day is Sunday" living in the same file
+
+**Spark:** While wiring due-date placement (#95), traced `Scheduler.generateWeek`'s `eligibleDays` computation and found it uses `DayOfWeek.orderedForLocale` (Sunday first in US locale) to decide which days are still "today or later" — its own comment explains this is deliberate: in US locale, Sunday is the calendar-first day of the week, so by Wednesday it's 3 days in the past and correctly excluded from placement eligibility. But `SchedulerService.regenerate`'s pastRecords logic, ~150 lines away, has an explicit comment arguing the *opposite*: it deliberately avoids `orderedForLocale` for its own "is this day past" check specifically *because* "Sunday is the LAST day of the internal Mon–Sun week and is always future until Sunday itself" — the exact reasoning the other function's comment argues against.
+
+**Chase:** Didn't fully resolve which model is actually correct for a US-locale user — plausibly both are "correct" for what each was narrowly trying to solve (one reasons about the user's real device calendar week, Sun–Sat; the other reasons about the placement-freezing semantics using a locale-invariant internal Mon–Sun week), but they can't both be right about the same underlying question ("has this week's Sunday already happened") without it being coincidental. Didn't chase further since it's tangential to #95 and touching either one risks changing real, currently-shipped placement/freeze behavior without enough investigation to be confident about it.
+
+**Catch:** Still open — didn't touch either code path. My own #95 work only uses `eligibleDays` as an input (via `Scheduler.deadlineConstrainedDays`), so it inherits whichever behavior already exists rather than changing it. Worth a dedicated pass later: pick one model (probably "week boundary already follows device locale per the earlier fix, so lean into that consistently everywhere") and make both call sites agree, with a test that pins down Sunday's eligibility explicitly for both US and ISO locales.
+
+**Tags:** #bug #open-question

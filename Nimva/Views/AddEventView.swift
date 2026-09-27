@@ -40,6 +40,19 @@ struct AddEventView: View {
     // override that explicit choice — only ever pre-fill before they've touched it.
     @State private var energyManuallySet = false
 
+    // Due date (#95) — only meaningful alongside isThisWeekOnly, since a deadline is a
+    // one-time calendar date (see SchedulerService.deadlineDay's doc comment): an "every
+    // week" recurring event with a fixed due date would silently stop being constrained
+    // after its first week, which would be confusing rather than helpful. Gated in the UI
+    // rather than letting the user set an expectation the feature doesn't fulfill.
+    @State private var hasDueDate = false
+    @State private var dueDay: DayOfWeek = SchedulerService.todayAsDayOfWeek()
+    // Splitting (#95's related ask) only makes sense once there's both a due date to spread
+    // toward and enough duration to be worth spreading — gated behind hasDueDate and a
+    // minimum duration in the view below, not here.
+    @State private var wantsSplit = false
+    @State private var splitSessionCount = 2
+
     // Built-in presets first, then any custom categories already in use across real events —
     // self-cleaning, since nothing separately persists a custom category once every event
     // using it is deleted. Always includes the currently-selected category so a just-typed
@@ -189,6 +202,66 @@ struct AddEventView: View {
                                 }
                             }
                             .tint(NimvaColors.teal)
+
+                            // Gated to isThisWeekOnly — see hasDueDate's doc comment for why
+                            // a fixed calendar due date doesn't compose with "every week."
+                            if isThisWeekOnly {
+                                Divider().padding(.vertical, 2)
+
+                                Toggle(isOn: $hasDueDate) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Due by a specific day")
+                                            .font(NimvaFont.callout)
+                                            .foregroundStyle(NimvaColors.textPrimary)
+                                        Text("Won't be placed any later than this day")
+                                            .font(NimvaFont.micro)
+                                            .foregroundStyle(NimvaColors.textMuted)
+                                    }
+                                }
+                                .tint(NimvaColors.teal)
+                                .onChange(of: hasDueDate) { _, newValue in
+                                    if !newValue { wantsSplit = false }
+                                }
+
+                                if hasDueDate {
+                                    Picker("Due by", selection: $dueDay) {
+                                        ForEach(availableDueDays, id: \.self) { day in
+                                            Text(day.displayName).tag(day)
+                                        }
+                                    }
+                                    .foregroundStyle(NimvaColors.textPrimary)
+                                    .onChange(of: dueDay) { _, _ in
+                                        splitSessionCount = min(splitSessionCount, maxSplitSessions)
+                                    }
+
+                                    // Only worth offering once there's enough duration for
+                                    // multiple sessions to make sense — a 30-minute worksheet
+                                    // doesn't need spreading across days.
+                                    if durationMinutes > 60 {
+                                        Toggle(isOn: $wantsSplit) {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text("Split across days")
+                                                    .font(NimvaFont.callout)
+                                                    .foregroundStyle(NimvaColors.textPrimary)
+                                                Text("Break this into smaller sessions leading up to the due day")
+                                                    .font(NimvaFont.micro)
+                                                    .foregroundStyle(NimvaColors.textMuted)
+                                            }
+                                        }
+                                        .tint(NimvaColors.teal)
+
+                                        if wantsSplit {
+                                            Stepper(
+                                                value: $splitSessionCount,
+                                                in: 2...maxSplitSessions
+                                            ) {
+                                                Text("\(splitSessionCount) sessions, about \(formatMinutes(durationMinutes / splitSessionCount)) each")
+                                                    .foregroundStyle(NimvaColors.textPrimary)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         } label: {
                             Label("Advanced", systemImage: "slider.horizontal.3")
                                 .font(NimvaFont.callout)
@@ -308,12 +381,32 @@ struct AddEventView: View {
 
     // MARK: Helpers
 
-    private var formattedDuration: String {
-        let hours = durationMinutes / 60
-        let minutes = durationMinutes % 60
+    private var formattedDuration: String { formatMinutes(durationMinutes) }
+
+    private func formatMinutes(_ totalMinutes: Int) -> String {
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
         if hours == 0 { return "\(minutes)m" }
         if minutes == 0 { return "\(hours)h" }
         return "\(hours)h \(minutes)m"
+    }
+
+    // Days from today through Sunday — a due date can't be set in the past. rawValue
+    // comparison (not orderedForLocale), matching the reasoning SchedulerService.regenerate
+    // already uses for its own "is this day past" check (see its comment) rather than the
+    // locale-display ordering Scheduler.generateWeek's eligibleDays uses for a related but
+    // distinct purpose — see the 2026-09-27 Stray Spark log entry for why those two aren't
+    // (yet) reconciled.
+    private var availableDueDays: [DayOfWeek] {
+        let today = SchedulerService.todayAsDayOfWeek()
+        return DayOfWeek.allCases.filter { $0.rawValue >= today.rawValue }
+    }
+
+    // Can't usefully split into more sessions than there are days between today and the
+    // chosen due day, inclusive.
+    private var maxSplitSessions: Int {
+        let today = SchedulerService.todayAsDayOfWeek()
+        return max(2, dueDay.rawValue - today.rawValue + 1)
     }
 
     // Pre-fills the energy label from the category's learned baseline, if one exists yet —
@@ -352,25 +445,53 @@ struct AddEventView: View {
                 ))
             }
         } else {
-            if globalPatternLearning {
-                PatternService.shared.record(energyCost: energyCost, for: category)
-            }
-            let newEvent = Event(
-                name: trimmedName,
-                isFixed: false,
-                specificDate: isThisWeekOnly ? Date() : nil,
-                preferredWindow: preferredWindow,
-                duration: TimeInterval(durationMinutes * 60),
-                energyCost: energyCost,
-                category: category,
-                patternLearningEnabled: globalPatternLearning,
-                isPriority: isPriority
-            )
-            modelContext.insert(newEvent)
-            if isThisWeekOnly, SchedulerService.hasRecurringPattern(name: trimmedName, events: events + [newEvent]) {
-                pendingRecurringEvent = newEvent
-                showingRecurringPrompt = true
-                return   // don't dismiss yet — wait for the alert response
+            let deadline = hasDueDate ? SchedulerService.date(for: dueDay, weekStart: SchedulerService.weekStart()) : nil
+            let shouldSplit = hasDueDate && wantsSplit && durationMinutes > 60 && splitSessionCount > 1
+
+            if shouldSplit, let deadline {
+                let sessions = TaskSplitService.makeSessions(
+                    name: trimmedName,
+                    totalDurationMinutes: durationMinutes,
+                    sessionCount: splitSessionCount,
+                    energyCost: energyCost,
+                    category: category,
+                    deadline: deadline,
+                    isThisWeekOnly: isThisWeekOnly,
+                    isPriority: isPriority,
+                    patternLearningEnabled: globalPatternLearning,
+                    preferredWindow: preferredWindow
+                )
+                for session in sessions {
+                    modelContext.insert(session)
+                    if globalPatternLearning {
+                        PatternService.shared.record(energyCost: energyCost, for: category)
+                    }
+                }
+                // A split task is several distinct sessions, not one recurring habit — the
+                // "add this every week?" prompt below assumes a single event reappearing
+                // under the same name, which doesn't fit this shape.
+            } else {
+                if globalPatternLearning {
+                    PatternService.shared.record(energyCost: energyCost, for: category)
+                }
+                let newEvent = Event(
+                    name: trimmedName,
+                    isFixed: false,
+                    specificDate: isThisWeekOnly ? Date() : nil,
+                    preferredWindow: preferredWindow,
+                    duration: TimeInterval(durationMinutes * 60),
+                    energyCost: energyCost,
+                    category: category,
+                    patternLearningEnabled: globalPatternLearning,
+                    deadline: deadline,
+                    isPriority: isPriority
+                )
+                modelContext.insert(newEvent)
+                if isThisWeekOnly, SchedulerService.hasRecurringPattern(name: trimmedName, events: events + [newEvent]) {
+                    pendingRecurringEvent = newEvent
+                    showingRecurringPrompt = true
+                    return   // don't dismiss yet — wait for the alert response
+                }
             }
         }
         dismiss()

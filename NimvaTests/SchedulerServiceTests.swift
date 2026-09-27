@@ -727,6 +727,45 @@ struct IsEventVisibleTests {
     }
 }
 
+// MARK: - Due date resolution (#95)
+
+@Suite("SchedulerService — deadlineDay / date(for:weekStart:)")
+struct DeadlineDayTests {
+
+    @Test func dateForDayRoundTripsBackToSameDayForEveryDayOfWeek() {
+        // Locale-independent sanity check: whatever weekday date(for:weekStart:) returns
+        // for a given DayOfWeek, feeding it back through nimvaDay must return that same day —
+        // this has to hold regardless of which real device locale is running the test.
+        let weekStart = SchedulerService.weekStart()
+        for day in DayOfWeek.allCases {
+            let date = SchedulerService.date(for: day, weekStart: weekStart)
+            #expect(CalendarImportService.nimvaDay(from: date) == day)
+        }
+    }
+
+    @Test func deadlineDayNilWhenEventHasNoDeadline() {
+        let event = Event(name: "Essay", isFixed: false, energyCost: 0.5)
+        #expect(SchedulerService.deadlineDay(for: event, weekStart: SchedulerService.weekStart()) == nil)
+    }
+
+    @Test func deadlineDayResolvesWhenDeadlineFallsInTargetWeek() {
+        let weekStart = SchedulerService.weekStart()
+        let dueDate = SchedulerService.date(for: .thursday, weekStart: weekStart)
+        let event = Event(name: "Essay", isFixed: false, energyCost: 0.5, deadline: dueDate)
+        #expect(SchedulerService.deadlineDay(for: event, weekStart: weekStart) == .thursday)
+    }
+
+    @Test func deadlineDayNilWhenDeadlineFallsInADifferentWeek() {
+        // A deadline is a one-time calendar date — it should only ever constrain the single
+        // week it was set for, never be reinterpreted for some other week's build (e.g. a
+        // recurring "every week" flexible event shouldn't treat next week as also due then).
+        let thisWeek = SchedulerService.weekStart()
+        let nextWeekDue = SchedulerService.date(for: .thursday, weekStart: SchedulerService.weekStart(offsetWeeks: 1))
+        let event = Event(name: "Essay", isFixed: false, energyCost: 0.5, deadline: nextWeekDue)
+        #expect(SchedulerService.deadlineDay(for: event, weekStart: thisWeek) == nil)
+    }
+}
+
 // MARK: - isLightWeek
 
 @Suite("SchedulerService — isLightWeek")

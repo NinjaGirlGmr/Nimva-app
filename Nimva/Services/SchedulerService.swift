@@ -45,7 +45,7 @@ enum SchedulerService {
         // be free to move.
         let flexible = events
             .filter { !$0.isFixed && !$0.wasLogged && isEventVisible($0, inWeekStarting: targetStart) }
-            .compactMap { toFlexibleEvent($0) }
+            .compactMap { toFlexibleEvent($0, weekStart: targetStart) }
         let isCurrentWeek = weekBoundaryCal.isDate(targetStart, equalTo: todayWeekStart, toGranularity: .weekOfYear)
         // Future weeks have no "past days" yet, so always start from Monday — this also
         // naturally empties pastRecords/idsInPast below without a separate branch.
@@ -197,7 +197,7 @@ enum SchedulerService {
             weekBoundaryCal.isDate($0.weekStartDate, equalTo: targetStart, toGranularity: .weekOfYear)
         }) else { return nil }
 
-        let placements = try decodePlacements(cache.placementsJSON, events: events)
+        let placements = try decodePlacements(cache.placementsJSON, events: events, weekStart: cache.weekStartDate)
         let fixed = events.compactMap { toFixedEvent($0, weekStart: targetStart) }
         let dailyLoads = computeDailyLoads(fixed: fixed, placed: placements)
         let heavyDays = Set(cache.heavyDayValues.compactMap { DayOfWeek(rawValue: $0) })
@@ -440,10 +440,49 @@ enum SchedulerService {
         return FixedEvent(id: event.id, name: event.name, day: day, energyCost: event.energyCost)
     }
 
-    private static func toFlexibleEvent(_ event: Event) -> FlexibleEvent? {
+    private static func toFlexibleEvent(_ event: Event, weekStart: Date) -> FlexibleEvent? {
         guard !event.isFixed else { return nil }
         let window = event.preferredWindow ?? .any
-        return FlexibleEvent(id: event.id, name: event.name, preferredWindow: window, energyCost: event.energyCost, isPriority: event.isPriority)
+        return FlexibleEvent(
+            id: event.id,
+            name: event.name,
+            preferredWindow: window,
+            energyCost: event.energyCost,
+            isPriority: event.isPriority,
+            deadlineDay: deadlineDay(for: event, weekStart: weekStart)
+        )
+    }
+
+    /// Resolves Event.deadline into the DayOfWeek the algorithm actually reasons about
+    /// (#95) — nil when there's no deadline, or when the deadline's calendar date doesn't
+    /// fall in the week currently being built. That second case matters for a recurring
+    /// ("every week") flexible event: a deadline is a one-time calendar date, so it only
+    /// ever constrains the single week it was set for, never every future recurrence — this
+    /// deliberately doesn't try to reinterpret it as "the same weekday, every week."
+    static func deadlineDay(for event: Event, weekStart: Date) -> DayOfWeek? {
+        guard let deadline = event.deadline,
+              weekBoundaryCal.isDate(deadline, equalTo: weekStart, toGranularity: .weekOfYear)
+        else { return nil }
+        return CalendarImportService.nimvaDay(from: deadline)
+    }
+
+    /// The actual calendar Date for `day` within the week containing `weekStart` — the
+    /// inverse of CalendarImportService.nimvaDay. Needed because Event.deadline is stored as
+    /// a real Date (so it survives to a specific week even across "every week" recurrence),
+    /// while the rest of the app reasons about days in DayOfWeek terms. `weekStart` should
+    /// already be a normalized week-start (e.g. the result of weekStart(for:)/weekStart()) —
+    /// this walks the 7 days from its own locale week start forward rather than assuming
+    /// weekStart itself lands on any particular weekday, since week boundaries follow device
+    /// locale (not hardcoded to Monday).
+    static func date(for day: DayOfWeek, weekStart: Date) -> Date {
+        let localeWeekStart = weekBoundaryCal.dateInterval(of: .weekOfYear, for: weekStart)?.start ?? weekStart
+        for offset in 0..<7 {
+            if let candidate = weekBoundaryCal.date(byAdding: .day, value: offset, to: localeWeekStart),
+               CalendarImportService.nimvaDay(from: candidate) == day {
+                return candidate
+            }
+        }
+        return weekStart   // Defensive fallback; should be unreachable — every week has all 7 days.
     }
 
     // MARK: - JSON encode/decode for placements
@@ -464,7 +503,7 @@ enum SchedulerService {
         return String(data: data, encoding: .utf8) ?? "[]"
     }
 
-    private static func decodePlacements(_ json: String, events: [Event]) throws -> [PlacedEvent] {
+    private static func decodePlacements(_ json: String, events: [Event], weekStart: Date) throws -> [PlacedEvent] {
         guard let data = json.data(using: .utf8) else { return [] }
         let records = try JSONDecoder().decode([PlacementRecord].self, from: data)
 
@@ -473,7 +512,7 @@ enum SchedulerService {
             guard
                 let event = events.first(where: { $0.id == record.eventId }),
                 let day = DayOfWeek(rawValue: record.dayRawValue),
-                let flex = toFlexibleEvent(event)
+                let flex = toFlexibleEvent(event, weekStart: weekStart)
             else { return nil }
             return PlacedEvent(event: flex, day: day, reason: record.reason ?? "")
         }
