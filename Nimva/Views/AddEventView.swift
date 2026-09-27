@@ -53,8 +53,6 @@ struct AddEventView: View {
     @State private var wantsSplit = false
     @State private var splitSessionCount = 2
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     // Built-in presets first, then any custom categories already in use across real events —
     // self-cleaning, since nothing separately persists a custom category once every event
     // using it is deleted. Always includes the currently-selected category so a just-typed

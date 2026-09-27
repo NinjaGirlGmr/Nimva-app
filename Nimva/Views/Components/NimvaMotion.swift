@@ -60,7 +60,14 @@ private struct ReduceMotionModifier<V: Equatable>: ViewModifier {
 // This physical response is especially grounding for ADHD users — the visual
 // confirmation that "yes, I tapped that" reduces the urge to tap again.
 // Also skipped when Reduce Motion is enabled.
-
+//
+// CAUTION — not safe inside a ScrollView/List/Form: the simultaneousGesture(DragGesture)
+// below can suppress tap recognition when nested inside a scrolling container (this bit the
+// app once already — see EventCardStyle below, which replaced pressScale() on EventCard's
+// own outer button for exactly this reason, and was briefly reintroduced session-wide via
+// ad-hoc pressScale() calls before being caught in a hardening pass). Anywhere inside a
+// ScrollView/List/Form — which is most of this app's screens — use .buttonStyle(.scalePress)
+// instead; it reads Button's own isPressed state rather than attaching a second gesture.
 extension View {
     func pressScale() -> some View {
         modifier(PressScaleModifier())
@@ -82,6 +89,30 @@ private struct PressScaleModifier: ViewModifier {
                     .onEnded   { _ in isPressed = false }
             )
     }
+}
+
+// MARK: - Press scale (ButtonStyle variant — the ScrollView/List/Form-safe default)
+
+// The button-style equivalent of pressScale() above, generalized from EventCardStyle (which
+// fixed this exact gesture-conflict for EventCard's own outer button): ButtonStyle.isPressed
+// is driven by the Button's own internal recognizer, so it never competes with a scroll
+// view's pan gesture, and it also can't fire while the button is disabled (SwiftUI Buttons
+// don't drive isPressed or their action when .disabled(true) — a plain pressScale() would
+// still visibly animate on a disabled button, since its DragGesture is attached independently
+// of the Button's own enabled state). Prefer this over pressScale() for anything living
+// inside a ScrollView, List, or Form — which, in this app, is nearly everything.
+struct ScalePressButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1.0)
+            .animation(NimvaAnimation.buttonPress, value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == ScalePressButtonStyle {
+    static var scalePress: ScalePressButtonStyle { ScalePressButtonStyle() }
 }
 
 // MARK: - Squash-Stretch Transition

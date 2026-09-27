@@ -276,7 +276,12 @@ struct WeekGenerationView: View {
     // MARK: - Unscheduled chips (ready state only)
 
     private var unscheduledSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        // Hoisted once — flexibleEvents filters every event through isEventVisible/
+        // weekStart(offsetWeeks:) per call, so reading the computed property three times
+        // below (isEmpty, ForEach, the animation key) would repeat that O(n) filter three
+        // times per body evaluation for no reason.
+        let flexibleEvents = flexibleEvents
+        return VStack(alignment: .leading, spacing: 10) {
             Text("To schedule")
                 .font(NimvaFont.chip)
                 .foregroundStyle(NimvaColors.textMuted)
