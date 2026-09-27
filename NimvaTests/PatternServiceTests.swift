@@ -88,5 +88,28 @@ struct PatternServiceTests {
         PatternService.shared.record(energyCost: 0.5, for: "School")
         #expect(PatternService.shared.recordedCounts["School"] == 2)
     }
+
+    // MARK: - suggestedLabel(for:)
+    //
+    // Shared between AddEventView, QuickAddEventsView, and EditEventView's category
+    // suggestion hints — found drifting between the first two while hardening this
+    // session's work (QuickAddEventsView was missing the "General" exclusion AddEventView
+    // had), which is exactly the kind of thing worth locking down with a real test.
+
+    @Test func suggestedLabelNilBelowMinimumPoints() {
+        PatternService.shared.record(energyCost: 0.8, for: "School")
+        #expect(PatternService.suggestedLabel(for: "School") == nil)
+    }
+
+    @Test func suggestedLabelNeverSuggestsForGeneral() {
+        for _ in 0..<5 { PatternService.shared.record(energyCost: 0.9, for: "General") }
+        #expect(PatternService.suggestedLabel(for: "General") == nil)
+    }
+
+    @Test func suggestedLabelMatchesClosestEnergyLabelToBaseline() {
+        for _ in 0..<5 { PatternService.shared.record(energyCost: 1.0, for: "Sports") }
+        let baseline = PatternService.shared.baseline(for: "Sports")!
+        #expect(PatternService.suggestedLabel(for: "Sports") == EnergyLabel.closest(to: baseline))
+    }
 }
 

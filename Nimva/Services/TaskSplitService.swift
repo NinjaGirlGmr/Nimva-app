@@ -42,8 +42,15 @@ enum TaskSplitService {
 
         // Even split with the remainder folded into the last session, so a duration that
         // doesn't divide evenly (100 min / 3) doesn't just quietly lose those minutes.
+        // Remainder is clamped at 0, not just subtracted — the AddEventView UI never lets
+        // sessionCount exceed totalDurationMinutes today, but this function doesn't itself
+        // enforce that, and a caller that did (sessionCount=5 into a 3-minute task, say)
+        // would otherwise get a *negative* remainder folded into the last session — negative
+        // minutes on an Event, not just an odd number. Clamping means a degenerate request
+        // like that over-allocates slightly (5 sessions of 1 minute instead of fitting inside
+        // 3) rather than producing an invalid negative-duration event.
         let baseMinutes = max(1, totalDurationMinutes / sessionCount)
-        let remainder = totalDurationMinutes - (baseMinutes * sessionCount)
+        let remainder = max(0, totalDurationMinutes - (baseMinutes * sessionCount))
 
         return (1...sessionCount).map { index in
             let minutes = baseMinutes + (index == sessionCount ? remainder : 0)

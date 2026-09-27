@@ -9,10 +9,11 @@ import UIKit
 
 enum NimvaHaptics {
 
-    // Read the user's preference straight from UserDefaults.
-    // Defaults to true if the key hasn't been set yet (first launch).
+    // Read the user's preference straight from UserDefaults. Defaults to true if the key
+    // hasn't been set yet (first launch) — see UserDefaults.defaultTrueBool (shared with
+    // NotificationScheduler's identical need for the same "default true" toggle semantics).
     private static var isEnabled: Bool {
-        UserDefaults.standard.object(forKey: "soundsHapticsEnabled") as? Bool ?? true
+        UserDefaults.standard.defaultTrueBool(forKey: "soundsHapticsEnabled")
     }
 
     // Light tap — energy chip selection, day strip navigation, toggle switches

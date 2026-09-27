@@ -40,6 +40,20 @@ final class PatternService {
         return baselines[category]
     }
 
+    /// The label a category's learned baseline suggests, or nil if there isn't one yet (not
+    /// enough data points) or the category is "General" (the un-suggested default — a
+    /// baseline for "whatever wasn't categorized" isn't a meaningful suggestion the way a
+    /// real category's is). Shared by every view that pre-fills or hints an energy label
+    /// from past entries — AddEventView, QuickAddEventsView, EditEventView — specifically so
+    /// this one rule (including the "General" exclusion) can't quietly drift between them the
+    /// way it already had: QuickAddEventsView was missing the exclusion AddEventView had,
+    /// found while hardening this session's work. Each caller still owns its own hint
+    /// wording and whether it auto-applies the suggestion vs. only showing it as a hint.
+    static func suggestedLabel(for category: String) -> EnergyLabel? {
+        guard category != "General", let baseline = shared.baseline(for: category) else { return nil }
+        return EnergyLabel.closest(to: baseline)
+    }
+
     // Clears all learned baselines and counts — called by Settings "Reset patterns".
     func reset() {
         UserDefaults.standard.removeObject(forKey: baselineKey)

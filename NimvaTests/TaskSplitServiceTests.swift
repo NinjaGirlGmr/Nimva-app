@@ -44,6 +44,25 @@ struct TaskSplitServiceTests {
         }
     }
 
+    @Test func degenerateSessionCountLargerThanDurationNeverProducesNegativeMinutes() {
+        // Not reachable via AddEventView's current gating (sessionCount is always <=
+        // totalDurationMinutes there), but the function itself shouldn't produce invalid data
+        // for any caller — 5 sessions requested out of only 3 minutes total.
+        let result = TaskSplitService.makeSessions(
+            name: "Tiny task",
+            totalDurationMinutes: 3,
+            sessionCount: 5,
+            energyCost: 0.5,
+            category: "School",
+            deadline: sampleDeadline,
+            isThisWeekOnly: true,
+            isPriority: false,
+            patternLearningEnabled: true
+        )
+        #expect(result.count == 5)
+        #expect(result.allSatisfy { $0.duration! > 0 })
+    }
+
     @Test func remainderMinutesFoldIntoTheLastSession() {
         let result = TaskSplitService.makeSessions(
             name: "Essay",
