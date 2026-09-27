@@ -175,6 +175,11 @@ enum SchedulerService {
             future.dropFirst(3).forEach { context.delete($0) }
         }
 
+        // Prune forgotten one-off events (#96) — a "this week only" flexible event whose
+        // week has fully passed without being completed just sits in the database forever
+        // otherwise. See isForgotten's doc comment for exactly what counts.
+        pruneForgottenEvents(context: context, events: events, caches: all, todayWeekStart: todayWeekStart)
+
         // Explicit save — every other mutation in the app (completion cycling, calendar
         // import, intention deletion) saves immediately; this was the one place relying
         // on autosave timing. Without it, a build could exist only in memory: correct in
@@ -574,6 +579,37 @@ enum SchedulerService {
         guard !events.isEmpty else { return false }
         let totalCost = events.reduce(0.0) { $0 + $1.energyCost }
         return totalCost < Scheduler.heavyDayThreshold
+    }
+
+    // MARK: - Forgotten one-off event pruning (#96)
+
+    /// True when a "this week only" flexible event's week has fully passed without it ever
+    /// being marked completed — the exact thing #96 asked to stop letting pile up forever.
+    /// Excludes fixed events (a one-off calendar import like a single dentist appointment
+    /// isn't a "task" that gets forgotten the same way) and wasLogged events (already-happened
+    /// history that feeds Insights, never something to prune). If that week was never even
+    /// built (no matching WeekCache at all), there's nothing to check completion against —
+    /// treated as forgotten too, since "never built" is at least as forgotten as "built but
+    /// not finished."
+    static func isForgotten(_ event: Event, todayWeekStart: Date, caches: [WeekCache]) -> Bool {
+        guard !event.isFixed, !event.wasLogged, let specific = event.specificDate else { return false }
+        let eventWeekStart = weekStart(for: specific)
+        guard eventWeekStart < todayWeekStart else { return false }   // this week or a future week — not past yet
+        guard let cache = caches.first(where: {
+            weekBoundaryCal.isDate($0.weekStartDate, equalTo: eventWeekStart, toGranularity: .weekOfYear)
+        }) else {
+            return true
+        }
+        return !idSet(from: cache.completedEventIdsJSON).contains(event.id)
+    }
+
+    /// Deletes every forgotten one-off flexible event (see isForgotten) — called once per
+    /// regenerate() build so the database self-cleans instead of accumulating stale,
+    /// never-finished one-off tasks forever.
+    static func pruneForgottenEvents(context: ModelContext, events: [Event], caches: [WeekCache], todayWeekStart: Date) {
+        for event in events where isForgotten(event, todayWeekStart: todayWeekStart, caches: caches) {
+            context.delete(event)
+        }
     }
 
     // MARK: - Energy experiments

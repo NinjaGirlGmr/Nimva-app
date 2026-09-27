@@ -777,6 +777,88 @@ struct IsDayPastTests {
     }
 }
 
+// MARK: - Forgotten one-off event pruning (#96)
+
+@Suite("SchedulerService — isForgotten / pruneForgottenEvents")
+@MainActor
+struct ForgottenEventPruningTests {
+
+    @Test func pastWeekOneOffEventNotCompletedIsForgotten() {
+        let pastWeek = SchedulerService.weekStart(offsetWeeks: -2)
+        let event = Event(name: "Old worksheet", isFixed: false, specificDate: pastWeek)
+        let cache = WeekCache(weekStartDate: pastWeek, placementsJSON: "[]", balanceScore: 0, heavyDayValues: [])
+        #expect(SchedulerService.isForgotten(event, todayWeekStart: SchedulerService.weekStart(), caches: [cache]))
+    }
+
+    @Test func pastWeekOneOffEventThatWasCompletedIsNotForgotten() {
+        let pastWeek = SchedulerService.weekStart(offsetWeeks: -2)
+        let event = Event(name: "Finished worksheet", isFixed: false, specificDate: pastWeek)
+        let cache = WeekCache(weekStartDate: pastWeek, placementsJSON: "[]", balanceScore: 0, heavyDayValues: [])
+        cache.completedEventIdsJSON = "[\"\(event.id.uuidString)\"]"
+        #expect(!SchedulerService.isForgotten(event, todayWeekStart: SchedulerService.weekStart(), caches: [cache]))
+    }
+
+    @Test func pastWeekEventWithNoMatchingCacheAtAllIsForgotten() {
+        // That week was never even built — nothing to check completion against.
+        let pastWeek = SchedulerService.weekStart(offsetWeeks: -3)
+        let event = Event(name: "Never built", isFixed: false, specificDate: pastWeek)
+        #expect(SchedulerService.isForgotten(event, todayWeekStart: SchedulerService.weekStart(), caches: []))
+    }
+
+    @Test func currentWeekEventIsNeverForgottenRegardlessOfCompletion() {
+        let thisWeek = SchedulerService.weekStart()
+        let event = Event(name: "Still this week", isFixed: false, specificDate: thisWeek)
+        #expect(!SchedulerService.isForgotten(event, todayWeekStart: thisWeek, caches: []))
+    }
+
+    @Test func futureWeekEventIsNeverForgotten() {
+        let nextWeek = SchedulerService.weekStart(offsetWeeks: 1)
+        let event = Event(name: "Next week's plan", isFixed: false, specificDate: nextWeek)
+        #expect(!SchedulerService.isForgotten(event, todayWeekStart: SchedulerService.weekStart(), caches: []))
+    }
+
+    @Test func recurringEveryWeekEventIsNeverForgotten() {
+        // No specificDate at all = "every week," explicitly excluded per the user's own
+        // framing of #96 ("unless it's told to repeat, scrap the forgotten event").
+        let event = Event(name: "Weekly habit", isFixed: false, specificDate: nil)
+        #expect(!SchedulerService.isForgotten(event, todayWeekStart: SchedulerService.weekStart(), caches: []))
+    }
+
+    @Test func fixedOneOffEventIsNeverForgotten() {
+        // A single calendar-imported appointment isn't a "task" — #96 was scoped to flexible.
+        let pastWeek = SchedulerService.weekStart(offsetWeeks: -2)
+        let event = Event(name: "Old dentist visit", isFixed: true, fixedDay: .monday, specificDate: pastWeek)
+        #expect(!SchedulerService.isForgotten(event, todayWeekStart: SchedulerService.weekStart(), caches: []))
+    }
+
+    @Test func loggedRetroactiveEventIsNeverForgotten() {
+        // Already-happened history that feeds Insights — never something to prune.
+        let pastWeek = SchedulerService.weekStart(offsetWeeks: -2)
+        let event = Event(name: "Did this already", isFixed: false, specificDate: pastWeek, wasLogged: true)
+        #expect(!SchedulerService.isForgotten(event, todayWeekStart: SchedulerService.weekStart(), caches: []))
+    }
+
+    @Test func pruneForgottenEventsDeletesOnlyTheForgottenOnes() throws {
+        let context = try makeInMemoryContext()
+        let pastWeek = SchedulerService.weekStart(offsetWeeks: -2)
+        let thisWeek = SchedulerService.weekStart()
+
+        let forgotten = Event(name: "Forgotten", isFixed: false, specificDate: pastWeek)
+        let completed = Event(name: "Completed", isFixed: false, specificDate: pastWeek)
+        let current = Event(name: "Current", isFixed: false, specificDate: thisWeek)
+        for event in [forgotten, completed, current] { context.insert(event) }
+
+        let cache = WeekCache(weekStartDate: pastWeek, placementsJSON: "[]", balanceScore: 0, heavyDayValues: [])
+        cache.completedEventIdsJSON = "[\"\(completed.id.uuidString)\"]"
+        context.insert(cache)
+
+        SchedulerService.pruneForgottenEvents(context: context, events: [forgotten, completed, current], caches: [cache], todayWeekStart: thisWeek)
+
+        let remaining = try context.fetch(FetchDescriptor<Event>())
+        #expect(Set(remaining.map(\.name)) == Set(["Completed", "Current"]))
+    }
+}
+
 // MARK: - Due date resolution (#95)
 
 @Suite("SchedulerService — deadlineDay / date(for:weekStart:)")
