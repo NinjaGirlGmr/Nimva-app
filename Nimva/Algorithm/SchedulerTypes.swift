@@ -78,8 +78,23 @@ enum DayOfWeek: Int, CaseIterable, Codable, Hashable {
     // Week display order that matches the device locale.
     // US default (firstWeekday == 1): Sunday … Saturday.
     // ISO/European (firstWeekday == 2): Monday … Sunday (same as allCases).
+    //
+    // This is also the chronological order the scheduling algorithm relies on for "which
+    // days remain this week" (Scheduler.generateWeek's eligibleDays) and "which days have
+    // already passed" (SchedulerService's past-placement freezing) — both real questions
+    // about the *actual calendar week* SchedulerService.weekStart(for:) resolves to, which
+    // itself now follows device locale. For a US-locale week, that real week runs Sun...Sat,
+    // so Sunday is chronologically the FIRST day (and can already be "past" by Wednesday) —
+    // not the last, regardless of DayOfWeek.sunday's fixed rawValue of 7.
     static var orderedForLocale: [DayOfWeek] {
-        if Calendar.current.firstWeekday == 1 {
+        orderedForLocale(firstWeekday: Calendar.current.firstWeekday)
+    }
+
+    // Parameterized version of the above, so anything built on this ordering can be tested
+    // deterministically for both US and ISO locales without depending on whatever locale
+    // happens to be configured on the machine actually running the test.
+    static func orderedForLocale(firstWeekday: Int) -> [DayOfWeek] {
+        if firstWeekday == 1 {
             return [.sunday, .monday, .tuesday, .wednesday, .thursday, .friday, .saturday]
         }
         return allCases

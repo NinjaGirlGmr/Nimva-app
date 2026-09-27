@@ -21,6 +21,9 @@ enum Scheduler {
         // Flexible events may only land on today or later — never on a day that has passed.
         // Use orderedForLocale so Sunday (rawValue 7) is treated as the FIRST day in US-locale
         // weeks (not the last), preventing placement on a day that already ended.
+        // SchedulerService.isDayPast uses this same ordering for the equivalent "is this
+        // placement's day already past" question when freezing past placements — corrected
+        // 2026-09-27 to match this after it was found drifting; see the Stray Spark Log.
         let eligibleDays: [DayOfWeek]
         if let from = today {
             let ordered = DayOfWeek.orderedForLocale

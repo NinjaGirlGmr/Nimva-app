@@ -869,6 +869,19 @@ struct SchedulerTypesTests {
             #expect(first == .monday)
         }
     }
+
+    // Deterministic for both locales, unlike the two tests above which depend on whatever
+    // locale the machine running them happens to have.
+    @Test func orderedForLocaleUSPutsAllSevenDaysSundayFirst() {
+        let ordered = DayOfWeek.orderedForLocale(firstWeekday: 1)
+        #expect(ordered == [.sunday, .monday, .tuesday, .wednesday, .thursday, .friday, .saturday])
+    }
+
+    @Test func orderedForLocaleISOMatchesAllCasesMondayFirst() {
+        let ordered = DayOfWeek.orderedForLocale(firstWeekday: 2)
+        #expect(ordered == DayOfWeek.allCases)
+        #expect(ordered.first == .monday)
+    }
 }
 
 // MARK: - Placement reason (#62)

@@ -727,6 +727,56 @@ struct IsEventVisibleTests {
     }
 }
 
+// MARK: - isDayPast locale-aware ordering (Stray Spark, 2026-09-27)
+
+// Regression coverage for the bug found while wiring #95: this used to compare raw
+// Mon=1…Sun=7 values directly, which was only correct back when weekStart(for:) was
+// hardcoded to Monday regardless of locale. After weekStart(for:) was fixed to follow the
+// real device locale, a US-locale week's actual first day is Sunday — so Sunday can
+// genuinely already be past by Wednesday, which the old rawValue check got wrong (it would
+// never treat Sunday as past, leaving a real past Sunday placement unfrozen). Both locales
+// are tested deterministically via the firstWeekday parameter rather than depending on
+// whatever locale the test machine happens to have.
+@Suite("SchedulerService — isDayPast")
+struct IsDayPastTests {
+
+    @Test func usLocaleSundayIsPastByWednesday() {
+        // The exact scenario that was broken: a US-locale week runs Sun...Sat, so a
+        // placement frozen on Sunday must be treated as past once it's Wednesday — not left
+        // eligible to be silently reshuffled in a rebuild.
+        #expect(SchedulerService.isDayPast(.sunday, relativeToToday: .wednesday, firstWeekday: 1))
+    }
+
+    @Test func usLocaleMondayThroughTuesdayArePastByWednesday() {
+        #expect(SchedulerService.isDayPast(.monday, relativeToToday: .wednesday, firstWeekday: 1))
+        #expect(SchedulerService.isDayPast(.tuesday, relativeToToday: .wednesday, firstWeekday: 1))
+    }
+
+    @Test func usLocaleThursdayThroughSaturdayAreNotPastByWednesday() {
+        #expect(!SchedulerService.isDayPast(.thursday, relativeToToday: .wednesday, firstWeekday: 1))
+        #expect(!SchedulerService.isDayPast(.friday, relativeToToday: .wednesday, firstWeekday: 1))
+        #expect(!SchedulerService.isDayPast(.saturday, relativeToToday: .wednesday, firstWeekday: 1))
+    }
+
+    @Test func isoLocaleSundayIsNeverPastUntilItArrives() {
+        // An ISO-locale week runs Mon...Sun, so Sunday is the actual calendar *last* day —
+        // still future on every other day of that same week.
+        for today in [DayOfWeek.monday, .tuesday, .wednesday, .thursday, .friday, .saturday] {
+            #expect(!SchedulerService.isDayPast(.sunday, relativeToToday: today, firstWeekday: 2))
+        }
+    }
+
+    @Test func isoLocaleMondayThroughTuesdayArePastByWednesday() {
+        #expect(SchedulerService.isDayPast(.monday, relativeToToday: .wednesday, firstWeekday: 2))
+        #expect(SchedulerService.isDayPast(.tuesday, relativeToToday: .wednesday, firstWeekday: 2))
+    }
+
+    @Test func aDayIsNeverPastRelativeToItself() {
+        #expect(!SchedulerService.isDayPast(.wednesday, relativeToToday: .wednesday, firstWeekday: 1))
+        #expect(!SchedulerService.isDayPast(.wednesday, relativeToToday: .wednesday, firstWeekday: 2))
+    }
+}
+
 // MARK: - Due date resolution (#95)
 
 @Suite("SchedulerService — deadlineDay / date(for:weekStart:)")
