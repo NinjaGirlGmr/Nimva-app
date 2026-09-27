@@ -25,6 +25,7 @@ struct HomeView: View {
     // that would add to a Home screen already fairly dense.
     @State private var showingAddChoice = false
     @State private var showingLogEntry = false
+    @State private var showingQuickAdd = false
     @State private var showingCheckIn = false
     @State private var eventToEdit: Event?
     @State private var showingScheduleError = false
@@ -567,11 +568,15 @@ struct HomeView: View {
         // supports this) until the user explicitly taps "Build my week" or "Redo".
         .confirmationDialog("Add to your week", isPresented: $showingAddChoice, titleVisibility: .visible) {
             Button("Add an event") { showingAddEvent = true }
+            Button("Quick add a few things") { showingQuickAdd = true }
             Button("Log something that happened") { showingLogEntry = true }
             Button("Cancel", role: .cancel) {}
         }
         .sheet(isPresented: $showingAddEvent) {
             AddEventView(defaultDay: selectedDay)
+        }
+        .sheet(isPresented: $showingQuickAdd) {
+            QuickAddEventsView()
         }
         .sheet(isPresented: $showingLogEntry) {
             LogEntryView()

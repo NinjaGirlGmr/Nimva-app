@@ -24,6 +24,8 @@ struct WeekGenerationView: View {
     @State private var genState: GenerationState = .ready
     @State private var progress: Double = 0.0
     @State private var showingAddEvent = false
+    @State private var showingAddChoice = false
+    @State private var showingQuickAdd = false
     // Holds the algorithm result so we can display placements without re-fetching
     @State private var schedule: WeekSchedule?
     // Which days have had their flexible events "dropped in" during the building animation
@@ -101,7 +103,13 @@ struct WeekGenerationView: View {
             }
         }
         .animation(reduceMotion ? .none : NimvaAnimation.squashStretch, value: genState == .approved)
+        .confirmationDialog("Add to your week", isPresented: $showingAddChoice, titleVisibility: .visible) {
+            Button("Add an event") { showingAddEvent = true }
+            Button("Quick add a few things") { showingQuickAdd = true }
+            Button("Cancel", role: .cancel) {}
+        }
         .sheet(isPresented: $showingAddEvent) { AddEventView() }
+        .sheet(isPresented: $showingQuickAdd) { QuickAddEventsView() }
         .sheet(isPresented: Binding(
             get: { selectedDayDetail != nil },
             set: { if !$0 { selectedDayDetail = nil } }
@@ -138,7 +146,7 @@ struct WeekGenerationView: View {
                     .foregroundStyle(NimvaColors.textPrimary)
             }
             Spacer()
-            Button { showingAddEvent = true } label: {
+            Button { showingAddChoice = true } label: {
                 Image(systemName: "plus")
                     .font(NimvaFont.calloutSemi)
                     .foregroundStyle(NimvaColors.purplePrimary)
@@ -573,7 +581,7 @@ struct WeekGenerationView: View {
                         .foregroundStyle(NimvaColors.textMuted)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 8)
-                    Button { showingAddEvent = true } label: {
+                    Button { showingAddChoice = true } label: {
                         Label("Add an event", systemImage: "plus")
                             .font(NimvaFont.button)
                             .foregroundStyle(.white)
