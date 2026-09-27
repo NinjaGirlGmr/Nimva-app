@@ -867,3 +867,86 @@ struct DailyLoadValuesPersistenceTests {
     }
 }
 
+// MARK: - Past-day flexible load correction (bug: light/medium days reading as flat 0)
+
+// A flexible event placed on a past day by an earlier build is frozen there
+// (preservePastPlacements) and excluded from the next Scheduler.generateWeek run, so that
+// run's dailyLoads never counts it. Tester-reported bug: after any background rebuild
+// (event add/edit/delete mid-week), a day whose real load came only from a flexible event
+// — no fixed events at all, common for a homework-heavy day with no classes — showed as a
+// flat 0 in Insights even though it clearly wasn't. SchedulerService.correctedDailyLoads
+// exists to add that load back; these test it directly rather than through regenerate()'s
+// real-device-date-dependent "today" (see its own doc comment in SchedulerService).
+@Suite("SchedulerService — corrected daily loads for frozen past-day placements")
+struct CorrectedDailyLoadsTests {
+
+    @Test func addsBackPastDayFlexibleEventLoadMissingFromResult() {
+        let event = Event(name: "Chem homework", isFixed: false, energyCost: 0.6)
+        // Simulates Scheduler.generateWeek's result for a rebuild that started "from"
+        // Wednesday: Monday has no fixed events, so its load defaulted to 0 even though a
+        // flexible event was actually placed there in an earlier build.
+        let resultDailyLoads: [DayOfWeek: Double] = Dictionary(
+            uniqueKeysWithValues: DayOfWeek.allCases.map { ($0, 0.0) }
+        )
+        let corrected = SchedulerService.correctedDailyLoads(
+            from: resultDailyLoads,
+            pastPlacements: [(day: .monday, eventId: event.id)],
+            events: [event]
+        )
+        #expect(abs(corrected[.monday]! - 0.6) < 0.0001)
+        #expect(corrected[.tuesday] == 0.0)
+    }
+
+    @Test func addsOnTopOfExistingFixedEventLoadRatherThanReplacingIt() {
+        let event = Event(name: "Study session", isFixed: false, energyCost: 0.5)
+        var resultDailyLoads: [DayOfWeek: Double] = Dictionary(
+            uniqueKeysWithValues: DayOfWeek.allCases.map { ($0, 0.0) }
+        )
+        resultDailyLoads[.tuesday] = 0.8   // real fixed-event load already counted correctly
+
+        let corrected = SchedulerService.correctedDailyLoads(
+            from: resultDailyLoads,
+            pastPlacements: [(day: .tuesday, eventId: event.id)],
+            events: [event]
+        )
+        #expect(abs(corrected[.tuesday]! - 1.3) < 0.0001)
+    }
+
+    @Test func noPastPlacementsReturnsResultUnchanged() {
+        let resultDailyLoads: [DayOfWeek: Double] = [.friday: 1.2]
+        let corrected = SchedulerService.correctedDailyLoads(
+            from: resultDailyLoads,
+            pastPlacements: [],
+            events: []
+        )
+        #expect(corrected == resultDailyLoads)
+    }
+
+    @Test func unknownEventIdIsSkippedRatherThanCrashing() {
+        // Defensive: a placement record whose event was since deleted shouldn't blow up
+        // the correction, just contribute nothing.
+        let resultDailyLoads: [DayOfWeek: Double] = [.monday: 0.0]
+        let corrected = SchedulerService.correctedDailyLoads(
+            from: resultDailyLoads,
+            pastPlacements: [(day: .monday, eventId: UUID())],
+            events: []
+        )
+        #expect(corrected[.monday] == 0.0)
+    }
+
+    @Test func balanceVarianceMatchesSchedulersOwnFormula() {
+        // Same variance formula as Scheduler.generateWeek uses for balanceScore — a flat
+        // week (all equal loads) has zero variance.
+        let flat: [DayOfWeek: Double] = Dictionary(
+            uniqueKeysWithValues: DayOfWeek.allCases.map { ($0, 1.0) }
+        )
+        #expect(abs(SchedulerService.balanceVariance(for: flat)) < 0.0001)
+
+        var uneven: [DayOfWeek: Double] = Dictionary(
+            uniqueKeysWithValues: DayOfWeek.allCases.map { ($0, 0.0) }
+        )
+        uneven[.monday] = 2.0
+        #expect(SchedulerService.balanceVariance(for: uneven) > 0)
+    }
+}
+

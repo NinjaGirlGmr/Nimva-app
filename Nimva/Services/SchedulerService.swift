@@ -90,13 +90,38 @@ enum SchedulerService {
         let mergedData = try JSONEncoder().encode(pastRecords + newRecords)
         let json = String(data: mergedData, encoding: .utf8) ?? "[]"
 
-        let heavyDayValues = result.heavyDays.map { $0.rawValue }
+        // Fixed-event loads for past days are already correct in result.dailyLoads (fixed
+        // events are unconditionally folded in above regardless of `today`), but a flexible
+        // event placed on a past day by an earlier build is excluded from this round's
+        // algorithm run entirely (see flexToSchedule above) — it's carried forward only in
+        // the placements JSON via pastRecords, never re-added to dailyLoads. Left as-is,
+        // any background rebuild (event add/edit/delete) would silently zero out — or
+        // undercount — a past day whose real load came from a flexible event, making it
+        // read as lighter than it actually was in Insights (the bug testers reported: real
+        // light/medium days showing as flat 0 after the week had already been rebuilt once).
+        let pastPlacements = pastRecords.compactMap { record -> (day: DayOfWeek, eventId: UUID)? in
+            DayOfWeek(rawValue: record.dayRawValue).map { (day: $0, eventId: record.eventId) }
+        }
+        let correctedDailyLoadsDict = Self.correctedDailyLoads(
+            from: result.dailyLoads,
+            pastPlacements: pastPlacements,
+            events: events
+        )
+
+        let heavyDayValues = correctedDailyLoadsDict
+            .filter { $0.value >= Scheduler.heavyDayThreshold }
+            .map { $0.key.rawValue }
         // Index 0 = Monday ... 6 = Sunday, matching DayOfWeek.rawValue (1...7) - 1. Was
         // computed every build and discarded until now — Insights needs the full picture
         // (light/mixed days too), not just which days crossed the heavy threshold.
         let dailyLoadValues = DayOfWeek.allCases
             .sorted { $0.rawValue < $1.rawValue }
-            .map { result.dailyLoads[$0, default: 0.0] }
+            .map { correctedDailyLoadsDict[$0, default: 0.0] }
+        // Same correction applied to balance score's variance — otherwise a rebuild would
+        // also understate how uneven the week actually is.
+        let correctedBalanceScore = pastPlacements.isEmpty
+            ? result.balanceScore
+            : Self.balanceVariance(for: correctedDailyLoadsDict)
 
         // Replace only this week's cache — older weeks are kept for Insights history
         existing
@@ -106,7 +131,7 @@ enum SchedulerService {
         let cache = WeekCache(
             weekStartDate: targetStart,
             placementsJSON: json,
-            balanceScore: result.balanceScore,
+            balanceScore: correctedBalanceScore,
             heavyDayValues: heavyDayValues,
             dailyLoadValues: dailyLoadValues
         )
@@ -258,6 +283,36 @@ enum SchedulerService {
     static func isEventVisible(_ event: Event, inWeekStarting weekStart: Date) -> Bool {
         guard let specific = event.specificDate else { return true }
         return weekBoundaryCal.isDate(specific, equalTo: weekStart, toGranularity: .weekOfYear)
+    }
+
+    /// Adds back the energy cost of flexible events that were placed on a past day by an
+    /// earlier build and are frozen there (preservePastPlacements) — they're excluded from
+    /// this round's Scheduler.generateWeek run, so its returned dailyLoads never counted
+    /// them. Pulled out as its own function (rather than inlined in regenerate) specifically
+    /// so this correction is directly testable without depending on the real device date the
+    /// way regenerate()'s "today" is.
+    static func correctedDailyLoads(
+        from resultDailyLoads: [DayOfWeek: Double],
+        pastPlacements: [(day: DayOfWeek, eventId: UUID)],
+        events: [Event]
+    ) -> [DayOfWeek: Double] {
+        guard !pastPlacements.isEmpty else { return resultDailyLoads }
+        var corrected = resultDailyLoads
+        let eventsById = Dictionary(uniqueKeysWithValues: events.map { ($0.id, $0) })
+        for placement in pastPlacements {
+            guard let event = eventsById[placement.eventId] else { continue }
+            corrected[placement.day, default: 0.0] += event.energyCost
+        }
+        return corrected
+    }
+
+    /// Same variance formula as Scheduler.generateWeek's balanceScore, over a caller-supplied
+    /// dailyLoads dictionary — used to recompute the score after correctedDailyLoads above
+    /// changes it.
+    static func balanceVariance(for dailyLoads: [DayOfWeek: Double]) -> Double {
+        let loads = DayOfWeek.allCases.map { dailyLoads[$0, default: 0.0] }
+        let mean = loads.reduce(0, +) / Double(loads.count)
+        return loads.map { pow($0 - mean, 2) }.reduce(0, +) / Double(loads.count)
     }
 
     /// Detects which user type this schedule represents based on the fixed/flexible ratio.

@@ -165,7 +165,15 @@ struct HomeView: View {
 
     private var overflowCount: Int {
         guard let cache else { return 0 }
-        let flexTotal = events.filter { !$0.isFixed }.count
+        // Same week-visibility + wasLogged exclusion as WeekGenerationView.flexibleEvents —
+        // without it, a "this week only" flexible event from a past week that never got
+        // placed (left unscheduled, then the week moved on) still counted toward this total
+        // forever, inflating "+N more" on Home with events that were never actually part of
+        // the current week's build.
+        let flexTotal = events.filter {
+            !$0.isFixed && !$0.wasLogged
+                && SchedulerService.isEventVisible($0, inWeekStarting: cache.weekStartDate)
+        }.count
         return SchedulerService.overflowCount(cache: cache, totalFlexible: flexTotal)
     }
 
