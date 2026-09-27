@@ -319,9 +319,7 @@ enum SchedulerService {
     /// dailyLoads dictionary — used to recompute the score after correctedDailyLoads above
     /// changes it.
     static func balanceVariance(for dailyLoads: [DayOfWeek: Double]) -> Double {
-        let loads = DayOfWeek.allCases.map { dailyLoads[$0, default: 0.0] }
-        let mean = loads.reduce(0, +) / Double(loads.count)
-        return loads.map { pow($0 - mean, 2) }.reduce(0, +) / Double(loads.count)
+        Scheduler.variance(of: dailyLoads)
     }
 
     /// Detects which user type this schedule represents based on the fixed/flexible ratio.

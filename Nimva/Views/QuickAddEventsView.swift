@@ -223,14 +223,14 @@ struct QuickAddEventsView: View {
     // Mirrors AddEventView's category-suggestion behavior: pre-fill from the category's
     // learned baseline, but only before the user has manually picked a label themselves.
     private func applyCategorySuggestion(for newCategory: String) {
-        guard !energyManuallySet,
-              let baseline = PatternService.shared.baseline(for: newCategory) else {
+        guard let suggested = PatternService.suggestedLabel(for: newCategory) else {
             categorySuggestionHint = nil
             return
         }
-        selectedLabel = EnergyLabel.closest(to: baseline)
-        energyCost = baseline
         categorySuggestionHint = "Suggested from your past \(newCategory) entries"
+        guard !energyManuallySet else { return }
+        selectedLabel = suggested
+        energyCost = suggested.cost
     }
 
     private func saveAll() {

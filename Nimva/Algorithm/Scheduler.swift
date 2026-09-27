@@ -19,19 +19,7 @@ enum Scheduler {
         }
 
         // Flexible events may only land on today or later — never on a day that has passed.
-        // Use orderedForLocale so Sunday (rawValue 7) is treated as the FIRST day in US-locale
-        // weeks (not the last), preventing placement on a day that already ended.
-        // SchedulerService.isDayPast uses this same ordering for the equivalent "is this
-        // placement's day already past" question when freezing past placements — corrected
-        // 2026-09-27 to match this after it was found drifting; see the Stray Spark Log.
-        let eligibleDays: [DayOfWeek]
-        if let from = today {
-            let ordered = DayOfWeek.orderedForLocale
-            let fromIdx = ordered.firstIndex(of: from) ?? 0
-            eligibleDays = Array(ordered[fromIdx...])
-        } else {
-            eligibleDays = DayOfWeek.allCases
-        }
+        let eligibleDays = Self.eligibleDays(from: today)
 
         // Priority-first, then LPT within each group: must-do events claim the lightest
         // available days before nice-to-do events can fill them.
@@ -86,10 +74,6 @@ enum Scheduler {
         placed = placed.filter { eligibleSet.contains($0.day) }
 
         // Balance score = variance of daily loads across all 7 days (lower = more balanced)
-        let loads = DayOfWeek.allCases.map { dailyLoads[$0, default: 0.0] }
-        let mean = loads.reduce(0, +) / Double(loads.count)
-        let variance = loads.map { pow($0 - mean, 2) }.reduce(0, +) / Double(loads.count)
-
         let heavyDays = Set(dailyLoads.filter { $0.value >= heavyDayThreshold }.keys)
 
         return WeekSchedule(
@@ -97,9 +81,37 @@ enum Scheduler {
             placedFlexibleEvents: placed,
             overflowEvents: overflow,
             dailyLoads: dailyLoads,
-            balanceScore: variance,
+            balanceScore: variance(of: dailyLoads),
             heavyDays: heavyDays
         )
+    }
+
+    // MARK: - Shared day-ordering / variance helpers
+
+    /// Days from `today` (inclusive) onward, in locale-aware chronological order — nil means
+    /// "no day has passed yet" (used for a schedule with no real-world anchor), returning
+    /// every day. Exposed as its own function, not just inlined here, so every other "which
+    /// days are left this week" question — like AddEventView/EditEventView's due-date
+    /// picker — asks it the exact same way, instead of a second copy silently reintroducing
+    /// the locale bug the 2026-09-27 Stray Spark log entry fixed for this same question
+    /// elsewhere (SchedulerService.isDayPast).
+    static func eligibleDays(from today: DayOfWeek?) -> [DayOfWeek] {
+        guard let from = today else { return DayOfWeek.allCases }
+        let ordered = DayOfWeek.orderedForLocale
+        let fromIdx = ordered.firstIndex(of: from) ?? 0
+        return Array(ordered[fromIdx...])
+    }
+
+    /// Variance of a week's daily loads across all 7 days (lower = more balanced) — the
+    /// canonical formula behind WeekSchedule.balanceScore. Exposed so
+    /// SchedulerService.correctedDailyLoads' post-hoc balance-score correction (needed when a
+    /// rebuild freezes past-day placements this function never saw) recomputes with the exact
+    /// same formula, not a second copy that could quietly drift out of sync if this one is
+    /// ever tuned.
+    static func variance(of dailyLoads: [DayOfWeek: Double]) -> Double {
+        let loads = DayOfWeek.allCases.map { dailyLoads[$0, default: 0.0] }
+        let mean = loads.reduce(0, +) / Double(loads.count)
+        return loads.map { pow($0 - mean, 2) }.reduce(0, +) / Double(loads.count)
     }
 
     // MARK: - Due-date constraint (#95)

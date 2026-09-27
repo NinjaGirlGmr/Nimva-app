@@ -391,22 +391,23 @@ struct AddEventView: View {
         return "\(hours)h \(minutes)m"
     }
 
-    // Days from today through Sunday — a due date can't be set in the past. rawValue
-    // comparison (not orderedForLocale), matching the reasoning SchedulerService.regenerate
-    // already uses for its own "is this day past" check (see its comment) rather than the
-    // locale-display ordering Scheduler.generateWeek's eligibleDays uses for a related but
-    // distinct purpose — see the 2026-09-27 Stray Spark log entry for why those two aren't
-    // (yet) reconciled.
+    // Days from today through the end of the week, in locale-aware chronological order — a
+    // due date can't be set in the past. Reuses Scheduler.eligibleDays, the exact same
+    // question the placement algorithm itself asks, rather than a second rawValue-based copy —
+    // an earlier version of this property used plain rawValue comparison, which is wrong for
+    // a US-locale week (Sunday is chronologically first, not last — see the 2026-09-27 Stray
+    // Spark log entry) and would have silently offered an already-past Sunday as a valid due
+    // date, or hidden a same-week Sunday that's still genuinely upcoming.
     private var availableDueDays: [DayOfWeek] {
-        let today = SchedulerService.todayAsDayOfWeek()
-        return DayOfWeek.allCases.filter { $0.rawValue >= today.rawValue }
+        Scheduler.eligibleDays(from: SchedulerService.todayAsDayOfWeek())
     }
 
     // Can't usefully split into more sessions than there are days between today and the
-    // chosen due day, inclusive.
+    // chosen due day, inclusive — computed as a position within availableDueDays (the same
+    // locale-aware ordering), not raw rawValue subtraction, for the same reason as above.
     private var maxSplitSessions: Int {
-        let today = SchedulerService.todayAsDayOfWeek()
-        return max(2, dueDay.rawValue - today.rawValue + 1)
+        guard let dueDayIndex = availableDueDays.firstIndex(of: dueDay) else { return 2 }
+        return max(2, dueDayIndex + 1)
     }
 
     // Pre-fills the energy label from the category's learned baseline, if one exists yet —
@@ -414,12 +415,10 @@ struct AddEventView: View {
     // energyManuallySet is true, this only updates the hint text, never the actual selection,
     // so a later category change can't silently clobber an explicit choice.
     private func applyCategorySuggestion(for newCategory: String) {
-        guard newCategory != "General",
-              let baseline = PatternService.shared.baseline(for: newCategory) else {
+        guard let suggested = PatternService.suggestedLabel(for: newCategory) else {
             categorySuggestionHint = nil
             return
         }
-        let suggested = EnergyLabel.closest(to: baseline)
         categorySuggestionHint = "Suggested from your past \(newCategory) entries"
         guard !energyManuallySet else { return }
         selectedLabel = suggested

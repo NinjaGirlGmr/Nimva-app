@@ -176,7 +176,7 @@ struct EditEventView: View {
                                     get: { event.deadline != nil },
                                     set: { hasDeadline in
                                         event.deadline = hasDeadline
-                                            ? SchedulerService.date(for: currentDueDay, weekStart: SchedulerService.weekStart())
+                                            ? SchedulerService.date(for: currentDueDay, weekStart: eventWeekStart)
                                             : nil
                                     }
                                 )) {
@@ -195,7 +195,7 @@ struct EditEventView: View {
                                     Picker("Due by", selection: Binding(
                                         get: { currentDueDay },
                                         set: { newDay in
-                                            event.deadline = SchedulerService.date(for: newDay, weekStart: SchedulerService.weekStart())
+                                            event.deadline = SchedulerService.date(for: newDay, weekStart: eventWeekStart)
                                         }
                                     )) {
                                         ForEach(availableDueDays, id: \.self) { day in
@@ -369,29 +369,40 @@ struct EditEventView: View {
     // event must never silently overwrite that live model value with no cancel path, so this
     // only ever updates the hint text; the user has to tap a label themselves to change it.
     private func applyCategorySuggestion(for newCategory: String) {
-        guard newCategory != "General",
-              let baseline = PatternService.shared.baseline(for: newCategory) else {
+        guard let suggested = PatternService.suggestedLabel(for: newCategory) else {
             categorySuggestionHint = nil
             return
         }
-        let label = EnergyLabel.closest(to: baseline)
-        categorySuggestionHint = "Your past \(newCategory) entries are usually \"\(label.displayName)\""
+        categorySuggestionHint = "Your past \(newCategory) entries are usually \"\(suggested.displayName)\""
     }
 
 
     // Which day event.deadline currently falls on, for display — falls back to today only
     // in the (shouldn't-happen) case of a corrupt/unreadable date, never silently crashes.
+    // The week event.deadline should be resolved/written against — the event's OWN week
+    // (from specificDate), not blindly "today's real current week." EditEventView is only
+    // ever reached for a current-week event today, so this is latent, not live — but writing
+    // it against the wrong week would silently drop the due-date constraint the moment this
+    // view can be opened for a future week's event (the rolling multi-week calendar already
+    // on the roadmap), since SchedulerService.deadlineDay's weekOfYear check would then never
+    // match. Falls back to the real current week only for a recurring "every week" event,
+    // which has no specificDate to anchor to — a case the due-date UI is gated off for anyway.
+    private var eventWeekStart: Date {
+        guard let specific = event.specificDate else { return SchedulerService.weekStart() }
+        return SchedulerService.weekStart(for: specific)
+    }
+
     private var currentDueDay: DayOfWeek {
         guard let deadline = event.deadline else { return SchedulerService.todayAsDayOfWeek() }
         return CalendarImportService.nimvaDay(from: deadline) ?? SchedulerService.todayAsDayOfWeek()
     }
 
-    // Days from today through Sunday, plus the event's own already-set due day if it's
-    // somehow outside that range (e.g. edited a few days after creation) — so opening this
-    // picker never makes an existing selection just disappear from the list.
+    // Locale-aware chronological order (Scheduler.eligibleDays — see its doc comment for why
+    // rawValue comparison alone is wrong here), plus the event's own already-set due day if
+    // it's somehow outside that range (e.g. edited a few days after creation) — so opening
+    // this picker never makes an existing selection just disappear from the list.
     private var availableDueDays: [DayOfWeek] {
-        let today = SchedulerService.todayAsDayOfWeek()
-        var days = DayOfWeek.allCases.filter { $0.rawValue >= today.rawValue }
+        var days = Scheduler.eligibleDays(from: SchedulerService.todayAsDayOfWeek())
         if event.deadline != nil, !days.contains(currentDueDay) {
             days.append(currentDueDay)
             days.sort { $0.rawValue < $1.rawValue }

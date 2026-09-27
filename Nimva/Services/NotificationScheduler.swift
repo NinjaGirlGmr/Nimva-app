@@ -2,29 +2,32 @@ import Foundation
 import UserNotifications
 import SwiftData
 
+// A key that's never been written returns false from UserDefaults.standard.bool(forKey:) by
+// default, which would silently disagree with an @AppStorage property whose declared default
+// is true — this reads it the same way @AppStorage's own default would. Shared here (not
+// duplicated per call site) since NimvaHaptics.swift already needed the identical pattern for
+// "soundsHapticsEnabled" before this file existed.
+extension UserDefaults {
+    func defaultTrueBool(forKey key: String) -> Bool {
+        object(forKey: key) as? Bool ?? true
+    }
+}
+
 // Reads the three notification toggles from UserDefaults directly (not through @AppStorage,
-// since this needs to be readable from outside a View) with the same "default true" semantics
-// Settings' @AppStorage declarations use — a key that's never been written returns false from
-// UserDefaults.standard.bool(forKey:) by default, which would silently disagree with an
-// @AppStorage property whose declared default is true, so that mismatch is handled explicitly
-// here rather than assumed.
+// since this needs to be readable from outside a View).
 enum NotificationPreferences {
     static let dailyNudgesKey = "dailyEnergyNudgesEnabled"
     static let checkInReminderKey = "checkInReminderEnabled"
     static let newWeekReminderKey = "newWeekReminderEnabled"
 
-    static var dailyNudgesEnabled: Bool { readDefaultTrue(dailyNudgesKey) }
-    static var checkInReminderEnabled: Bool { readDefaultTrue(checkInReminderKey) }
-    static var newWeekReminderEnabled: Bool { readDefaultTrue(newWeekReminderKey) }
+    static var dailyNudgesEnabled: Bool { UserDefaults.standard.defaultTrueBool(forKey: dailyNudgesKey) }
+    static var checkInReminderEnabled: Bool { UserDefaults.standard.defaultTrueBool(forKey: checkInReminderKey) }
+    static var newWeekReminderEnabled: Bool { UserDefaults.standard.defaultTrueBool(forKey: newWeekReminderKey) }
 
     /// True when every toggle is off — used to skip even requesting notification permission
     /// for a user who's opted out of all of it.
     static var allDisabled: Bool {
         !dailyNudgesEnabled && !checkInReminderEnabled && !newWeekReminderEnabled
-    }
-
-    private static func readDefaultTrue(_ key: String) -> Bool {
-        UserDefaults.standard.object(forKey: key) == nil ? true : UserDefaults.standard.bool(forKey: key)
     }
 }
 
@@ -53,6 +56,9 @@ final class NotificationScheduler: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private let center = UNUserNotificationCenter.current()
+    // Tracks the most recent reschedule so a fresh call can cancel a still-running older one
+    // instead of letting two overlap — see reschedule's doc comment.
+    private var inFlightTask: Task<Void, Never>?
 
     /// Requests permission only if never asked before — never re-prompts once the user has
     /// answered (denied or allowed), matching standard iOS notification etiquette. Returns
@@ -76,22 +82,35 @@ final class NotificationScheduler: NSObject, UNUserNotificationCenterDelegate {
     /// toggle is off, or if the user has never granted (or has denied) permission — this is
     /// meant to degrade quietly, never surface a system permission prompt outside of a
     /// deliberate "turn a toggle on" moment.
-    func reschedule(for cache: WeekCache) async {
+    ///
+    /// Cooperatively cancellable: rescheduleForCurrentWeek cancels any still-running call to
+    /// this before starting a new one, and this checks Task.isCancelled at each await point so
+    /// a superseded call stops making changes instead of racing the newer one to completion —
+    /// without this, a rapid double-trigger (e.g. two quick "Redo" taps) could have an older
+    /// call's cancel-then-add sequence interleave with a newer one's and wipe out whichever
+    /// finished last.
+    func reschedule(for snapshot: NotificationService.Snapshot) async {
         guard !NotificationPreferences.allDisabled else {
-            cancelWeek(cache.weekStartDate)
+            await cancelWeek(snapshot.weekStartDate)
             return
         }
-        guard await requestAuthorizationIfNeeded() else { return }
+        guard await requestAuthorizationIfNeeded(), !Task.isCancelled else { return }
 
-        cancelWeek(cache.weekStartDate)
+        // Awaited — critical that the stale set is actually gone before scheduling the fresh
+        // one starts, not just requested. This used to fire-and-forget via the
+        // completion-handler API, which could let a late-arriving cancellation wipe out
+        // notifications this same call had just finished adding.
+        await cancelWeek(snapshot.weekStartDate)
+        guard !Task.isCancelled else { return }
 
         let specs = NotificationService.specs(
-            for: cache,
+            for: snapshot,
             dailyNudgesEnabled: NotificationPreferences.dailyNudgesEnabled,
             checkInReminderEnabled: NotificationPreferences.checkInReminderEnabled,
             newWeekReminderEnabled: NotificationPreferences.newWeekReminderEnabled
         )
         for spec in specs {
+            guard !Task.isCancelled else { return }
             let content = UNMutableNotificationContent()
             content.title = spec.title
             content.body = spec.body
@@ -104,20 +123,24 @@ final class NotificationScheduler: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    /// Cancels every pending notification tagged with this week's identifier prefix.
-    func cancelWeek(_ weekStart: Date) {
+    /// Cancels every pending notification tagged with this week's identifier prefix. Uses the
+    /// async pendingNotificationRequests() overload specifically so callers can await the
+    /// removal actually happening, rather than the completion-handler variant returning
+    /// immediately while the real work finishes on its own schedule.
+    func cancelWeek(_ weekStart: Date) async {
         let prefix = NotificationService.identifierPrefix(for: weekStart)
-        center.getPendingNotificationRequests { [center] requests in
-            let stale = requests.map(\.identifier).filter { $0.hasPrefix(prefix) }
-            guard !stale.isEmpty else { return }
-            center.removePendingNotificationRequests(withIdentifiers: stale)
-        }
+        let pending = await center.pendingNotificationRequests()
+        let stale = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
+        guard !stale.isEmpty else { return }
+        center.removePendingNotificationRequests(withIdentifiers: stale)
     }
 
     /// Cancels every one of Nimva's scheduled notifications — used when the user turns every
     /// toggle off, so disabling doesn't just stop *future* scheduling but also clears whatever
-    /// was already queued up.
+    /// was already queued up. Also cancels any still-running reschedule() so that older call
+    /// can't turn around and re-add notifications after this has just cleared them.
     func cancelAll() {
+        inFlightTask?.cancel()
         center.removeAllPendingNotificationRequests()
     }
 
@@ -125,10 +148,19 @@ final class NotificationScheduler: NSObject, UNUserNotificationCenterDelegate {
     /// exists, reschedules its notifications. Called after every regenerate() that builds the
     /// current week (weekOffset 0) — Build my week/Redo, delete/undo-delete recompute, and
     /// post-calendar-import recompute.
+    ///
+    /// Builds the Snapshot synchronously, on the caller's own thread, before ever entering the
+    /// async Task below — reschedule/cancelWeek cross several `await` suspension points, and a
+    /// live WeekCache (a SwiftData model reference) isn't safe to keep reading after one: the
+    /// context that owns it can mutate or save concurrently on the main thread while this task
+    /// is suspended. The Snapshot is a plain, Sendable copy taken up front specifically so
+    /// nothing here ever touches the model object again once execution leaves this function.
     static func rescheduleForCurrentWeek(context: ModelContext) {
         guard let caches = try? context.fetch(FetchDescriptor<WeekCache>()),
               let cache = SchedulerService.currentWeekCache(from: caches)
         else { return }
-        Task { await NotificationScheduler.shared.reschedule(for: cache) }
+        let snapshot = NotificationService.Snapshot(cache)
+        shared.inFlightTask?.cancel()
+        shared.inFlightTask = Task { await shared.reschedule(for: snapshot) }
     }
 }
