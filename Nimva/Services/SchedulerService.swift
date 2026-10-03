@@ -47,9 +47,7 @@ enum SchedulerService {
             .filter { !$0.isFixed && !$0.wasLogged && isEventVisible($0, inWeekStarting: targetStart) }
             .compactMap { toFlexibleEvent($0, weekStart: targetStart) }
         let isCurrentWeek = weekBoundaryCal.isDate(targetStart, equalTo: todayWeekStart, toGranularity: .weekOfYear)
-        // Future weeks have no "past days" yet, so always start from Monday — this also
-        // naturally empties pastRecords/idsInPast below without a separate branch.
-        let today = isCurrentWeek ? todayAsDayOfWeek() : .monday
+        let today = referenceDay(isCurrentWeek: isCurrentWeek, todayAsDayOfWeek: todayAsDayOfWeek())
 
         // Candidate time windows (#79) — resolves each eligible event's startTime/endTime
         // before anything downstream reads them. Doesn't affect fixed/flexible above (day
@@ -300,6 +298,19 @@ enum SchedulerService {
     static func isEventVisible(_ event: Event, inWeekStarting weekStart: Date) -> Bool {
         guard let specific = event.specificDate else { return true }
         return weekBoundaryCal.isDate(specific, equalTo: weekStart, toGranularity: .weekOfYear)
+    }
+
+    /// #80 — the name of the first candidate-window event (#79) visible for a given week, if
+    /// any, for the "Nimva picked a time for you" first-week explainer note. Two exclusions:
+    /// "at least 2 real candidates" (a single-candidate list isn't actually a choice — same
+    /// bar AddEventView applies before saving one as a real candidate-window event at all),
+    /// and `candidateWindowManuallySet` events, since the user already picked that one
+    /// themselves — the note's "automatically" framing would be actively wrong for them.
+    static func firstCandidateWindowEventName(events: [Event], weekStart: Date) -> String? {
+        events.first {
+            $0.isFixed && $0.candidateStartTimes.count >= 2 && !$0.candidateWindowManuallySet
+                && isEventVisible($0, inWeekStarting: weekStart)
+        }?.name
     }
 
     /// Resolves each eligible fixed event's candidate time windows (#79 — Event's
@@ -709,5 +720,22 @@ enum SchedulerService {
             return false
         }
         return dayIndex < todayIndex
+    }
+
+    /// The "today" reference point used for one regenerate() build: the real current weekday
+    /// for the week actually happening right now, or the locale's own first day of the week
+    /// as a "nothing has happened yet" placeholder for any future (rolling-calendar) week.
+    ///
+    /// Extracted as its own function — and tested directly — because this exact choice was
+    /// found hardcoded to .monday regardless of locale (a plain, easy mistake: .monday reads
+    /// like a natural "start of the week" default). For a US-locale week, the real first day
+    /// is Sunday, not Monday — so that hardcoding silently excluded Sunday from both flexible
+    /// placement (Scheduler.eligibleDays) and candidate-window resolution
+    /// (resolveCandidateWindows) for every future-week build a US-locale user ever made,
+    /// since both consume this value downstream. Same class of mistake as the Sunday bug
+    /// already documented in the Stray Spark Log, found while hardening this session's work.
+    static func referenceDay(isCurrentWeek: Bool, todayAsDayOfWeek: DayOfWeek, firstWeekday: Int = Calendar.current.firstWeekday) -> DayOfWeek {
+        guard !isCurrentWeek else { return todayAsDayOfWeek }
+        return DayOfWeek.orderedForLocale(firstWeekday: firstWeekday).first ?? .monday
     }
 }

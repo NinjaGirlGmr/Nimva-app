@@ -1191,3 +1191,90 @@ struct CorrectedDailyLoadsTests {
     }
 }
 
+// MARK: - referenceDay (Stray Spark, 2026-10-03)
+
+// Regression coverage for a bug found while wiring #79's resolveCandidateWindows: future-week
+// builds (weekOffset > 0) hardcoded .monday as the "nothing past yet" placeholder day, which
+// silently excluded Sunday from flexible placement AND candidate-window resolution for any
+// US-locale future-week build, since Monday isn't index 0 in that locale's day ordering.
+@Suite("SchedulerService — referenceDay")
+struct ReferenceDayTests {
+
+    @Test func currentWeekAlwaysUsesTodayRegardlessOfLocale() {
+        #expect(SchedulerService.referenceDay(isCurrentWeek: true, todayAsDayOfWeek: .thursday, firstWeekday: 1) == .thursday)
+        #expect(SchedulerService.referenceDay(isCurrentWeek: true, todayAsDayOfWeek: .thursday, firstWeekday: 2) == .thursday)
+    }
+
+    @Test func futureWeekInUSLocaleUsesSundayNotMonday() {
+        // The exact bug: Sunday is the real first day of a US-locale week, not Monday.
+        #expect(SchedulerService.referenceDay(isCurrentWeek: false, todayAsDayOfWeek: .thursday, firstWeekday: 1) == .sunday)
+    }
+
+    @Test func futureWeekInISOLocaleUsesMonday() {
+        #expect(SchedulerService.referenceDay(isCurrentWeek: false, todayAsDayOfWeek: .thursday, firstWeekday: 2) == .monday)
+    }
+}
+
+// MARK: - firstCandidateWindowEventName (#80)
+
+@Suite("SchedulerService — firstCandidateWindowEventName")
+struct FirstCandidateWindowEventNameTests {
+
+    @Test func findsEventWithTwoOrMoreCandidates() {
+        let now = Date()
+        let event = Event(
+            name: "Gym",
+            isFixed: true,
+            fixedDay: .monday,
+            candidateStartTimes: [now, now.addingTimeInterval(3600)],
+            candidateEndTimes: [now.addingTimeInterval(1800), now.addingTimeInterval(5400)]
+        )
+        let name = SchedulerService.firstCandidateWindowEventName(events: [event], weekStart: SchedulerService.weekStart())
+        #expect(name == "Gym")
+    }
+
+    @Test func ignoresEventWithOnlyOneCandidate() {
+        let now = Date()
+        let event = Event(
+            name: "Gym",
+            isFixed: true,
+            fixedDay: .monday,
+            candidateStartTimes: [now],
+            candidateEndTimes: [now.addingTimeInterval(1800)]
+        )
+        let name = SchedulerService.firstCandidateWindowEventName(events: [event], weekStart: SchedulerService.weekStart())
+        #expect(name == nil)
+    }
+
+    @Test func ignoresManuallySetEvent() {
+        // The user already picked a time themselves — the #80 note's "Nimva picked a time
+        // for you automatically" framing would be actively wrong for this event.
+        let now = Date()
+        let event = Event(
+            name: "Gym",
+            isFixed: true,
+            fixedDay: .monday,
+            candidateStartTimes: [now, now.addingTimeInterval(3600)],
+            candidateEndTimes: [now.addingTimeInterval(1800), now.addingTimeInterval(5400)],
+            candidateWindowManuallySet: true
+        )
+        let name = SchedulerService.firstCandidateWindowEventName(events: [event], weekStart: SchedulerService.weekStart())
+        #expect(name == nil)
+    }
+
+    @Test func ignoresEventNotVisibleInGivenWeek() {
+        let now = Date()
+        let otherWeek = SchedulerService.weekStart(offsetWeeks: 3)
+        let event = Event(
+            name: "One-off dentist",
+            isFixed: true,
+            fixedDay: .monday,
+            specificDate: otherWeek,
+            candidateStartTimes: [now, now.addingTimeInterval(3600)],
+            candidateEndTimes: [now.addingTimeInterval(1800), now.addingTimeInterval(5400)]
+        )
+        let name = SchedulerService.firstCandidateWindowEventName(events: [event], weekStart: SchedulerService.weekStart())
+        #expect(name == nil)
+    }
+}
+

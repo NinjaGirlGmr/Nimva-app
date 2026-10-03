@@ -90,13 +90,26 @@ struct EditEventView: View {
                             }
                         }
                         .foregroundStyle(NimvaColors.textPrimary)
+                        // Both bindings also lock candidateWindowManuallySet when this event
+                        // has candidate windows — found missing while hardening this
+                        // session's work: without it, typing a time directly here (instead
+                        // of tapping a pill in "Possible times" below) left the flag false,
+                        // so the next background rebuild's resolveCandidateWindows would
+                        // silently overwrite this exact edit with its own pick — the precise
+                        // override the feature promises never happens.
                         TimeInputRow(label: "Start time", date: Binding(
                             get: { event.startTime ?? Date() },
-                            set: { event.startTime = $0 }
+                            set: { newValue in
+                                event.startTime = newValue
+                                if !event.candidateStartTimes.isEmpty { event.candidateWindowManuallySet = true }
+                            }
                         ))
                         TimeInputRow(label: "End time", date: Binding(
                             get: { event.endTime ?? Date() },
-                            set: { event.endTime = $0 }
+                            set: { newValue in
+                                event.endTime = newValue
+                                if !event.candidateStartTimes.isEmpty { event.candidateWindowManuallySet = true }
+                            }
                         ))
                         if hasTimeError {
                             Text("End time must be after start time")
@@ -371,6 +384,15 @@ struct EditEventView: View {
                         // freshly-added flexible event's own default.
                         event.specificDate = Date()
                     }
+                    // Candidate windows (#79) only ever mean anything for a fixed event —
+                    // clear on *either* direction of a type switch, not just one. Found
+                    // missing while hardening this session's work: left uncleared, a
+                    // fixed-with-candidates event switched to flexible and back to fixed
+                    // would resurface its old (possibly now-irrelevant) candidate list, and
+                    // resolveCandidateWindows could silently re-apply it on the next build.
+                    event.candidateStartTimes = []
+                    event.candidateEndTimes = []
+                    event.candidateWindowManuallySet = false
                     pendingTypeSwitch = nil
                 }
                 Button("Cancel", role: .cancel) { pendingTypeSwitch = nil }

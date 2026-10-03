@@ -74,15 +74,12 @@ struct WeekGenerationView: View {
         }
     }
 
-    // #80 — the name of the first candidate-window event (#79) visible for the week just
-    // built, if any. "At least 2 real candidates" (not just a non-empty array) because a
-    // single-candidate list isn't actually a choice — same bar AddEventView already applies
-    // before saving one as a real candidate-window event in the first place.
+    // #80 — see SchedulerService.firstCandidateWindowEventName for the exclusion rules.
     private var firstCandidateWindowEventName: String? {
-        events.first {
-            $0.isFixed && $0.candidateStartTimes.count >= 2
-                && SchedulerService.isEventVisible($0, inWeekStarting: SchedulerService.weekStart(offsetWeeks: weekOffset))
-        }?.name
+        SchedulerService.firstCandidateWindowEventName(
+            events: events,
+            weekStart: SchedulerService.weekStart(offsetWeeks: weekOffset)
+        )
     }
     private var userType: UserType      { SchedulerService.detectUserType(events: events) }
 

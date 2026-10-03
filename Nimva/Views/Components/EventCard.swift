@@ -349,8 +349,7 @@ struct EventCard: View {
     private var subtitleText: String {
         if event.isFixed {
             if let start = event.startTime, let end = event.endTime {
-                let fmt = DateFormatter(); fmt.timeStyle = .short
-                return "\(fmt.string(from: start)) – \(fmt.string(from: end))"
+                return formattedWindowRange(start, end)
             }
             return event.fixedDay?.displayName ?? ""
         } else {
