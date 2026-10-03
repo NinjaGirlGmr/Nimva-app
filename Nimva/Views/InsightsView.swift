@@ -206,6 +206,16 @@ private struct WeeklyTrendCard: View {
             if chartData.isEmpty {
                 emptyState
             } else {
+                // This week's number is a snapshot from whenever "Build my week" was last
+                // tapped, never a live figure — adding/editing an event doesn't rebuild the
+                // placed schedule (deliberate; see CLAUDE.md's caching rule), so without this
+                // note the current week's point could easily be read as reflecting right now.
+                // Shown independent of weekOverWeekRow below, which needs 2 weeks of history
+                // to say anything — this applies even with just a single build so far.
+                if let lastBuilt = currentWeekGeneratedAt {
+                    lastBuiltRow(lastBuilt)
+                }
+
                 if let text = weekOverWeekText {
                     weekOverWeekRow(text)
                 }
@@ -416,6 +426,34 @@ private struct WeeklyTrendCard: View {
         }
     }
 
+    // MARK: Last built
+
+    // nil whenever the chart's newest point isn't actually the current week (e.g. history
+    // exists but nothing has been built yet this week) — in that case every visible point is
+    // already unambiguously historical, so there's nothing live-seeming to clarify.
+    private var currentWeekGeneratedAt: Date? {
+        guard let newest = chartData.last,
+              SchedulerService.weekBoundaryCal.isDate(
+                newest.weekStartDate, equalTo: SchedulerService.weekStart(), toGranularity: .weekOfYear
+              )
+        else { return nil }
+        return newest.generatedAt
+    }
+
+    private func lastBuiltRow(_ date: Date) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "clock")
+                .font(NimvaFont.micro)
+                .accessibilityHidden(true)
+            // Same Date interpolation convention SettingsView's "Last imported ___ ago"
+            // already uses — a live-updating relative string, not a frozen one computed once.
+            Text("This week — as of your last build, \(date, style: .relative) ago")
+        }
+        .font(NimvaFont.micro)
+        .foregroundStyle(NimvaColors.textMuted)
+        .accessibilityElement(children: .combine)
+    }
+
     // MARK: Week-over-week
 
     // chartData is oldest→newest (see weekData(from:)), so the last two entries are this
@@ -495,7 +533,8 @@ private func weekData(from caches: [WeekCache]) -> [WeekDatum] {
         WeekDatum(
             label: shortDateLabel($0.weekStartDate),
             weekStartDate: $0.weekStartDate,
-            dailyLoadValues: $0.dailyLoadValues
+            dailyLoadValues: $0.dailyLoadValues,
+            generatedAt: $0.generatedAt
         )
     }
 }
@@ -510,6 +549,9 @@ private struct WeekDatum: Identifiable {
     // existed — daySeverities/lightCount/etc. all degrade to empty/zero gracefully rather
     // than crashing on a missing index.
     let dailyLoadValues: [Double]
+    // When this week's cache was last (re)built — used to tell the current week's number
+    // apart from a live figure (it never is one; see "last built" note on WeeklyTrendCard).
+    let generatedAt: Date
 
     // Reuses the exact boundary every other load display in the app already uses
     // (WeekStripView's day dots, EnergyZoneCard) — never a second copy that can drift.
