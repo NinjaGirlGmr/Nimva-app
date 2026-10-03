@@ -17,6 +17,10 @@ struct WeekGenerationView: View {
     // #87 — shown once, the first time a user approves a week, so they know the
     // schedule won't shift under them. Reduces OCD-style re-checking anxiety.
     @AppStorage("hasSeenScheduleStabilityNote") private var hasSeenScheduleStabilityNote = false
+    // #80 — shown once, the first approval where the algorithm actually had a candidate-
+    // window event (#79) to resolve, so a silently-picked time doesn't feel arbitrary or
+    // opaque the first time someone notices it ("why did it put my club at 8am?").
+    @AppStorage("hasSeenCandidateWindowTutorial") private var hasSeenCandidateWindowTutorial = false
     @AppStorage("customEnergyLightHex") private var energyLightHex = "1d9e75"
     @AppStorage("customEnergyMixedHex") private var energyMixedHex = "ef9f27"
     @AppStorage("customEnergyHeavyHex") private var energyHeavyHex = "e0825a"
@@ -35,6 +39,11 @@ struct WeekGenerationView: View {
     // Captured at approve time, before hasSeenScheduleStabilityNote flips to true —
     // otherwise the note would never render on the very approval it's meant for.
     @State private var showStabilityNoteThisApproval = false
+    // Same capture-at-approve-time reasoning as above, plus the specific event name to point
+    // at — captured once so it doesn't change if the underlying event list shifts before the
+    // user leaves this screen.
+    @State private var showCandidateWindowNoteThisApproval = false
+    @State private var candidateWindowNoteEventName: String? = nil
 
     // Rolling calendar week (#13): 0 = this week, 1 = next week, up to 3 for PRO.
     @State private var weekOffset: Int = 0
@@ -63,6 +72,17 @@ struct WeekGenerationView: View {
             !$0.isFixed && !$0.wasLogged
                 && SchedulerService.isEventVisible($0, inWeekStarting: SchedulerService.weekStart(offsetWeeks: weekOffset))
         }
+    }
+
+    // #80 — the name of the first candidate-window event (#79) visible for the week just
+    // built, if any. "At least 2 real candidates" (not just a non-empty array) because a
+    // single-candidate list isn't actually a choice — same bar AddEventView already applies
+    // before saving one as a real candidate-window event in the first place.
+    private var firstCandidateWindowEventName: String? {
+        events.first {
+            $0.isFixed && $0.candidateStartTimes.count >= 2
+                && SchedulerService.isEventVisible($0, inWeekStarting: SchedulerService.weekStart(offsetWeeks: weekOffset))
+        }?.name
     }
     private var userType: UserType      { SchedulerService.detectUserType(events: events) }
 
@@ -750,6 +770,13 @@ struct WeekGenerationView: View {
         NimvaHaptics.success()
         showStabilityNoteThisApproval = !hasSeenScheduleStabilityNote
         hasSeenScheduleStabilityNote = true
+
+        candidateWindowNoteEventName = firstCandidateWindowEventName
+        showCandidateWindowNoteThisApproval = !hasSeenCandidateWindowTutorial && candidateWindowNoteEventName != nil
+        if showCandidateWindowNoteThisApproval {
+            hasSeenCandidateWindowTutorial = true
+        }
+
         withAnimation(reduceMotion ? .none : NimvaAnimation.cardAppear) { genState = .approved }
     }
 
@@ -777,6 +804,18 @@ struct WeekGenerationView: View {
 
                     if showStabilityNoteThisApproval {
                         Text("Your week stays as shown until you redo it or change an event.")
+                            .font(.system(.caption))
+                            .foregroundStyle(NimvaColors.textMuted)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 4)
+                    }
+
+                    // #80 — names the specific event so this reads as concrete, not a vague
+                    // feature announcement, and says exactly where to go to override it
+                    // rather than just asserting an override exists somewhere.
+                    if showCandidateWindowNoteThisApproval, let name = candidateWindowNoteEventName {
+                        Text("Nimva picked a time for \"\(name)\" automatically — tap it on Home or here in Plan to choose a different time instead.")
                             .font(.system(.caption))
                             .foregroundStyle(NimvaColors.textMuted)
                             .multilineTextAlignment(.center)
