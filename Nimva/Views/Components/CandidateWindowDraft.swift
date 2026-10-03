@@ -10,9 +10,11 @@ struct CandidateWindowDraft: Identifiable {
     var end: Date
 }
 
-// Short "8:00–8:30 AM" style range text, shared by both screens' candidate rows.
+// Short "8:00 AM – 8:30 AM" style range text, shared by both screens' candidate rows — and
+// by EventCard's own fixed-event subtitle, which used to have its own near-identical copy
+// with a visible style mismatch (no spaces around the dash) before this was extracted.
 func formattedWindowRange(_ start: Date, _ end: Date) -> String {
     let formatter = DateFormatter()
     formatter.timeStyle = .short
-    return "\(formatter.string(from: start))–\(formatter.string(from: end))"
+    return "\(formatter.string(from: start)) – \(formatter.string(from: end))"
 }

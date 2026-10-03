@@ -71,6 +71,15 @@ struct AddEventView: View {
         return EventCategory.presets + custom.sorted()
     }
 
+    // Shared by the Save button's disabled condition and saveEvent() itself, so "is this
+    // candidate-window set actually usable" is answered the same way in both places —
+    // previously computed inline only in saveEvent(), which let an invalid set (e.g. an
+    // option whose end precedes its start) silently save using stale top-level start/end
+    // time with no feedback, instead of being caught before Save was even reachable.
+    private var validCandidateWindows: [CandidateWindowDraft] {
+        candidateWindows.filter { $0.end > $0.start }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -159,7 +168,7 @@ struct AddEventView: View {
                                 get: { hasCandidateWindows },
                                 set: { newValue in
                                     hasCandidateWindows = newValue
-                                    if newValue && candidateWindows.isEmpty {
+                                    if newValue {
                                         // Seed with the time already entered above as option 1,
                                         // so turning this on never loses what they'd already
                                         // set — plus one blank second option to fill in.
@@ -170,6 +179,15 @@ struct AddEventView: View {
                                                 end: Calendar.current.date(byAdding: .hour, value: 6, to: endTime) ?? endTime
                                             )
                                         ]
+                                    } else {
+                                        // Clear on turn-off, not just leave stale — so turning
+                                        // this back on later always reseeds from whatever the
+                                        // top Start/End fields hold *then*, not whatever they
+                                        // held during an earlier on/off cycle. Found during
+                                        // hardening: without this, toggling off then editing
+                                        // the top time fields then toggling back on silently
+                                        // resurrected the pre-edit time as Option 1.
+                                        candidateWindows = []
                                     }
                                 }
                             )) {
@@ -207,6 +225,15 @@ struct AddEventView: View {
                                         }
                                         TimeInputRow(label: "Start", date: $window.start)
                                         TimeInputRow(label: "End", date: $window.end)
+                                        // Only the top-level Timing fields had this error
+                                        // message — an individual option silently just
+                                        // vanished from the saved set with no explanation.
+                                        // Found while hardening this session's work.
+                                        if window.end <= window.start {
+                                            Text("End must be after start")
+                                                .font(.caption)
+                                                .foregroundStyle(NimvaColors.coral)
+                                        }
                                     }
                                     .padding(.vertical, 2)
                                 }
@@ -416,7 +443,8 @@ struct AddEventView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add to week") { saveEvent() }
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty ||
-                                  (isFixed && endTime <= startTime))
+                                  (isFixed && endTime <= startTime) ||
+                                  (isFixed && hasCandidateWindows && validCandidateWindows.count < 2))
                 }
             }
             .onAppear {
@@ -509,9 +537,9 @@ struct AddEventView: View {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         if isFixed {
             // Only a real candidate-window set if there are at least 2 genuinely valid
-            // (end after start) options — otherwise this silently degrades to the plain
-            // single-time behavior rather than saving a one-candidate "choice."
-            let validWindows = candidateWindows.filter { $0.end > $0.start }
+            // (end after start) options — the Save button is already disabled below this
+            // bar, so reaching here with hasCandidateWindows true means it's already met.
+            let validWindows = validCandidateWindows
             let useCandidates = hasCandidateWindows && validWindows.count >= 2
 
             for day in selectedDays.sorted(by: { $0.rawValue < $1.rawValue }) {

@@ -45,6 +45,12 @@ enum CandidateWindowService {
         // startTime/endTime only carries a meaningful time-of-day, its date component is
         // whatever day it happened to be created/edited on, not necessarily shared between
         // two different events being compared here.
+        // Assumes end > start within a single day (no midnight-crossing windows) — the only
+        // way candidates currently reach this function is AddEventView/EditEventView's rows,
+        // which already filter to end > start before a window counts as valid, so a
+        // wrapping window (e.g. 11 PM – 1 AM) can't arrive here today. Worth remembering if
+        // overnight candidate windows are ever added — minuteOfDay comparison would need to
+        // handle the wraparound explicitly.
         func minutes(_ window: Window) -> (start: Int, end: Int) {
             (minuteOfDay(window.start, calendar: calendar), minuteOfDay(window.end, calendar: calendar))
         }
