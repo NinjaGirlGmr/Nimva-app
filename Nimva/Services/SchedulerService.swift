@@ -50,6 +50,14 @@ enum SchedulerService {
         // Future weeks have no "past days" yet, so always start from Monday — this also
         // naturally empties pastRecords/idsInPast below without a separate branch.
         let today = isCurrentWeek ? todayAsDayOfWeek() : .monday
+
+        // Candidate time windows (#79) — resolves each eligible event's startTime/endTime
+        // before anything downstream reads them. Doesn't affect fixed/flexible above (day
+        // placement never reads time-of-day), but every day-list/EventCard/now-indicator
+        // read site downstream treats startTime/endTime as ground truth, so this needs to
+        // run before this build is considered "done," same cadence as flexible placement.
+        resolveCandidateWindows(events: events, targetStart: targetStart, today: today)
+
         let existing = try context.fetch(FetchDescriptor<WeekCache>())
         let priorCache = existing.first {
             weekBoundaryCal.isDate($0.weekStartDate, equalTo: targetStart, toGranularity: .weekOfYear)
@@ -292,6 +300,45 @@ enum SchedulerService {
     static func isEventVisible(_ event: Event, inWeekStarting weekStart: Date) -> Bool {
         guard let specific = event.specificDate else { return true }
         return weekBoundaryCal.isDate(specific, equalTo: weekStart, toGranularity: .weekOfYear)
+    }
+
+    /// Resolves each eligible fixed event's candidate time windows (#79 — Event's
+    /// candidateStartTimes/candidateEndTimes) into real startTime/endTime values, scored via
+    /// CandidateWindowService against the day's other already-fixed events. Mutates matching
+    /// events directly (same pattern as pruneForgottenEvents' context.delete calls) — call
+    /// site is responsible for the eventual context.save().
+    ///
+    /// Skips two kinds of event on purpose:
+    ///   - candidateWindowManuallySet — the user already picked a specific window themselves;
+    ///     re-scoring here on an unrelated background rebuild would silently undo that choice.
+    ///   - a day that isDayPast relative to `today` — re-scoring (and thus potentially
+    ///     changing) an already-happened day's window on an unrelated rebuild would silently
+    ///     rewrite history, the same mistake flexible-placement freezing (pastRecords) already
+    ///     exists to avoid for day placement.
+    ///
+    /// Scoped to one candidate-window event per day at a time — scored against the day's
+    /// other ALREADY-fixed events, never against another not-yet-resolved candidate-window
+    /// event sharing the same day. A fully combinatorial multi-event solver is out of scope
+    /// for how rare that overlap actually is.
+    static func resolveCandidateWindows(events: [Event], targetStart: Date, today: DayOfWeek) {
+        let candidateEvents = events.filter {
+            $0.isFixed && !$0.candidateStartTimes.isEmpty && !$0.candidateWindowManuallySet
+                && isEventVisible($0, inWeekStarting: targetStart)
+        }
+        for event in candidateEvents {
+            guard let day = event.fixedDay, !isDayPast(day, relativeToToday: today) else { continue }
+            let sameDayOthers = events.filter {
+                $0.id != event.id && $0.isFixed && $0.fixedDay == day
+                    && isEventVisible($0, inWeekStarting: targetStart)
+            }
+            let candidates = zip(event.candidateStartTimes, event.candidateEndTimes).map {
+                CandidateWindowService.Window(start: $0, end: $1)
+            }
+            if let best = CandidateWindowService.bestWindow(candidates: candidates, otherEventsOnDay: sameDayOthers) {
+                event.startTime = best.start
+                event.endTime = best.end
+            }
+        }
     }
 
     /// Adds back the energy cost of flexible events that were placed on a past day by an

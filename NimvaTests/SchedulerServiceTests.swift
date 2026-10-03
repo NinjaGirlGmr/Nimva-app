@@ -777,6 +777,76 @@ struct IsDayPastTests {
     }
 }
 
+// MARK: - Candidate window resolution (#79)
+
+@Suite("SchedulerService — resolveCandidateWindows")
+struct ResolveCandidateWindowsTests {
+
+    private func time(_ hour: Int, _ minute: Int = 0) -> Date {
+        Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date())!
+    }
+
+    @Test func picksBestCandidateAndWritesStartEndTime() {
+        let club = Event(
+            name: "Club", isFixed: true, fixedDay: .tuesday,
+            candidateStartTimes: [time(8), time(15, 45)],
+            candidateEndTimes: [time(8, 30), time(16, 15)]
+        )
+        // A draining class right after the morning slot makes the afternoon slot the winner.
+        let morningClass = Event(name: "Class", isFixed: true, fixedDay: .tuesday, startTime: time(8, 30), endTime: time(9, 15), energyCost: 0.9)
+
+        SchedulerService.resolveCandidateWindows(events: [club, morningClass], targetStart: SchedulerService.weekStart(), today: .monday)
+
+        #expect(Calendar.current.component(.hour, from: club.startTime!) == 15)
+    }
+
+    @Test func manuallySetEventIsNeverResolved() {
+        let club = Event(
+            name: "Club", isFixed: true, fixedDay: .tuesday,
+            startTime: time(8), endTime: time(8, 30),
+            candidateStartTimes: [time(8), time(15, 45)],
+            candidateEndTimes: [time(8, 30), time(16, 15)],
+            candidateWindowManuallySet: true
+        )
+        SchedulerService.resolveCandidateWindows(events: [club], targetStart: SchedulerService.weekStart(), today: .monday)
+        // Untouched — still the original 8:00, not re-scored to anything else.
+        #expect(Calendar.current.component(.hour, from: club.startTime!) == 8)
+    }
+
+    @Test func eventOnAPastDayIsNeverResolved() {
+        let club = Event(
+            name: "Club", isFixed: true, fixedDay: .monday,
+            startTime: time(8), endTime: time(8, 30),
+            candidateStartTimes: [time(15, 45)],
+            candidateEndTimes: [time(16, 15)]
+        )
+        // today = Wednesday → Monday has already passed this week.
+        SchedulerService.resolveCandidateWindows(events: [club], targetStart: SchedulerService.weekStart(), today: .wednesday)
+        #expect(Calendar.current.component(.hour, from: club.startTime!) == 8)
+    }
+
+    @Test func eventWithoutCandidateWindowsIsUntouched() {
+        let plain = Event(name: "Plain", isFixed: true, fixedDay: .tuesday, startTime: time(9), endTime: time(10))
+        SchedulerService.resolveCandidateWindows(events: [plain], targetStart: SchedulerService.weekStart(), today: .monday)
+        #expect(Calendar.current.component(.hour, from: plain.startTime!) == 9)
+    }
+
+    @Test func onlyScoredAgainstEventsOnTheSameDay() {
+        let club = Event(
+            name: "Club", isFixed: true, fixedDay: .tuesday,
+            candidateStartTimes: [time(8), time(15, 45)],
+            candidateEndTimes: [time(8, 30), time(16, 15)]
+        )
+        // A draining event tight against the morning slot, but on Wednesday — irrelevant to
+        // Tuesday's scoring, so the two candidates should tie and the first one wins.
+        let wednesdayClass = Event(name: "Class", isFixed: true, fixedDay: .wednesday, startTime: time(8, 30), endTime: time(9, 15), energyCost: 0.9)
+
+        SchedulerService.resolveCandidateWindows(events: [club, wednesdayClass], targetStart: SchedulerService.weekStart(), today: .monday)
+
+        #expect(Calendar.current.component(.hour, from: club.startTime!) == 8)
+    }
+}
+
 // MARK: - Forgotten one-off event pruning (#96)
 
 @Suite("SchedulerService — isForgotten / pruneForgottenEvents")
