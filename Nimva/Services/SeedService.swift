@@ -23,6 +23,58 @@ enum SeedService {
         try? context.save()
     }
 
+    // Adds (doesn't replace) a single realistic candidate-time-window scenario (#79/#80) —
+    // the exact example from the issue itself: a club meeting either 8:00-8:30am or
+    // 3:45-4:15pm. Pairs it with a draining class tight against the morning slot, so
+    // "Build my week" has a genuinely demonstrable winner to pick (the afternoon slot) rather
+    // than an arbitrary tie. Removes any previously-seeded copy of itself first, so tapping
+    // this repeatedly during testing doesn't pile up duplicates.
+    //
+    // Deliberately anchored to *today*, not a hardcoded weekday — isDayPast (SchedulerService)
+    // skips resolving a candidate-window event once its day has already passed this week, and
+    // the whole point of this button is "build right now and immediately see it resolve,"
+    // regardless of which real-world day testing happens to be run on.
+    //
+    // Also resets hasSeenCandidateWindowTutorial so #80's one-time explainer can be re-tested
+    // on the next approval, not just the very first one ever.
+    static func seedCandidateWindowDemo(context: ModelContext) {
+        let testMarker = "Club (candidate-window test)"
+        let existing = (try? context.fetch(FetchDescriptor<Event>(predicate: #Predicate { $0.name == testMarker }))) ?? []
+        existing.forEach { context.delete($0) }
+
+        let today = SchedulerService.todayAsDayOfWeek()
+        let morningStart = Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: Date())!
+        let morningEnd = Calendar.current.date(bySettingHour: 8, minute: 30, second: 0, of: Date())!
+        let afternoonStart = Calendar.current.date(bySettingHour: 15, minute: 45, second: 0, of: Date())!
+        let afternoonEnd = Calendar.current.date(bySettingHour: 16, minute: 15, second: 0, of: Date())!
+
+        let club = Event(
+            name: testMarker,
+            isFixed: true,
+            fixedDay: today,
+            startTime: morningStart,   // pre-build default — gets overwritten by the resolved pick
+            endTime: morningEnd,
+            energyCost: 0.4,
+            category: "Social",
+            candidateStartTimes: [morningStart, afternoonStart],
+            candidateEndTimes: [morningEnd, afternoonEnd]
+        )
+        let morningClass = Event(
+            name: "Morning Class (candidate-window test)",
+            isFixed: true,
+            fixedDay: today,
+            startTime: Calendar.current.date(bySettingHour: 8, minute: 30, second: 0, of: Date())!,
+            endTime: Calendar.current.date(bySettingHour: 9, minute: 15, second: 0, of: Date())!,
+            energyCost: 0.9,
+            category: "School"
+        )
+        context.insert(club)
+        context.insert(morningClass)
+        try? context.save()
+
+        UserDefaults.standard.set(false, forKey: "hasSeenCandidateWindowTutorial")
+    }
+
     // MARK: - Events
 
     private static func makeSampleEvents() -> [Event] {
