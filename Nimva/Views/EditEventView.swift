@@ -105,6 +105,64 @@ struct EditEventView: View {
                         }
                     }
                     .listRowBackground(NimvaColors.cardDark)
+
+                    // MARK: Candidate windows (#79) — only present for an event created with
+                    // a few possible times. Overriding here is a light correction, not a
+                    // separate editor: tapping a different option just picks it directly,
+                    // the actual list of options isn't editable from this screen.
+                    if !event.candidateStartTimes.isEmpty {
+                        Section {
+                            Text(event.candidateWindowManuallySet
+                                ? "You picked this time — it won't change on your next build."
+                                : "Nimva picked this time automatically — it may change on your next build.")
+                                .font(NimvaFont.micro)
+                                .foregroundStyle(NimvaColors.textMuted)
+
+                            ForEach(event.candidateStartTimes.indices, id: \.self) { index in
+                                let start = event.candidateStartTimes[index]
+                                let end = event.candidateEndTimes.indices.contains(index) ? event.candidateEndTimes[index] : start
+                                let isActive = event.startTime == start && event.endTime == end
+                                Button {
+                                    event.startTime = start
+                                    event.endTime = end
+                                    event.candidateWindowManuallySet = true
+                                } label: {
+                                    HStack {
+                                        Text(formattedWindowRange(start, end))
+                                            .font(NimvaFont.callout)
+                                            .foregroundStyle(isActive ? .white : NimvaColors.textSecondary)
+                                        Spacer()
+                                        if isActive {
+                                            Image(systemName: "checkmark")
+                                                .foregroundStyle(.white)
+                                        }
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 10)
+                                    .background(isActive ? NimvaColors.purplePrimary : NimvaColors.surfaceDeep)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                                .buttonStyle(.scalePress)
+                                .frame(minHeight: 44)
+                                .accessibilityAddTraits(isActive ? .isSelected : [])
+                            }
+
+                            if event.candidateWindowManuallySet {
+                                Button {
+                                    event.candidateWindowManuallySet = false
+                                } label: {
+                                    Label("Let Nimva choose again", systemImage: "arrow.counterclockwise")
+                                        .font(NimvaFont.callout)
+                                        .foregroundStyle(NimvaColors.teal)
+                                }
+                                .buttonStyle(.scalePress)
+                                .frame(minHeight: 44)
+                            }
+                        } header: {
+                            Text("Possible times")
+                        }
+                        .listRowBackground(NimvaColors.cardDark)
+                    }
                 } else {
                     Section("Timing") {
                         Picker("Preferred window", selection: Binding(

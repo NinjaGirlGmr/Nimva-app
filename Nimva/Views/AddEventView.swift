@@ -53,6 +53,15 @@ struct AddEventView: View {
     @State private var wantsSplit = false
     @State private var splitSessionCount = 2
 
+    // Candidate time windows (#79) — fixed-event-only, a genuinely different shape from
+    // either the due-date/split fields above (flexible-only) or the single startTime/endTime
+    // below: "this happens on Tuesday, but could be either of these two specific times."
+    // Collapsed by default like the flexible Advanced section, for the same reason — most
+    // fixed events never need this.
+    @State private var showingFixedAdvanced = false
+    @State private var hasCandidateWindows = false
+    @State private var candidateWindows: [CandidateWindowDraft] = []
+
     // Built-in presets first, then any custom categories already in use across real events —
     // self-cleaning, since nothing separately persists a custom category once every event
     // using it is deleted. Always includes the currently-selected category so a just-typed
@@ -140,6 +149,93 @@ struct AddEventView: View {
                                 .font(.caption)
                                 .foregroundStyle(NimvaColors.coral)
                         }
+                    }
+                    .listRowBackground(NimvaColors.cardDark)
+
+                    // MARK: Advanced (fixed — candidate windows, #79)
+                    Section {
+                        DisclosureGroup(isExpanded: $showingFixedAdvanced) {
+                            Toggle(isOn: Binding(
+                                get: { hasCandidateWindows },
+                                set: { newValue in
+                                    hasCandidateWindows = newValue
+                                    if newValue && candidateWindows.isEmpty {
+                                        // Seed with the time already entered above as option 1,
+                                        // so turning this on never loses what they'd already
+                                        // set — plus one blank second option to fill in.
+                                        candidateWindows = [
+                                            CandidateWindowDraft(start: startTime, end: endTime),
+                                            CandidateWindowDraft(
+                                                start: Calendar.current.date(byAdding: .hour, value: 6, to: startTime) ?? startTime,
+                                                end: Calendar.current.date(byAdding: .hour, value: 6, to: endTime) ?? endTime
+                                            )
+                                        ]
+                                    }
+                                }
+                            )) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Offer a few possible times")
+                                        .font(NimvaFont.callout)
+                                        .foregroundStyle(NimvaColors.textPrimary)
+                                    Text("Nimva picks whichever fits best once you build your week")
+                                        .font(NimvaFont.micro)
+                                        .foregroundStyle(NimvaColors.textMuted)
+                                }
+                            }
+                            .tint(NimvaColors.teal)
+
+                            if hasCandidateWindows {
+                                ForEach($candidateWindows) { $window in
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        HStack {
+                                            Text("Option \((candidateWindows.firstIndex(where: { $0.id == window.id }) ?? 0) + 1)")
+                                                .font(NimvaFont.calloutMed)
+                                                .foregroundStyle(NimvaColors.textPrimary)
+                                            Spacer()
+                                            // At least 2 options or this feature means nothing —
+                                            // no delete control once only 2 remain.
+                                            if candidateWindows.count > 2 {
+                                                Button {
+                                                    candidateWindows.removeAll { $0.id == window.id }
+                                                } label: {
+                                                    Image(systemName: "minus.circle.fill")
+                                                        .foregroundStyle(NimvaColors.coral)
+                                                }
+                                                .buttonStyle(.scalePress)
+                                                .accessibilityLabel("Remove this option")
+                                            }
+                                        }
+                                        TimeInputRow(label: "Start", date: $window.start)
+                                        TimeInputRow(label: "End", date: $window.end)
+                                    }
+                                    .padding(.vertical, 2)
+                                }
+
+                                // "A small set" per the feature's own framing — capped rather
+                                // than letting this grow into a scheduling mini-form.
+                                if candidateWindows.count < 4 {
+                                    Button {
+                                        let last = candidateWindows.last
+                                        let base = last?.start ?? startTime
+                                        candidateWindows.append(CandidateWindowDraft(
+                                            start: Calendar.current.date(byAdding: .hour, value: 1, to: base) ?? base,
+                                            end: Calendar.current.date(byAdding: .hour, value: 1, to: last?.end ?? endTime) ?? endTime
+                                        ))
+                                    } label: {
+                                        Label("Add another option", systemImage: "plus.circle")
+                                            .font(NimvaFont.callout)
+                                            .foregroundStyle(NimvaColors.teal)
+                                    }
+                                    .buttonStyle(.scalePress)
+                                    .frame(minHeight: 44)
+                                }
+                            }
+                        } label: {
+                            Label("Advanced", systemImage: "slider.horizontal.3")
+                                .font(NimvaFont.callout)
+                                .foregroundStyle(NimvaColors.textPrimary)
+                        }
+                        .tint(NimvaColors.textPrimary)
                     }
                     .listRowBackground(NimvaColors.cardDark)
                 } else {
@@ -298,6 +394,8 @@ struct AddEventView: View {
             .nimvaAnimation(NimvaAnimation.transition, value: hasDueDate)
             .nimvaAnimation(NimvaAnimation.transition, value: wantsSplit)
             .nimvaAnimation(NimvaAnimation.transition, value: categorySuggestionHint)
+            .nimvaAnimation(NimvaAnimation.transition, value: hasCandidateWindows)
+            .nimvaAnimation(NimvaAnimation.cardAppear, value: candidateWindows.count)
             .scrollContentBackground(.hidden)
             .background(NimvaColors.background)
             .navigationTitle("Add Event")
@@ -410,6 +508,12 @@ struct AddEventView: View {
     private func saveEvent() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         if isFixed {
+            // Only a real candidate-window set if there are at least 2 genuinely valid
+            // (end after start) options — otherwise this silently degrades to the plain
+            // single-time behavior rather than saving a one-candidate "choice."
+            let validWindows = candidateWindows.filter { $0.end > $0.start }
+            let useCandidates = hasCandidateWindows && validWindows.count >= 2
+
             for day in selectedDays.sorted(by: { $0.rawValue < $1.rawValue }) {
                 if globalPatternLearning {
                     PatternService.shared.record(energyCost: energyCost, for: category)
@@ -418,11 +522,17 @@ struct AddEventView: View {
                     name: trimmedName,
                     isFixed: true,
                     fixedDay: day,
-                    startTime: startTime,
-                    endTime: endTime,
+                    // The first candidate stands in as the displayed time until the next
+                    // "Build my week" actually resolves the best one (SchedulerService.
+                    // resolveCandidateWindows) — same "sits as unscheduled/unresolved until
+                    // the next explicit build" pattern flexible placement already uses.
+                    startTime: useCandidates ? validWindows[0].start : startTime,
+                    endTime: useCandidates ? validWindows[0].end : endTime,
                     energyCost: energyCost,
                     category: category,
-                    patternLearningEnabled: globalPatternLearning
+                    patternLearningEnabled: globalPatternLearning,
+                    candidateStartTimes: useCandidates ? validWindows.map(\.start) : [],
+                    candidateEndTimes: useCandidates ? validWindows.map(\.end) : []
                 ))
             }
         } else {
