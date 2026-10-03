@@ -615,6 +615,11 @@ struct SettingsView: View {
                 showingSeedConfirm = true
             }
             SettingsDivider()
+            ActionRow(label: "Seed candidate-window test event (#79/#80)", style: .normal) {
+                SeedService.seedCandidateWindowDemo(context: modelContext)
+                seedMessage = "Added a candidate-window test event on \(SchedulerService.todayAsDayOfWeek().displayName) — tap Build my week in Plan to see it resolve."
+            }
+            SettingsDivider()
             ActionRow(label: "Clear seeded data", style: .destructive) {
                 clearAllData()
                 seedMessage = "All data cleared."
