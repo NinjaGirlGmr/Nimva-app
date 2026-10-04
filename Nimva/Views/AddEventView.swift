@@ -53,6 +53,15 @@ struct AddEventView: View {
     @State private var wantsSplit = false
     @State private var splitSessionCount = 2
 
+    // Pin (#84) — the mirror-image gate of hasDueDate/wantsSplit above: only meaningful for a
+    // recurring ("every week") flexible event, since the whole point is day-to-day consistency
+    // across future weeks, not a single week's placement. Mutually exclusive with due-date/
+    // split by construction (opposite isThisWeekOnly branches in the view below) — reset
+    // together whenever isThisWeekOnly flips, so toggling back and forth can't leave a stale,
+    // invisible value behind (see the onChange this session's hardening pass added).
+    @State private var isPinned = false
+    @State private var pinnedDay: DayOfWeek = SchedulerService.todayAsDayOfWeek()
+
     // Candidate time windows (#79) — fixed-event-only, a genuinely different shape from
     // either the due-date/split fields above (flexible-only) or the single startTime/endTime
     // below: "this happens on Tuesday, but could be either of these two specific times."
@@ -325,6 +334,19 @@ struct AddEventView: View {
                                 }
                             }
                             .tint(NimvaColors.teal)
+                            .onChange(of: isThisWeekOnly) { _, newValue in
+                                // Each branch's fields are only ever rendered on one side of
+                                // this toggle (see below) — reset the other side's state so
+                                // flipping back and forth can't leave an invisible stale value
+                                // that saveEvent would still silently act on. Found while
+                                // building #84 alongside this exact toggle.
+                                if newValue {
+                                    isPinned = false
+                                } else {
+                                    hasDueDate = false
+                                    wantsSplit = false
+                                }
+                            }
 
                             // Gated to isThisWeekOnly — see hasDueDate's doc comment for why
                             // a fixed calendar due date doesn't compose with "every week."
@@ -384,6 +406,32 @@ struct AddEventView: View {
                                         }
                                     }
                                 }
+                            } else {
+                                // Pin (#84) — only offered for a recurring event; see the
+                                // state declaration's doc comment for why this is the mirror
+                                // image of the due-date gate above, not an addition to it.
+                                Divider().padding(.vertical, 2)
+
+                                Toggle(isOn: $isPinned) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Pin to a specific day")
+                                            .font(NimvaFont.callout)
+                                            .foregroundStyle(NimvaColors.textPrimary)
+                                        Text("Always placed on this day, every week — instead of wherever fits best")
+                                            .font(NimvaFont.micro)
+                                            .foregroundStyle(NimvaColors.textMuted)
+                                    }
+                                }
+                                .tint(NimvaColors.teal)
+
+                                if isPinned {
+                                    Picker("Pinned day", selection: $pinnedDay) {
+                                        ForEach(DayOfWeek.orderedForLocale, id: \.self) { day in
+                                            Text(day.displayName).tag(day)
+                                        }
+                                    }
+                                    .foregroundStyle(NimvaColors.textPrimary)
+                                }
                             }
                         } label: {
                             Label("Advanced", systemImage: "slider.horizontal.3")
@@ -420,6 +468,7 @@ struct AddEventView: View {
             .nimvaAnimation(NimvaAnimation.transition, value: isFixed)
             .nimvaAnimation(NimvaAnimation.transition, value: hasDueDate)
             .nimvaAnimation(NimvaAnimation.transition, value: wantsSplit)
+            .nimvaAnimation(NimvaAnimation.transition, value: isPinned)
             .nimvaAnimation(NimvaAnimation.transition, value: categorySuggestionHint)
             .nimvaAnimation(NimvaAnimation.transition, value: hasCandidateWindows)
             .nimvaAnimation(NimvaAnimation.cardAppear, value: candidateWindows.count)
@@ -603,7 +652,8 @@ struct AddEventView: View {
                     category: category,
                     patternLearningEnabled: globalPatternLearning,
                     deadline: deadline,
-                    isPriority: isPriority
+                    isPriority: isPriority,
+                    pinnedDay: isPinned ? pinnedDay : nil
                 )
                 modelContext.insert(newEvent)
                 if isThisWeekOnly, SchedulerService.hasRecurringPattern(name: trimmedName, events: events + [newEvent]) {

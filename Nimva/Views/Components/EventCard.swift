@@ -366,6 +366,9 @@ struct EventCard: View {
             if let deadline = event.deadline, let day = CalendarImportService.nimvaDay(from: deadline) {
                 parts.append("Due \(day.shortName)")
             }
+            if let pinnedDay = event.pinnedDay {
+                parts.append("Pinned \(pinnedDay.shortName)")
+            }
             return parts.joined(separator: " · ")
         }
     }

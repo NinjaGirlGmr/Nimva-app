@@ -42,6 +42,16 @@ final class Event {
     // Priority flex events are scheduled before nice-to-do ones.
     var isPriority: Bool = false
 
+    // Pinned placement (#84) — only meaningful for a recurring ("every week", specificDate ==
+    // nil) flexible event. When set, the scheduler always places this event on this exact day
+    // every week, bypassing normal load-balancing entirely — routine predictability over
+    // optimality, for users (autistic users especially, per the issue's original feedback)
+    // for whom the same event landing on a different day week to week is itself a real cost,
+    // even when each individual placement is technically "optimal." Day-only, not day+time:
+    // a flexible event has no time-of-day until the scheduler places it, so there's no
+    // intra-day slot to pin the way a fixed event's startTime/endTime would be.
+    var pinnedDay: DayOfWeek?
+
     // Candidate time windows (#79) — a fixed event can offer 2+ possible specific windows on
     // its day instead of one locked-in time, for the case where the choice genuinely doesn't
     // matter until the rest of the day's schedule is known (e.g. a club meeting either
@@ -95,7 +105,8 @@ final class Event {
         wasLogged: Bool = false,
         candidateStartTimes: [Date] = [],
         candidateEndTimes: [Date] = [],
-        candidateWindowManuallySet: Bool = false
+        candidateWindowManuallySet: Bool = false,
+        pinnedDay: DayOfWeek? = nil
     ) {
         self.id = id
         self.name = name
@@ -118,6 +129,7 @@ final class Event {
         self.candidateStartTimes = candidateStartTimes
         self.candidateEndTimes = candidateEndTimes
         self.candidateWindowManuallySet = candidateWindowManuallySet
+        self.pinnedDay = pinnedDay
         self.createdAt = Date()
         self.updatedAt = Date()
     }
