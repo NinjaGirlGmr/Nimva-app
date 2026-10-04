@@ -218,7 +218,18 @@ struct EditEventView: View {
 
                             Toggle(isOn: Binding(
                                 get: { event.specificDate == nil },
-                                set: { everyWeek in event.specificDate = everyWeek ? nil : (event.specificDate ?? Date()) }
+                                set: { everyWeek in
+                                    event.specificDate = everyWeek ? nil : (event.specificDate ?? Date())
+                                    // Each branch's fields below are only ever shown on one
+                                    // side of this toggle — clear the other side's state so
+                                    // flipping back and forth can't leave an invisible stale
+                                    // deadline/pin that still silently takes effect.
+                                    if everyWeek {
+                                        event.deadline = nil
+                                    } else {
+                                        event.pinnedDay = nil
+                                    }
+                                }
                             )) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(event.specificDate == nil ? "Every week" : "This week only")
@@ -275,6 +286,40 @@ struct EditEventView: View {
                                     }
                                     .foregroundStyle(NimvaColors.textPrimary)
                                 }
+                            } else if !event.isFixed {
+                                // Pin (#84) — mirrors AddEventView, gated the same way: only
+                                // offered for a recurring flexible event. Pinning a fixed
+                                // event wouldn't mean anything — its day is already fixed.
+                                Divider().padding(.vertical, 2)
+
+                                Toggle(isOn: Binding(
+                                    get: { event.pinnedDay != nil },
+                                    set: { pinned in
+                                        event.pinnedDay = pinned ? (event.pinnedDay ?? SchedulerService.todayAsDayOfWeek()) : nil
+                                    }
+                                )) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Pin to a specific day")
+                                            .font(NimvaFont.callout)
+                                            .foregroundStyle(NimvaColors.textPrimary)
+                                        Text("Always placed on this day, every week — instead of wherever fits best")
+                                            .font(NimvaFont.micro)
+                                            .foregroundStyle(NimvaColors.textMuted)
+                                    }
+                                }
+                                .tint(NimvaColors.teal)
+
+                                if let pinnedDay = event.pinnedDay {
+                                    Picker("Pinned day", selection: Binding(
+                                        get: { pinnedDay },
+                                        set: { event.pinnedDay = $0 }
+                                    )) {
+                                        ForEach(DayOfWeek.orderedForLocale, id: \.self) { day in
+                                            Text(day.displayName).tag(day)
+                                        }
+                                    }
+                                    .foregroundStyle(NimvaColors.textPrimary)
+                                }
                             }
                         } label: {
                             Label("Advanced", systemImage: "slider.horizontal.3")
@@ -317,6 +362,7 @@ struct EditEventView: View {
             // modifier for why (typing in the name field shouldn't retrigger a spring).
             .nimvaAnimation(NimvaAnimation.transition, value: event.isFixed)
             .nimvaAnimation(NimvaAnimation.transition, value: event.deadline != nil)
+            .nimvaAnimation(NimvaAnimation.transition, value: event.pinnedDay != nil)
             .nimvaAnimation(NimvaAnimation.transition, value: categorySuggestionHint)
             .scrollContentBackground(.hidden)
             .background(NimvaColors.background)
@@ -393,6 +439,10 @@ struct EditEventView: View {
                     event.candidateStartTimes = []
                     event.candidateEndTimes = []
                     event.candidateWindowManuallySet = false
+                    // Same reasoning as the candidate-window fields above: a pin (#84) only
+                    // ever means anything for a flexible event, so it's cleared on either
+                    // direction of a type switch rather than just the fixed-bound one.
+                    event.pinnedDay = nil
                     pendingTypeSwitch = nil
                 }
                 Button("Cancel", role: .cancel) { pendingTypeSwitch = nil }
@@ -404,7 +454,7 @@ struct EditEventView: View {
                 initialEnergyCost = event.energyCost
                 // Start expanded if either setting is already non-default, so an existing
                 // priority/recurring event's state isn't hidden behind a collapsed section.
-                showingAdvanced = event.isPriority || event.specificDate == nil || event.deadline != nil
+                showingAdvanced = event.isPriority || event.specificDate == nil || event.deadline != nil || event.pinnedDay != nil
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

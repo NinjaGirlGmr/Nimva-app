@@ -131,6 +131,80 @@ struct SchedulerDueDateTests {
     }
 }
 
+@Suite("Scheduler — Pinned Placement (#84)")
+struct SchedulerPinnedPlacementTests {
+
+    @Test func pinnedEventAlwaysLandsOnItsPinnedDayRegardlessOfLoad() {
+        // Monday and Tuesday are deliberately the heaviest days — a normal (unpinned) flexible
+        // event would never choose either over the empty Wednesday/Thursday/Friday. A pin must
+        // still win.
+        let fixed = [
+            FixedEvent(name: "A", day: .monday, energyCost: 1.8),
+            FixedEvent(name: "B", day: .tuesday, energyCost: 1.8),
+        ]
+        let flexible = [FlexibleEvent(name: "Routine", energyCost: 0.5, pinnedDay: .monday)]
+
+        let schedule = Scheduler.generateWeek(fixed: fixed, flexible: flexible, startingFrom: .monday)
+
+        let placed = try! #require(schedule.placedFlexibleEvents.first)
+        #expect(placed.day == .monday)
+        #expect(placed.reason.contains("pinned"))
+    }
+
+    @Test func pinnedEventsLoadCountsAgainstOtherFlexibleEventsPlacement() {
+        // A pinned event's energy cost must already be counted on its day before the normal
+        // bin-packing loop decides where the REST of the week's flexible events go — otherwise
+        // an unpinned event could be placed on top of a now-heavier pinned day under the
+        // mistaken belief it was still the lightest option.
+        let pinned = FlexibleEvent(name: "Pinned heavy", energyCost: 1.0, pinnedDay: .monday)
+        let unpinned = FlexibleEvent(name: "Pick the lightest", energyCost: 0.5)
+
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: [pinned, unpinned], startingFrom: .monday)
+
+        let unpinnedPlacement = try! #require(schedule.placedFlexibleEvents.first { $0.event.name == "Pick the lightest" })
+        // Every other day is still genuinely empty (0.0) — Monday now carries 1.0 from the
+        // pinned event, so the lightest-day pick must land anywhere BUT Monday.
+        #expect(unpinnedPlacement.day != .monday)
+    }
+
+    @Test func pinnedDayAlreadyPassedFallsBackToOrdinaryPlacementForThisBuild() {
+        // The pin is for Monday, but "today" is Thursday — Monday has already happened this
+        // week and can't be honored. Rather than overflow the event, it should still be placed
+        // somewhere in the remaining eligible days, same as an unpinned event would be.
+        let flexible = [FlexibleEvent(name: "Routine", energyCost: 0.5, pinnedDay: .monday)]
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: .thursday)
+
+        let placed = try! #require(schedule.placedFlexibleEvents.first)
+        #expect([.thursday, .friday, .saturday, .sunday].contains(placed.day))
+        #expect(schedule.overflowEvents.isEmpty)
+    }
+
+    @Test func noPinnedDayBehavesExactlyAsBefore() {
+        let flexible = [FlexibleEvent(name: "Plain", energyCost: 0.5)]
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: .monday)
+        #expect(schedule.placedFlexibleEvents.count == 1)
+        #expect(schedule.overflowEvents.isEmpty)
+    }
+
+    @Test func multiplePinnedEventsOnDifferentDaysBothLand() {
+        // Monday and Friday, not Sunday — DayOfWeek.orderedForLocale (which the production
+        // eligibleDays(from:) convenience reads live from Calendar.current) places Sunday on
+        // opposite ends of the week depending on device locale, so "startingFrom: .monday"
+        // would treat a Sunday pin as already-past in a US-locale test environment. Monday and
+        // Friday are unambiguously "today or later" in both orderings.
+        let flexible = [
+            FlexibleEvent(name: "Gym", energyCost: 0.4, pinnedDay: .monday),
+            FlexibleEvent(name: "Meal prep", energyCost: 0.3, pinnedDay: .friday),
+        ]
+        let schedule = Scheduler.generateWeek(fixed: [], flexible: flexible, startingFrom: .monday)
+
+        let gym = try! #require(schedule.placedFlexibleEvents.first { $0.event.name == "Gym" })
+        let mealPrep = try! #require(schedule.placedFlexibleEvents.first { $0.event.name == "Meal prep" })
+        #expect(gym.day == .monday)
+        #expect(mealPrep.day == .friday)
+    }
+}
+
 @Suite("Scheduler — Edge Cases")
 struct SchedulerEdgeCaseTests {
 

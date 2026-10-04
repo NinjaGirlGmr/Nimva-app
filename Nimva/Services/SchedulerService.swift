@@ -514,7 +514,8 @@ enum SchedulerService {
             preferredWindow: window,
             energyCost: event.energyCost,
             isPriority: event.isPriority,
-            deadlineDay: deadlineDay(for: event, weekStart: weekStart)
+            deadlineDay: deadlineDay(for: event, weekStart: weekStart),
+            pinnedDay: event.pinnedDay
         )
     }
 

@@ -20,15 +20,37 @@ enum Scheduler {
 
         // Flexible events may only land on today or later — never on a day that has passed.
         let eligibleDays = Self.eligibleDays(from: today)
+        let eligibleSet = Set(eligibleDays)
+
+        var placed: [PlacedEvent] = []
+
+        // Pinned placement (#84) — a hard day constraint, not a preference: processed before
+        // the normal priority+LPT bin-packing below so its load is already counted when the
+        // rest of the week's flexible events compete for the lightest remaining day, the same
+        // way fixed events are pre-counted above. A pin whose day has already passed this week
+        // can't be honored at all (the day is gone) — falls through to ordinary placement for
+        // this build only, rather than permanently losing the pin or silently overflowing an
+        // event the user still wants done.
+        let pinned = flexible.filter { event in
+            guard let day = event.pinnedDay else { return false }
+            return eligibleSet.contains(day)
+        }
+        let pinnedIds = Set(pinned.map(\.id))
+        for event in pinned {
+            let day = event.pinnedDay!
+            placed.append(PlacedEvent(event: event, day: day, reason: "\(day.displayName) — pinned to this day every week."))
+            dailyLoads[day, default: 0.0] += event.energyCost
+        }
 
         // Priority-first, then LPT within each group: must-do events claim the lightest
         // available days before nice-to-do events can fill them.
-        let sorted = flexible.sorted { lhs, rhs in
-            if lhs.isPriority != rhs.isPriority { return lhs.isPriority }
-            return lhs.energyCost > rhs.energyCost
-        }
+        let sorted = flexible
+            .filter { !pinnedIds.contains($0.id) }
+            .sorted { lhs, rhs in
+                if lhs.isPriority != rhs.isPriority { return lhs.isPriority }
+                return lhs.energyCost > rhs.energyCost
+            }
 
-        var placed: [PlacedEvent] = []
         var overflow: [FlexibleEvent] = []
 
         for event in sorted {
@@ -70,7 +92,6 @@ enum Scheduler {
         // Hard block: remove any placement that ended up outside eligibleDays.
         // Candidates are always drawn from eligibleDays so this should be a no-op in practice,
         // but it prevents any cached stale placement from surviving a fresh build.
-        let eligibleSet = Set(eligibleDays)
         placed = placed.filter { eligibleSet.contains($0.day) }
 
         // Balance score = variance of daily loads across all 7 days (lower = more balanced)

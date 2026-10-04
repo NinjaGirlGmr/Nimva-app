@@ -135,14 +135,20 @@ struct FlexibleEvent {
     // deadline only ever constrains the single week it was set for — see
     // SchedulerService.deadlineDay).
     let deadlineDay: DayOfWeek?
+    // Hard placement constraint (#84) — when set, this event always lands on this exact day,
+    // bypassing the normal priority+LPT bin-packing entirely. Distinct from deadlineDay (a
+    // one-time calendar bound that still lets the algorithm pick among several eligible days);
+    // a pin removes the choice altogether.
+    let pinnedDay: DayOfWeek?
 
-    init(id: UUID = UUID(), name: String, preferredWindow: TimePreference = .any, energyCost: Double, isPriority: Bool = false, deadlineDay: DayOfWeek? = nil) {
+    init(id: UUID = UUID(), name: String, preferredWindow: TimePreference = .any, energyCost: Double, isPriority: Bool = false, deadlineDay: DayOfWeek? = nil, pinnedDay: DayOfWeek? = nil) {
         self.id = id
         self.name = name
         self.preferredWindow = preferredWindow
         self.energyCost = min(max(energyCost, 0.0), 1.0)
         self.isPriority = isPriority
         self.deadlineDay = deadlineDay
+        self.pinnedDay = pinnedDay
     }
 }
 
