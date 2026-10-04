@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("checkInReminderEnabled") private var checkInReminderEnabled = true
     @AppStorage(NotificationPreferences.dailyNudgesKey) private var dailyNudgesEnabled = true
     @AppStorage(NotificationPreferences.newWeekReminderKey) private var newWeekReminderEnabled = true
+    @AppStorage(NotificationPreferences.capacityAlertsKey) private var capacityAlertsEnabled = true
     @AppStorage("soundsHapticsEnabled") private var soundsHapticsEnabled = true
     @AppStorage("globalPatternLearning") private var globalPatternLearning = true
     @AppStorage("energyAnchorLabel") private var energyAnchorLabel = ""
@@ -28,6 +29,7 @@ struct SettingsView: View {
     // modelContext lets us delete SwiftData records (used by Clear all data)
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
+    @Environment(ProService.self) private var proService
 
     @State private var showingNameEditor = false
     @State private var nameEditDraft = ""
@@ -317,6 +319,14 @@ struct SettingsView: View {
         SettingsSection(title: "Notifications") {
             ToggleRow(label: "Daily energy nudges", subtitle: "A heads-up before a heavy day, a nudge to rest on a light one", isOn: $dailyNudgesEnabled)
                 .onChange(of: dailyNudgesEnabled) { _, _ in rescheduleNotifications() }
+            // #15 — stays neutral, no "PRO" wording, per CLAUDE.md's "no PRO mentions outside
+            // Insights" rule: the row simply doesn't exist for a non-PRO user, rather than
+            // showing a locked/upsell state here.
+            if proService.isProEnabled {
+                SettingsDivider()
+                ToggleRow(label: "Personalized light-day alerts", subtitle: "Flags a day as lighter than your usual, once enough weeks are built", isOn: $capacityAlertsEnabled)
+                    .onChange(of: capacityAlertsEnabled) { _, _ in rescheduleNotifications() }
+            }
             SettingsDivider()
             ToggleRow(label: "Weekly check-in reminder", subtitle: "Sunday evenings", isOn: $checkInReminderEnabled)
                 .onChange(of: checkInReminderEnabled) { _, _ in rescheduleNotifications() }
@@ -332,7 +342,7 @@ struct SettingsView: View {
     // reschedules against whatever the current week's cache already is, or cancels everything
     // this week if that flips every toggle off.
     private func rescheduleNotifications() {
-        NotificationScheduler.rescheduleForCurrentWeek(context: modelContext)
+        NotificationScheduler.rescheduleForCurrentWeek(context: modelContext, isProEnabled: proService.isProEnabled)
     }
 
     // MARK: - Energy & Learning
@@ -567,7 +577,7 @@ struct SettingsView: View {
         do {
             let all = try modelContext.fetch(FetchDescriptor<Event>())
             try SchedulerService.regenerate(context: modelContext, events: all)
-            NotificationScheduler.rescheduleForCurrentWeek(context: modelContext)
+            NotificationScheduler.rescheduleForCurrentWeek(context: modelContext, isProEnabled: proService.isProEnabled)
         } catch {
             showingRecomputeError = true
         }
@@ -765,4 +775,5 @@ private struct EnergyPalette {
 #Preview {
     SettingsView()
         .modelContainer(for: [Event.self, WeekCache.self], inMemory: true)
+        .environment(ProService())
 }

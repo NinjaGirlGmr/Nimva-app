@@ -19,10 +19,12 @@ enum NotificationPreferences {
     static let dailyNudgesKey = "dailyEnergyNudgesEnabled"
     static let checkInReminderKey = "checkInReminderEnabled"
     static let newWeekReminderKey = "newWeekReminderEnabled"
+    static let capacityAlertsKey = "proactiveCapacityAlertsEnabled"
 
     static var dailyNudgesEnabled: Bool { UserDefaults.standard.defaultTrueBool(forKey: dailyNudgesKey) }
     static var checkInReminderEnabled: Bool { UserDefaults.standard.defaultTrueBool(forKey: checkInReminderKey) }
     static var newWeekReminderEnabled: Bool { UserDefaults.standard.defaultTrueBool(forKey: newWeekReminderKey) }
+    static var capacityAlertsEnabled: Bool { UserDefaults.standard.defaultTrueBool(forKey: capacityAlertsKey) }
 
     /// True when every toggle is off — used to skip even requesting notification permission
     /// for a user who's opted out of all of it.
@@ -89,7 +91,7 @@ final class NotificationScheduler: NSObject, UNUserNotificationCenterDelegate {
     /// without this, a rapid double-trigger (e.g. two quick "Redo" taps) could have an older
     /// call's cancel-then-add sequence interleave with a newer one's and wipe out whichever
     /// finished last.
-    func reschedule(for snapshot: NotificationService.Snapshot) async {
+    func reschedule(for snapshot: NotificationService.Snapshot, personalizedBaseline: NotificationService.HistoricalBaseline? = nil) async {
         guard !NotificationPreferences.allDisabled else {
             await cancelWeek(snapshot.weekStartDate)
             return
@@ -107,7 +109,8 @@ final class NotificationScheduler: NSObject, UNUserNotificationCenterDelegate {
             for: snapshot,
             dailyNudgesEnabled: NotificationPreferences.dailyNudgesEnabled,
             checkInReminderEnabled: NotificationPreferences.checkInReminderEnabled,
-            newWeekReminderEnabled: NotificationPreferences.newWeekReminderEnabled
+            newWeekReminderEnabled: NotificationPreferences.newWeekReminderEnabled,
+            personalizedBaseline: personalizedBaseline
         )
         for spec in specs {
             guard !Task.isCancelled else { return }
@@ -155,12 +158,26 @@ final class NotificationScheduler: NSObject, UNUserNotificationCenterDelegate {
     /// context that owns it can mutate or save concurrently on the main thread while this task
     /// is suspended. The Snapshot is a plain, Sendable copy taken up front specifically so
     /// nothing here ever touches the model object again once execution leaves this function.
-    static func rescheduleForCurrentWeek(context: ModelContext) {
+    static func rescheduleForCurrentWeek(context: ModelContext, isProEnabled: Bool = false) {
         guard let caches = try? context.fetch(FetchDescriptor<WeekCache>()),
               let cache = SchedulerService.currentWeekCache(from: caches)
         else { return }
         let snapshot = NotificationService.Snapshot(cache)
+
+        // #15 (PRO): built from up to 8 of this week's own past WeekCaches, same window
+        // Insights caps its trend chart at — only computed when it could actually be used,
+        // so a free/opted-out user never pays for fetching + averaging history it can't act on.
+        var baseline: NotificationService.HistoricalBaseline?
+        if isProEnabled, NotificationPreferences.capacityAlertsEnabled {
+            let pastWeeks = caches
+                .filter { $0.weekStartDate < cache.weekStartDate }
+                .sorted { $0.weekStartDate > $1.weekStartDate }
+                .prefix(8)
+                .map(\.dailyLoadValues)
+            baseline = NotificationService.HistoricalBaseline.build(from: Array(pastWeeks))
+        }
+
         shared.inFlightTask?.cancel()
-        shared.inFlightTask = Task { await shared.reschedule(for: snapshot) }
+        shared.inFlightTask = Task { await shared.reschedule(for: snapshot, personalizedBaseline: baseline) }
     }
 }

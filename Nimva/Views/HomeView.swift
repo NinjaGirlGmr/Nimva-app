@@ -4,6 +4,7 @@ import Combine
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(ProService.self) private var proService
 
     // @Query keeps events and the cache live — any mutation elsewhere auto-updates these
     @Query(sort: \Event.createdAt) private var events: [Event]
@@ -797,7 +798,7 @@ struct HomeView: View {
     func recomputeSchedule() {
         do {
             try SchedulerService.regenerate(context: modelContext, events: events)
-            NotificationScheduler.rescheduleForCurrentWeek(context: modelContext)
+            NotificationScheduler.rescheduleForCurrentWeek(context: modelContext, isProEnabled: proService.isProEnabled)
         } catch {
             showingScheduleError = true
         }
@@ -1082,4 +1083,5 @@ private struct FlexRecord: Decodable {
 #Preview {
     HomeView()
         .modelContainer(for: [Event.self, WeekCache.self], inMemory: true)
+        .environment(ProService())
 }
