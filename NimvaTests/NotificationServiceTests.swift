@@ -89,6 +89,82 @@ struct NotificationServiceTests {
         #expect(NotificationService.lightestDayNudge(for: snapshot, idPrefix: "test") == nil)
     }
 
+    // MARK: - HistoricalBaseline (#15, PRO)
+
+    @Test func baselineRequiresMinimumWeeksOfRealData() {
+        let oneWeek: [[Double]] = [[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]]
+        #expect(NotificationService.HistoricalBaseline.build(from: oneWeek, minimumWeeks: 3) == nil)
+    }
+
+    @Test func baselineIgnoresPreFieldCachesWithWrongLength() {
+        // A WeekCache built before dailyLoadValues existed is an empty array, not 7 zeros —
+        // must be filtered out, not averaged in as if the week were empty.
+        let weeks: [[Double]] = [
+            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+            [],
+            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+        ]
+        let baseline = try! #require(NotificationService.HistoricalBaseline.build(from: weeks, minimumWeeks: 3))
+        #expect(baseline.weeksConsidered == 3)
+    }
+
+    @Test func baselineAveragesEachDayIndependently() {
+        let weeks: [[Double]] = [
+            [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+        let baseline = try! #require(NotificationService.HistoricalBaseline.build(from: weeks, minimumWeeks: 3))
+        #expect(abs(baseline.averageLoadByDay[DayOfWeek.monday.rawValue]! - 2.0) < 0.0001)
+        #expect(baseline.averageLoadByDay[DayOfWeek.tuesday.rawValue] == 0.0)
+    }
+
+    @Test func isLighterThanUsualTrueWellBelowAverage() {
+        let baseline = NotificationService.HistoricalBaseline(averageLoadByDay: [DayOfWeek.wednesday.rawValue: 1.0], weeksConsidered: 3)
+        #expect(baseline.isLighterThanUsual(0.2, on: .wednesday))
+    }
+
+    @Test func isLighterThanUsualFalseNearOrAboveAverage() {
+        let baseline = NotificationService.HistoricalBaseline(averageLoadByDay: [DayOfWeek.wednesday.rawValue: 1.0], weeksConsidered: 3)
+        #expect(!baseline.isLighterThanUsual(0.9, on: .wednesday))
+        #expect(!baseline.isLighterThanUsual(1.2, on: .wednesday))
+    }
+
+    @Test func isLighterThanUsualFalseWithNoHistoryForThatDay() {
+        let baseline = NotificationService.HistoricalBaseline(averageLoadByDay: [:], weeksConsidered: 3)
+        #expect(!baseline.isLighterThanUsual(0.1, on: .wednesday))
+    }
+
+    // MARK: - lightestDayNudge personalization (#15)
+
+    @Test func nudgeUpgradesToPersonalizedCopyWhenLighterThanUsual() {
+        // Wednesday (index 2) is the lightest day this week AND well below its own historical
+        // average — the personalized claim is actually warranted here.
+        let snapshot = makeSnapshot(dailyLoadValues: [0.9, 0.5, 0.1, 0.8, 0.6, 0.3, 0.4])
+        let baseline = NotificationService.HistoricalBaseline(averageLoadByDay: [DayOfWeek.wednesday.rawValue: 1.0], weeksConsidered: 3)
+        let nudge = try! #require(NotificationService.lightestDayNudge(for: snapshot, idPrefix: "test", personalizedBaseline: baseline))
+        #expect(nudge.title == "Lighter day than usual")
+        #expect(nudge.body.contains("Wednesday"))
+        // Same identifier as the plain nudge would use — an upgrade, never a second notification.
+        #expect(nudge.identifier.hasSuffix("light.\(DayOfWeek.wednesday.rawValue)"))
+    }
+
+    @Test func nudgeStaysPlainWhenNotMeaningfullyLighterThanUsual() {
+        // Wednesday is still the week's lightest day, but it's always this light for this
+        // user — nothing unusual about it, so the plain rest-framed copy should stand.
+        let snapshot = makeSnapshot(dailyLoadValues: [0.9, 0.5, 0.1, 0.8, 0.6, 0.3, 0.4])
+        let baseline = NotificationService.HistoricalBaseline(averageLoadByDay: [DayOfWeek.wednesday.rawValue: 0.12], weeksConsidered: 3)
+        let nudge = try! #require(NotificationService.lightestDayNudge(for: snapshot, idPrefix: "test", personalizedBaseline: baseline))
+        #expect(nudge.title == "Lighter day today")
+    }
+
+    @Test func nudgeStaysPlainWhenNoBaselineProvided() {
+        let snapshot = makeSnapshot(dailyLoadValues: [0.9, 0.5, 0.1, 0.8, 0.6, 0.3, 0.4])
+        let nudge = try! #require(NotificationService.lightestDayNudge(for: snapshot, idPrefix: "test"))
+        #expect(nudge.title == "Lighter day today")
+    }
+
     // MARK: - weeklyCheckInReminder / newWeekReminder
 
     @Test func checkInReminderFiresSundayEvening() {

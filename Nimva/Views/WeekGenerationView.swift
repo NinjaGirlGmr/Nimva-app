@@ -719,7 +719,7 @@ struct WeekGenerationView: View {
         // rebuild of a future rolling-calendar week doesn't have "today" context to warn
         // about yet, so only reschedule when this build is for the current week.
         if weekOffset == 0 {
-            NotificationScheduler.rescheduleForCurrentWeek(context: modelContext)
+            NotificationScheduler.rescheduleForCurrentWeek(context: modelContext, isProEnabled: proService.isProEnabled)
         }
 
         withAnimation(reduceMotion ? .none : NimvaAnimation.stateChange) { genState = .building }
