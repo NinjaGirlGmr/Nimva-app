@@ -6,6 +6,7 @@ struct SettingsView: View {
     // @AppStorage persists each preference to UserDefaults automatically.
     // Changes are instant — no save button needed.
     @Query private var events: [Event]
+    @Query(sort: \WeekCache.weekStartDate) private var caches: [WeekCache]
 
     @AppStorage("displayName") private var displayName = "Your Name"
     @AppStorage("lastCalendarImportDate") private var lastCalendarImportDate: Double = 0
@@ -44,6 +45,10 @@ struct SettingsView: View {
     @State private var anchorEditDraft = ""
     @State private var showingResetPatternsConfirm = false
     @State private var showingClearDataConfirm = false
+    // #32 — populated right before presenting the share sheet; emptied again when it's
+    // dismissed, which also doubles as the sheet's own isPresented condition below.
+    @State private var exportURLs: [URL] = []
+    @State private var showingExportError = false
     @State private var showingRecomputeError = false
     @State private var showingOnboarding = false
     #if DEBUG
@@ -111,6 +116,17 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This permanently deletes all your events and schedule history. This cannot be undone.")
+        }
+        .alert("Couldn't export your data", isPresented: $showingExportError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Something went wrong preparing the export file. Please try again.")
+        }
+        .sheet(isPresented: Binding(
+            get: { !exportURLs.isEmpty },
+            set: { isPresented in if !isPresented { exportURLs = [] } }
+        )) {
+            ShareSheet(items: exportURLs)
         }
         .sheet(isPresented: $showingCalendarPicker) {
             CalendarPickerView(
@@ -507,7 +523,20 @@ struct SettingsView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             SettingsDivider()
+            // #32 — data portability, available to free and PRO users alike (not a PRO
+            // feature; a right, not a gate). Sits above the destructive "Clear all data" row
+            // rather than next to it, so the two aren't visually grouped as a matched pair.
+            ActionRow(label: "Export my data", style: .normal) { exportData() }
+            SettingsDivider()
             ActionRow(label: "Clear all data", style: .destructive) { showingClearDataConfirm = true }
+        }
+    }
+
+    private func exportData() {
+        do {
+            exportURLs = try DataExportService.writeExportFiles(events: events, caches: caches)
+        } catch {
+            showingExportError = true
         }
     }
 
