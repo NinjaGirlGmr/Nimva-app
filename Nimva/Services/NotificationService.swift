@@ -128,7 +128,9 @@ enum NotificationService {
             else { return nil }
             return Spec(
                 identifier: "\(idPrefix).heavy.\(rawValue)",
-                title: "Heads up for tomorrow",
+                // #85 — was "Heads up for tomorrow"; "heads up" doesn't parse literally for
+                // everyone, and the plain version says the same thing with no loss.
+                title: "Heavy day tomorrow",
                 body: "\(day.displayName) is expected to be a heavy day.",
                 fireDate: evening
             )
@@ -159,14 +161,20 @@ enum NotificationService {
             return Spec(
                 identifier: "\(idPrefix).light.\(day.rawValue)",
                 title: "Lighter day than usual",
-                body: "\(day.displayName) looks lighter than your usual — a good window to tackle something draining you've been putting off.",
+                // #85 — "tackle" read as sports/wrestling-derived figurative language; "work
+                // on" says the same thing plainly. "Window" stays — it's the app's own
+                // consistently-defined term for a bounded stretch of time (preferred window,
+                // recovery window, candidate windows), not a one-off idiom.
+                body: "\(day.displayName) looks lighter than your usual — a good window to work on something draining you've been putting off.",
                 fireDate: morning
             )
         }
         return Spec(
             identifier: "\(idPrefix).light.\(day.rawValue)",
             title: "Lighter day today",
-            body: "Today's a good day to take a little break — you've earned some rest.",
+            // #85 — was "...you've earned some rest," which frames rest as a reward you
+            // have to accumulate rather than something you can just take.
+            body: "Today's a good day to take a little break — you could use the rest.",
             fireDate: morning
         )
     }
@@ -191,7 +199,9 @@ enum NotificationService {
         else { return nil }
         return Spec(
             identifier: "\(idPrefix).newweek",
-            title: "New week, new start",
+            // #85 — was "New week, new start," a rhyming "new year, new me" echo rather than
+            // a plain statement of what this notification is actually about.
+            title: "New week",
             body: "Set up your new week when you're ready — tap Build my week in the Plan tab.",
             fireDate: morning
         )

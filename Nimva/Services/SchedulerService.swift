@@ -677,7 +677,9 @@ enum SchedulerService {
         "Try ending your last event of the day by 7pm — see if evenings feel different.",
         "Take a 5-minute break between every back-to-back event.",
         "Pick one evening this week with no agenda — nothing scheduled, nothing planned.",
-        "Start your lightest task first thing each morning, before anything else.",
+        // #85 — "first thing" was doing nothing the trailing "before anything else" doesn't
+        // already say plainly, so it's just gone rather than reworded.
+        "Start your lightest task each morning, before anything else.",
         "Keep the first 30 minutes of your morning screen-free.",
         "Try eating lunch somewhere other than your desk or phone.",
         "Set a consistent time to stop working — and actually stop at that time.",
