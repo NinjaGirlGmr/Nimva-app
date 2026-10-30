@@ -1,6 +1,8 @@
 # Nimva — Energy-Aware iOS Scheduling App
 
 > *A scheduling application designed around energy, not just time.*
+>
+> Developer note: as this projects stands, BETA testing is going well, but more time and experimentation is needed before developing more code.
 
 ---
 
