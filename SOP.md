@@ -48,7 +48,7 @@ add squash-stretch transition to mood label (#14)
 ### What to never commit
 - `.env` files or any file containing keys/secrets
 - Xcode-generated `.DS_Store` files (already in `.gitignore`)
-- `dev-notes/` directory (already excluded per CLAUDE.md)
+- `dev-notes/` directory
 - Half-finished features without a matching issue
 
 ---
