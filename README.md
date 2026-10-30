@@ -84,8 +84,8 @@ Responses were stored anonymously — no names, no emails, no identifying inform
 | Native iOS build | ✅ Complete — Home, Plan, Insights, Settings, onboarding |
 | PRO tier (Insights, StoreKit 2 subscription) | ✅ Complete |
 | CloudKit private-database sync | ✅ Complete |
-| Pre-launch hardening (accessibility, App Store prep) | 🔄 Active |
-| TestFlight beta | ⏳ Next |
+| Pre-launch hardening (accessibility, App Store prep) | ✅ Complete |
+| TestFlight beta | 🔄 Active |
 | Public App Store launch | ⏳ Planned |
 
 ---
