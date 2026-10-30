@@ -2,6 +2,10 @@
 
 This is currently a solo project, so "contributing" mostly means *future me knowing what past me was thinking*. A few habits worth keeping consistent:
 
+## Development notes
+
+All of Nimva's code, design, documentation, and art are my own work. I used Claude only as a commit helper: it made my git commits and, before each one, asked me whether I had double-checked the change. It did not write any code, documentation, or comments. Claude may show up in GitHub's contributor list because of that commit tool, but every commit in this repository is mine.
+
 ## The Stray Spark Log 🔥
 
 Every time something breaks, surprises you, or you make a decision worth remembering — log it. See [`STRAY_SPARK_LOG.md`](STRAY_SPARK_LOG.md) for the format.
